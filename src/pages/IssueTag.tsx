@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { nfcManager } from "@/utils/nfc";
 import { 
   NfcIcon as Nfc, 
   Scan, 
@@ -26,15 +27,24 @@ export default function IssueTag() {
     setIsScanning(true);
     
     try {
-      // Simulate NFC scan - in real app, this would use WebNFC API
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      const mockTagId = `NFC${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
-      setScannedTag(mockTagId);
+      // Use real NFC scanning if supported, otherwise simulate
+      const result = nfcManager.isNFCSupported() 
+        ? await nfcManager.startScanning()
+        : await nfcManager.simulateNFCScan();
       
-      toast({
-        title: "NFC Tag Scanned",
-        description: `Successfully scanned tag: ${mockTagId}`,
-      });
+      if (result.success) {
+        setScannedTag(result.tagId);
+        toast({
+          title: "NFC Tag Scanned",
+          description: `Successfully scanned tag: ${result.tagId}`,
+        });
+      } else {
+        toast({
+          title: "Scanning Failed",
+          description: result.error || "Could not scan NFC tag. Please try again.",
+          variant: "destructive",
+        });
+      }
     } catch (error) {
       toast({
         title: "Scanning Failed",
@@ -192,12 +202,13 @@ export default function IssueTag() {
           <div className="flex items-start space-x-3">
             <AlertCircle className="w-5 h-5 text-primary mt-0.5" />
             <div className="text-sm text-muted-foreground">
-              <p className="font-medium text-foreground mb-2">NFC Tag Requirements:</p>
+              <p className="font-medium text-foreground mb-2">Real Phone NFC Support:</p>
               <ul className="space-y-1">
-                <li>• Use NTAG213/215/216 compatible tags</li>
-                <li>• Each tag can only be linked to one wallet</li>
-                <li>• Keep the attendee's phone number for balance inquiries</li>
-                <li>• Tags cannot be transferred between attendees</li>
+                <li>• Works with Chrome browser on Android devices</li>
+                <li>• Automatically detects and uses WebNFC API when available</li>
+                <li>• Falls back to simulation mode on unsupported devices</li>
+                <li>• Supports NTAG213/215/216 compatible NFC tags</li>
+                <li>• Requires NFC to be enabled in device settings</li>
               </ul>
             </div>
           </div>

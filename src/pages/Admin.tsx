@@ -16,7 +16,7 @@ import {
 const adminStats = [
   {
     title: "Total Revenue",
-    value: "$8,450",
+    value: "₹2,15,000",
     change: "+18% vs yesterday",
     icon: DollarSign,
     color: "text-success"
@@ -52,17 +52,17 @@ const staffMembers = [
 ];
 
 const menuItems = [
-  { name: "Coffee", price: 4.50, category: "Beverages", sold: 89, revenue: 400.50 },
-  { name: "Pizza Slice", price: 6.50, category: "Food", sold: 67, revenue: 435.50 },
-  { name: "Event T-Shirt", price: 25.00, category: "Merchandise", sold: 23, revenue: 575.00 },
-  { name: "Soda", price: 3.00, category: "Beverages", sold: 134, revenue: 402.00 },
+  { name: "Masala Chai", price: 25, category: "Food", sold: 189, revenue: 4725 },
+  { name: "Beer Pong", price: 150, category: "Games", sold: 67, revenue: 10050 },
+  { name: "Event T-Shirt", price: 500, category: "Merchandise", sold: 23, revenue: 11500 },
+  { name: "Biryani", price: 200, category: "Food", sold: 84, revenue: 16800 },
 ];
 
 const booths = [
-  { name: "Main Food Court", location: "Central Plaza", revenue: 2450.00, transactions: 89 },
-  { name: "Beverage Stand", location: "Stage Area", revenue: 1340.00, transactions: 156 },
-  { name: "Merchandise Booth", location: "Entrance", revenue: 1150.00, transactions: 34 },
-  { name: "Snack Bar", location: "Gaming Zone", revenue: 890.00, transactions: 67 },
+  { name: "Main Food Court", location: "Central Plaza", revenue: 45000, transactions: 189 },
+  { name: "Games Arena", location: "Stage Area", revenue: 35000, transactions: 156 },
+  { name: "Merchandise Booth", location: "Entrance", revenue: 28000, transactions: 34 },
+  { name: "Liquor Counter", location: "VIP Zone", revenue: 22000, transactions: 67 },
 ];
 
 export default function Admin() {
@@ -159,11 +159,11 @@ export default function Admin() {
                   <div>
                     <div className="font-medium text-foreground">{item.name}</div>
                     <div className="text-sm text-muted-foreground">
-                      {item.category} • ${item.price.toFixed(2)}
+                      {item.category} • ₹{item.price.toFixed(2)}
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="font-bold text-success">${item.revenue.toFixed(2)}</div>
+                    <div className="font-bold text-success">₹{item.revenue.toFixed(2)}</div>
                     <div className="text-xs text-muted-foreground">{item.sold} sold</div>
                   </div>
                 </div>
@@ -203,7 +203,7 @@ export default function Admin() {
                 </div>
                 <div className="text-right">
                   <div className="text-lg font-bold text-primary">
-                    ${booth.revenue.toFixed(2)}
+                    ₹{booth.revenue.toFixed(2)}
                   </div>
                   <div className="text-xs text-muted-foreground">Today's revenue</div>
                 </div>

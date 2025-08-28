@@ -15,11 +15,11 @@ import {
 } from "lucide-react";
 
 const sampleTransactions = [
-  { id: "TXN101", type: "Sale", amount: -12.50, description: "Pizza Slice + Soda", timestamp: "2024-01-15 14:30" },
-  { id: "TXN100", type: "Top-up", amount: +25.00, description: "Manual Load", timestamp: "2024-01-15 12:15" },
-  { id: "TXN099", type: "Sale", amount: -4.50, description: "Coffee", timestamp: "2024-01-15 09:45" },
-  { id: "TXN098", type: "Top-up", amount: +50.00, description: "Manual Load", timestamp: "2024-01-14 16:20" },
-  { id: "TXN097", type: "Sale", amount: -25.00, description: "Event T-Shirt", timestamp: "2024-01-14 15:10" },
+  { id: "TXN101", type: "Sale", amount: -150, description: "Beer Pong + Biryani", timestamp: "2024-01-15 14:30" },
+  { id: "TXN100", type: "Top-up", amount: +500, description: "Manual Load", timestamp: "2024-01-15 12:15" },
+  { id: "TXN099", type: "Sale", amount: -25, description: "Masala Chai", timestamp: "2024-01-15 09:45" },
+  { id: "TXN098", type: "Top-up", amount: +1000, description: "Manual Load", timestamp: "2024-01-14 16:20" },
+  { id: "TXN097", type: "Sale", amount: -500, description: "Event T-Shirt", timestamp: "2024-01-14 15:10" },
 ];
 
 export default function Balance() {
@@ -34,13 +34,13 @@ export default function Balance() {
       await new Promise(resolve => setTimeout(resolve, 1500));
       const mockWallet = {
         tagId: `NFC${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
-        attendeeName: "Alex Rodriguez",
-        attendeePhone: "+1234567890",
-        currentBalance: 31.75,
+        attendeeName: "Vikram Gupta",
+        attendeePhone: "+91 99123 45678",
+        currentBalance: 750,
         status: "active",
         issuedDate: "2024-01-14",
-        totalSpent: 73.50,
-        totalTopUp: 105.25,
+        totalSpent: 1850,
+        totalTopUp: 2600,
         transactions: sampleTransactions
       };
       setWalletData(mockWallet);
@@ -146,7 +146,7 @@ export default function Balance() {
                     <div>
                       <div className="text-sm text-muted-foreground mb-1">Current Balance</div>
                       <div className="text-4xl font-bold text-primary">
-                        ${walletData.currentBalance.toFixed(2)}
+                        ₹{walletData.currentBalance.toFixed(2)}
                       </div>
                     </div>
                   </div>
@@ -166,7 +166,7 @@ export default function Balance() {
                   <div>
                     <div className="text-sm text-muted-foreground">Total Loaded</div>
                     <div className="text-xl font-bold text-foreground">
-                      ${walletData.totalTopUp.toFixed(2)}
+                      ₹{walletData.totalTopUp.toFixed(2)}
                     </div>
                   </div>
                 </div>
@@ -182,7 +182,7 @@ export default function Balance() {
                   <div>
                     <div className="text-sm text-muted-foreground">Total Spent</div>
                     <div className="text-xl font-bold text-foreground">
-                      ${walletData.totalSpent.toFixed(2)}
+                      ₹{walletData.totalSpent.toFixed(2)}
                     </div>
                   </div>
                 </div>
@@ -240,7 +240,7 @@ export default function Balance() {
                       <div className={`font-bold ${
                         transaction.amount > 0 ? "text-success" : "text-destructive"
                       }`}>
-                        {transaction.amount > 0 ? "+" : ""}${Math.abs(transaction.amount).toFixed(2)}
+                        {transaction.amount > 0 ? "+" : ""}₹{Math.abs(transaction.amount).toFixed(2)}
                       </div>
                       <Badge 
                         variant={transaction.type === "Sale" ? "destructive" : "default"}

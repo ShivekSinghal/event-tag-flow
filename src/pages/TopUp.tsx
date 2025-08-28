@@ -15,7 +15,7 @@ import {
   CreditCard
 } from "lucide-react";
 
-const quickAmounts = [10, 25, 50, 100];
+const quickAmounts = [100, 250, 500, 1000];
 
 export default function TopUp() {
   const { toast } = useToast();
@@ -32,9 +32,9 @@ export default function TopUp() {
       await new Promise(resolve => setTimeout(resolve, 2000));
       const mockWallet = {
         tagId: `NFC${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
-        attendeeName: "John Doe",
-        attendeePhone: "+1234567890",
-        currentBalance: 23.50,
+        attendeeName: "Priya Patel",
+        attendeePhone: "+91 99887 76543",
+        currentBalance: 450,
         status: "active"
       };
       setScannedWallet(mockWallet);
@@ -79,7 +79,7 @@ export default function TopUp() {
       
       toast({
         title: "Top-Up Successful",
-        description: `Added $${amount.toFixed(2)} to wallet. New balance: $${newBalance.toFixed(2)}`,
+        description: `Added ₹${amount.toFixed(2)} to wallet. New balance: ₹${newBalance.toFixed(2)}`,
       });
 
       // Update local state
@@ -159,7 +159,7 @@ export default function TopUp() {
                 <div className="flex items-center space-x-2">
                   <Wallet className="w-4 h-4 text-success" />
                   <span className="text-lg font-bold text-success">
-                    ${scannedWallet.currentBalance.toFixed(2)}
+                    ₹{scannedWallet.currentBalance.toFixed(2)}
                   </span>
                 </div>
               </div>
@@ -191,7 +191,7 @@ export default function TopUp() {
                     onClick={() => handleQuickAmount(amount)}
                     className="hover:bg-primary hover:text-primary-foreground transition-smooth"
                   >
-                    ${amount}
+                    ₹{amount}
                   </Button>
                 ))}
               </div>
@@ -230,7 +230,7 @@ export default function TopUp() {
               ) : (
                 <div className="flex items-center space-x-2">
                   <Plus className="w-5 h-5" />
-                  <span>Add ${topUpAmount ? parseFloat(topUpAmount).toFixed(2) : "0.00"}</span>
+                  <span>Add ₹{topUpAmount ? parseFloat(topUpAmount).toFixed(2) : "0.00"}</span>
                 </div>
               )}
             </Button>

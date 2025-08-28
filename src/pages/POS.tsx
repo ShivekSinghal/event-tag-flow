@@ -14,12 +14,18 @@ import {
 } from "lucide-react";
 
 const menuItems = [
-  { id: 1, name: "Coffee", price: 4.50, category: "Beverages" },
-  { id: 2, name: "Sandwich", price: 8.75, category: "Food" },
-  { id: 3, name: "Event T-Shirt", price: 25.00, category: "Merchandise" },
-  { id: 4, name: "Soda", price: 3.00, category: "Beverages" },
-  { id: 5, name: "Pizza Slice", price: 6.50, category: "Food" },
-  { id: 6, name: "Sticker Pack", price: 5.00, category: "Merchandise" },
+  { id: 1, name: "Limbo Game", price: 50, category: "Games" },
+  { id: 2, name: "Russian Roulette", price: 100, category: "Games" },
+  { id: 3, name: "Cricket Game", price: 75, category: "Games" },
+  { id: 4, name: "Beer Pong", price: 150, category: "Games" },
+  { id: 5, name: "Biryani", price: 200, category: "Food" },
+  { id: 6, name: "Samosa", price: 30, category: "Food" },
+  { id: 7, name: "Masala Chai", price: 25, category: "Food" },
+  { id: 8, name: "Dosa", price: 80, category: "Food" },
+  { id: 9, name: "Beer", price: 250, category: "Liquor" },
+  { id: 10, name: "Whiskey Shot", price: 150, category: "Liquor" },
+  { id: 11, name: "Vodka Shot", price: 120, category: "Liquor" },
+  { id: 12, name: "Event T-Shirt", price: 500, category: "Merchandise" },
 ];
 
 export default function POS() {
@@ -36,9 +42,9 @@ export default function POS() {
       await new Promise(resolve => setTimeout(resolve, 1500));
       const mockWallet = {
         tagId: `NFC${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
-        attendeeName: "Sarah Wilson",
-        attendeePhone: "+1234567890",
-        currentBalance: 47.25,
+        attendeeName: "Arjun Sharma",
+        attendeePhone: "+91 98765 43210",
+        currentBalance: 1250,
         status: "active"
       };
       setScannedWallet(mockWallet);
@@ -93,7 +99,7 @@ export default function POS() {
     if (totalAmount > scannedWallet.currentBalance) {
       toast({
         title: "Insufficient Balance",
-        description: `Balance: $${scannedWallet.currentBalance.toFixed(2)} | Required: $${totalAmount.toFixed(2)}`,
+        description: `Balance: ₹${scannedWallet.currentBalance.toFixed(2)} | Required: ₹${totalAmount.toFixed(2)}`,
         variant: "destructive",
       });
       return;
@@ -108,7 +114,7 @@ export default function POS() {
       
       toast({
         title: "Sale Completed",
-        description: `$${totalAmount.toFixed(2)} charged. New balance: $${newBalance.toFixed(2)}`,
+        description: `₹${totalAmount.toFixed(2)} charged. New balance: ₹${newBalance.toFixed(2)}`,
       });
 
       // Reset state
@@ -161,7 +167,7 @@ export default function POS() {
                           <div className="text-sm text-muted-foreground">{category}</div>
                         </div>
                         <div className="text-lg font-bold text-primary">
-                          ${item.price.toFixed(2)}
+                          ₹{item.price.toFixed(2)}
                         </div>
                       </div>
                     ))}
@@ -213,7 +219,7 @@ export default function POS() {
                   <div className="flex items-center justify-between pt-3 border-t border-success/20">
                     <span className="text-sm font-medium text-muted-foreground">Balance</span>
                     <span className="text-lg font-bold text-success">
-                      ${scannedWallet.currentBalance.toFixed(2)}
+                      ₹{scannedWallet.currentBalance.toFixed(2)}
                     </span>
                   </div>
                 </div>
@@ -243,7 +249,7 @@ export default function POS() {
                         <div className="flex-1">
                           <div className="font-medium text-foreground">{item.name}</div>
                           <div className="text-sm text-muted-foreground">
-                            ${item.price.toFixed(2)} each
+                            ₹{item.price.toFixed(2)} each
                           </div>
                         </div>
                         <div className="flex items-center space-x-2">
@@ -256,7 +262,7 @@ export default function POS() {
                           </Button>
                           <Badge variant="secondary">{item.quantity}</Badge>
                           <div className="font-bold text-foreground min-w-[60px] text-right">
-                            ${(item.price * item.quantity).toFixed(2)}
+                            ₹{(item.price * item.quantity).toFixed(2)}
                           </div>
                         </div>
                       </div>
@@ -266,7 +272,7 @@ export default function POS() {
                   <div className="border-t pt-4">
                     <div className="flex items-center justify-between text-lg font-bold">
                       <span className="text-foreground">Total</span>
-                      <span className="text-primary">${totalAmount.toFixed(2)}</span>
+                      <span className="text-primary">₹{totalAmount.toFixed(2)}</span>
                     </div>
                   </div>
 
@@ -283,7 +289,7 @@ export default function POS() {
                     ) : (
                       <div className="flex items-center space-x-2">
                         <DollarSign className="w-4 h-4" />
-                        <span>Charge ${totalAmount.toFixed(2)}</span>
+                        <span>Charge ₹{totalAmount.toFixed(2)}</span>
                       </div>
                     )}
                   </Button>
