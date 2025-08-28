@@ -16,53 +16,48 @@ import {
 const adminStats = [
   {
     title: "Total Revenue",
-    value: "₹2,15,000",
-    change: "+18% vs yesterday",
+    value: "₹0",
+    change: "No sales yet",
     icon: DollarSign,
     color: "text-success"
   },
   {
     title: "Active Wallets",
-    value: "324",
-    change: "12 new today",
+    value: "0",
+    change: "Start issuing tags",
     icon: Users,
     color: "text-primary"
   },
   {
     title: "Items Sold",
-    value: "1,247",
-    change: "156 today",
+    value: "0",
+    change: "Ready to begin",
     icon: Package,
     color: "text-accent"
   },
   {
     title: "Low Balance",
-    value: "23",
-    change: "Needs attention",
+    value: "0",
+    change: "All good",
     icon: AlertTriangle,
     color: "text-warning"
   }
 ];
 
-const staffMembers = [
-  { name: "John Smith", role: "Admin", status: "Online", lastSeen: "Active now" },
-  { name: "Sarah Johnson", role: "Operator", status: "Online", lastSeen: "2 min ago" },
-  { name: "Mike Wilson", role: "Operator", status: "Offline", lastSeen: "1 hour ago" },
-  { name: "Lisa Brown", role: "Viewer", status: "Online", lastSeen: "5 min ago" },
-];
+const staffMembers: any[] = [];
 
 const menuItems = [
-  { name: "Masala Chai", price: 25, category: "Food", sold: 189, revenue: 4725 },
-  { name: "Beer Pong", price: 150, category: "Games", sold: 67, revenue: 10050 },
-  { name: "Event T-Shirt", price: 500, category: "Merchandise", sold: 23, revenue: 11500 },
-  { name: "Biryani", price: 200, category: "Food", sold: 84, revenue: 16800 },
+  { name: "Masala Chai", price: 25, category: "Food", sold: 0, revenue: 0 },
+  { name: "Beer Pong", price: 150, category: "Games", sold: 0, revenue: 0 },
+  { name: "Event T-Shirt", price: 500, category: "Merchandise", sold: 0, revenue: 0 },
+  { name: "Biryani", price: 200, category: "Food", sold: 0, revenue: 0 },
 ];
 
 const booths = [
-  { name: "Main Food Court", location: "Central Plaza", revenue: 45000, transactions: 189 },
-  { name: "Games Arena", location: "Stage Area", revenue: 35000, transactions: 156 },
-  { name: "Merchandise Booth", location: "Entrance", revenue: 28000, transactions: 34 },
-  { name: "Liquor Counter", location: "VIP Zone", revenue: 22000, transactions: 67 },
+  { name: "Main Food Court", location: "Central Plaza", revenue: 0, transactions: 0 },
+  { name: "Games Arena", location: "Stage Area", revenue: 0, transactions: 0 },
+  { name: "Merchandise Booth", location: "Entrance", revenue: 0, transactions: 0 },
+  { name: "Liquor Counter", location: "VIP Zone", revenue: 0, transactions: 0 },
 ];
 
 export default function Admin() {
@@ -115,27 +110,35 @@ export default function Admin() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {staffMembers.map((member, index) => (
-                <div key={index} className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
-                  <div className="flex items-center space-x-3">
-                    <div className={`w-3 h-3 rounded-full ${
-                      member.status === "Online" ? "bg-success" : "bg-muted-foreground"
-                    }`} />
-                    <div>
-                      <div className="font-medium text-foreground">{member.name}</div>
-                      <div className="text-sm text-muted-foreground">{member.lastSeen}</div>
+              {staffMembers.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Users className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                  <p>No staff members added</p>
+                  <p className="text-sm">Add staff to manage the system</p>
+                </div>
+              ) : (
+                staffMembers.map((member, index) => (
+                  <div key={index} className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
+                    <div className="flex items-center space-x-3">
+                      <div className={`w-3 h-3 rounded-full ${
+                        member.status === "Online" ? "bg-success" : "bg-muted-foreground"
+                      }`} />
+                      <div>
+                        <div className="font-medium text-foreground">{member.name}</div>
+                        <div className="text-sm text-muted-foreground">{member.lastSeen}</div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <Badge 
+                        variant={member.role === "Admin" ? "default" : "secondary"}
+                        className="text-xs"
+                      >
+                        {member.role}
+                      </Badge>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <Badge 
-                      variant={member.role === "Admin" ? "default" : "secondary"}
-                      className="text-xs"
-                    >
-                      {member.role}
-                    </Badge>
-                  </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </CardContent>
         </Card>

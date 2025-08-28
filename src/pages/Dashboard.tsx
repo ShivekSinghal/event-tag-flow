@@ -12,46 +12,37 @@ import {
 const stats = [
   {
     title: "Total Wallets",
-    value: "324",
-    change: "+12 today",
+    value: "0",
+    change: "Start issuing tags",
     icon: Users,
     color: "text-primary"
   },
   {
     title: "Total Balance",
-    value: "₹4,52,000",
-    change: "+₹68,500 today",
+    value: "₹0",
+    change: "No funds loaded",
     icon: Wallet,
     color: "text-success"
   },
   {
     title: "Today's Sales",
-    value: "₹1,25,600",
-    change: "156 transactions",
+    value: "₹0",
+    change: "No transactions yet",
     icon: TrendingUp,
     color: "text-accent"
   },
   {
     title: "Active Tags",
-    value: "298",
-    change: "26 pending",
+    value: "0",
+    change: "Ready to begin",
     icon: CreditCard,
     color: "text-warning"
   }
 ];
 
-const recentTransactions = [
-  { id: "TXN001", type: "Sale", amount: -75, balance: 1825, item: "Beer Pong + Masala Chai", time: "2 min ago" },
-  { id: "TXN002", type: "Top-up", amount: +1000, balance: 1900, item: "Manual Load", time: "5 min ago" },
-  { id: "TXN003", type: "Sale", amount: -150, balance: 900, item: "Russian Roulette", time: "12 min ago" },
-  { id: "TXN004", type: "Sale", amount: -200, balance: 1050, item: "Biryani", time: "18 min ago" },
-];
+const recentTransactions: any[] = [];
 
-const lowBalanceAlerts = [
-  { name: "Rahul Kumar", tag: "NFC001", balance: 75, phone: "+91 98765 43210" },
-  { name: "Sneha Singh", tag: "NFC045", balance: 50, phone: "+91 87654 32109" },
-  { name: "Amit Verma", tag: "NFC089", balance: 125, phone: "+91 76543 21098" },
-];
+const lowBalanceAlerts: any[] = [];
 
 export default function Dashboard() {
   return (
@@ -94,33 +85,41 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {recentTransactions.map((transaction) => (
-                <div key={transaction.id} className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-2">
-                      <Badge 
-                        variant={transaction.type === "Sale" ? "destructive" : "default"}
-                        className="text-xs"
-                      >
-                        {transaction.type}
-                      </Badge>
-                      <span className="text-sm font-medium">{transaction.item}</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1">{transaction.time}</p>
-                  </div>
-                  <div className="text-right">
-                    <div className={cn(
-                      "font-medium",
-                      transaction.amount > 0 ? "text-success" : "text-destructive"
-                    )}>
-                      {transaction.amount > 0 ? "+" : ""}₹{Math.abs(transaction.amount).toFixed(2)}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      Balance: ₹{transaction.balance.toFixed(2)}
-                    </div>
-                  </div>
+              {recentTransactions.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <TrendingUp className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                  <p>No transactions yet</p>
+                  <p className="text-sm">Transactions will appear here once sales begin</p>
                 </div>
-              ))}
+              ) : (
+                recentTransactions.map((transaction) => (
+                  <div key={transaction.id} className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-2">
+                        <Badge 
+                          variant={transaction.type === "Sale" ? "destructive" : "default"}
+                          className="text-xs"
+                        >
+                          {transaction.type}
+                        </Badge>
+                        <span className="text-sm font-medium">{transaction.item}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">{transaction.time}</p>
+                    </div>
+                    <div className="text-right">
+                      <div className={cn(
+                        "font-medium",
+                        transaction.amount > 0 ? "text-success" : "text-destructive"
+                      )}>
+                        {transaction.amount > 0 ? "+" : ""}₹{Math.abs(transaction.amount).toFixed(2)}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Balance: ₹{transaction.balance.toFixed(2)}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </CardContent>
         </Card>
@@ -135,20 +134,28 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {lowBalanceAlerts.map((alert) => (
-                <div key={alert.tag} className="flex items-center justify-between p-3 border border-warning/20 bg-warning/5 rounded-lg">
-                  <div>
-                    <div className="font-medium text-foreground">{alert.name}</div>
-                    <div className="text-sm text-muted-foreground">{alert.tag} • {alert.phone}</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="font-medium text-warning">₹{alert.balance.toFixed(2)}</div>
-                    <Badge variant="outline" className="text-xs border-warning text-warning">
-                      Low Balance
-                    </Badge>
-                  </div>
+              {lowBalanceAlerts.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <AlertTriangle className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                  <p>No low balance alerts</p>
+                  <p className="text-sm">Alerts will appear when wallets need top-up</p>
                 </div>
-              ))}
+              ) : (
+                lowBalanceAlerts.map((alert) => (
+                  <div key={alert.tag} className="flex items-center justify-between p-3 border border-warning/20 bg-warning/5 rounded-lg">
+                    <div>
+                      <div className="font-medium text-foreground">{alert.name}</div>
+                      <div className="text-sm text-muted-foreground">{alert.tag} • {alert.phone}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-medium text-warning">₹{alert.balance.toFixed(2)}</div>
+                      <Badge variant="outline" className="text-xs border-warning text-warning">
+                        Low Balance
+                      </Badge>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </CardContent>
         </Card>

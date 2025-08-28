@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { nfcManager } from "@/utils/nfc";
 import { 
   CreditCard, 
   Scan, 
@@ -14,13 +15,7 @@ import {
   User
 } from "lucide-react";
 
-const sampleTransactions = [
-  { id: "TXN101", type: "Sale", amount: -150, description: "Beer Pong + Biryani", timestamp: "2024-01-15 14:30" },
-  { id: "TXN100", type: "Top-up", amount: +500, description: "Manual Load", timestamp: "2024-01-15 12:15" },
-  { id: "TXN099", type: "Sale", amount: -25, description: "Masala Chai", timestamp: "2024-01-15 09:45" },
-  { id: "TXN098", type: "Top-up", amount: +1000, description: "Manual Load", timestamp: "2024-01-14 16:20" },
-  { id: "TXN097", type: "Sale", amount: -500, description: "Event T-Shirt", timestamp: "2024-01-14 15:10" },
-];
+const sampleTransactions: any[] = [];
 
 export default function Balance() {
   const { toast } = useToast();
@@ -31,28 +26,29 @@ export default function Balance() {
     setIsScanning(true);
     
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      const mockWallet = {
-        tagId: `NFC${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
-        attendeeName: "Vikram Gupta",
-        attendeePhone: "+91 99123 45678",
-        currentBalance: 750,
-        status: "active",
-        issuedDate: "2024-01-14",
-        totalSpent: 1850,
-        totalTopUp: 2600,
-        transactions: sampleTransactions
-      };
-      setWalletData(mockWallet);
+      const result = nfcManager.isNFCSupported() 
+        ? await nfcManager.startScanning()
+        : await nfcManager.simulateNFCScan();
       
-      toast({
-        title: "Wallet Information Loaded",
-        description: `Showing balance for ${mockWallet.attendeeName}`,
-      });
+      if (result.success) {
+        // In production, this would query your database for the wallet
+        // For now, show "no wallet found" since we removed test data
+        toast({
+          title: "No Wallet Found",
+          description: `NFC tag ${result.tagId} scanned but no wallet is linked to this tag. Please issue this tag first.`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Scanning Failed",
+          description: result.error || "Could not scan NFC tag. Please try again.",
+          variant: "destructive",
+        });
+      }
     } catch (error) {
       toast({
-        title: "Wallet Not Found",
-        description: "Could not find wallet associated with this NFC tag.",
+        title: "Scanning Failed",
+        description: "Could not scan NFC tag. Please try again.",
         variant: "destructive",
       });
     } finally {
