@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { nfcManager } from "@/utils/nfc";
+import { supabase } from "@/integrations/supabase/client";
 import { 
   Wallet, 
   Scan, 
@@ -34,12 +35,38 @@ export default function TopUp() {
         : await nfcManager.simulateNFCScan();
       
       if (result.success) {
-        // In production, this would query your database for the wallet
-        // For now, show "no wallet found" since we removed test data
+        // Fetch wallet data from Supabase based on tag ID
+        const { data: wallet, error } = await supabase
+          .from('wallets')
+          .select('*')
+          .eq('tag_id', result.tagId)
+          .single();
+
+        if (error || !wallet) {
+          toast({
+            title: "No Wallet Found",
+            description: `NFC tag ${result.tagId} scanned but no wallet is linked to this tag. Please issue this tag first.`,
+            variant: "destructive",
+          });
+          setScannedWallet(null);
+          return;
+        }
+
+        // Format wallet data for UI
+        const formattedWallet = {
+          id: wallet.id,
+          attendeeName: wallet.attendee_name,
+          attendeePhone: wallet.attendee_phone,
+          tagId: wallet.tag_id,
+          currentBalance: typeof wallet.balance === 'string' ? parseFloat(wallet.balance) : wallet.balance,
+          status: wallet.status
+        };
+
+        setScannedWallet(formattedWallet);
+        
         toast({
-          title: "No Wallet Found",
-          description: `NFC tag ${result.tagId} scanned but no wallet is linked to this tag. Please issue this tag first.`,
-          variant: "destructive",
+          title: "Wallet Found",
+          description: `Successfully loaded wallet for ${wallet.attendee_name}`,
         });
       } else {
         toast({
@@ -76,11 +103,33 @@ export default function TopUp() {
     setIsProcessing(true);
     
     try {
-      // In real app, this would update wallet balance in Supabase
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
       const amount = parseFloat(topUpAmount);
       const newBalance = scannedWallet.currentBalance + amount;
+      
+      // Update wallet balance in Supabase
+      const { error: updateError } = await supabase
+        .from('wallets')
+        .update({ balance: newBalance })
+        .eq('id', scannedWallet.id);
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      // Add transaction record
+      const { error: transactionError } = await supabase
+        .from('transactions')
+        .insert({
+          wallet_id: scannedWallet.id,
+          type: 'load',
+          amount: amount,
+          description: `Top-up at staff terminal`,
+          reference: `TOPUP_${Date.now()}`
+        });
+
+      if (transactionError) {
+        throw transactionError;
+      }
       
       toast({
         title: "Top-Up Successful",

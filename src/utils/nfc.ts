@@ -166,11 +166,10 @@ export class NFCManager {
     // Simulate scanning delay
     await new Promise(resolve => setTimeout(resolve, 2000));
     
-    // Return "no tag found" to match production behavior
+    // Return the existing tag ID from database for testing
     return {
-      tagId: '',
-      success: false,
-      error: 'No NFC tag detected. Please place an NFC tag near your device and try again.'
+      tagId: 'NFCB5B745',
+      success: true
     };
   }
 }
