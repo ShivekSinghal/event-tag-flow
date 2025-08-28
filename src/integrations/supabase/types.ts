@@ -14,7 +14,77 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      transactions: {
+        Row: {
+          amount: number
+          created_at: string
+          description: string
+          id: string
+          reference: string | null
+          type: string
+          wallet_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          description: string
+          id?: string
+          reference?: string | null
+          type: string
+          wallet_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          description?: string
+          id?: string
+          reference?: string | null
+          type?: string
+          wallet_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transactions_wallet_id_fkey"
+            columns: ["wallet_id"]
+            isOneToOne: false
+            referencedRelation: "wallets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wallets: {
+        Row: {
+          attendee_name: string
+          attendee_phone: string
+          balance: number
+          created_at: string
+          id: string
+          status: string
+          tag_id: string
+          updated_at: string
+        }
+        Insert: {
+          attendee_name: string
+          attendee_phone: string
+          balance?: number
+          created_at?: string
+          id?: string
+          status?: string
+          tag_id: string
+          updated_at?: string
+        }
+        Update: {
+          attendee_name?: string
+          attendee_phone?: string
+          balance?: number
+          created_at?: string
+          id?: string
+          status?: string
+          tag_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
