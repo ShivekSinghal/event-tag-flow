@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { nfcManager } from "@/utils/nfc";
+import { supabase } from "@/integrations/supabase/client";
 import { 
   NfcIcon as Nfc, 
   Scan, 
@@ -67,8 +68,38 @@ export default function IssueTag() {
     }
 
     try {
-      // In real app, this would create wallet in Supabase
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Check if tag already exists
+      const { data: existingWallet } = await supabase
+        .from('wallets')
+        .select('id')
+        .eq('tag_id', scannedTag)
+        .single();
+
+      if (existingWallet) {
+        toast({
+          title: "Tag Already Used",
+          description: "This NFC tag is already linked to a wallet.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Create wallet in Supabase
+      const { data, error } = await supabase
+        .from('wallets')
+        .insert({
+          tag_id: scannedTag,
+          attendee_name: attendeeName,
+          attendee_phone: attendeePhone,
+          balance: 0.00,
+          status: 'active'
+        })
+        .select()
+        .single();
+
+      if (error) {
+        throw error;
+      }
       
       toast({
         title: "Wallet Created Successfully",

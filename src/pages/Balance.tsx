@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { nfcManager } from "@/utils/nfc";
+import { supabase } from "@/integrations/supabase/client";
 import { 
   CreditCard, 
   Scan, 
@@ -31,12 +32,65 @@ export default function Balance() {
         : await nfcManager.simulateNFCScan();
       
       if (result.success) {
-        // In production, this would query your database for the wallet
-        // For now, show "no wallet found" since we removed test data
+        // Fetch wallet data from Supabase based on tag ID
+        const { data: wallet, error } = await supabase
+          .from('wallets')
+          .select(`
+            *,
+            transactions (
+              id,
+              type,
+              amount,
+              description,
+              created_at
+            )
+          `)
+          .eq('tag_id', result.tagId)
+          .single();
+
+        if (error || !wallet) {
+          toast({
+            title: "No Wallet Found",
+            description: `NFC tag ${result.tagId} scanned but no wallet is linked to this tag. Please issue this tag first.`,
+            variant: "destructive",
+          });
+          setWalletData(null);
+          return;
+        }
+
+        // Calculate totals
+        const totalTopUp = wallet.transactions
+          ?.filter((t: any) => t.type === 'load')
+          .reduce((sum: number, t: any) => sum + parseFloat(t.amount), 0) || 0;
+        
+        const totalSpent = wallet.transactions
+          ?.filter((t: any) => t.type === 'spend')
+          .reduce((sum: number, t: any) => sum + Math.abs(parseFloat(t.amount)), 0) || 0;
+
+        // Format data for UI
+        const formattedWallet = {
+          attendeeName: wallet.attendee_name,
+          attendeePhone: wallet.attendee_phone,
+          tagId: wallet.tag_id,
+          issuedDate: new Date(wallet.created_at).toLocaleDateString(),
+          status: wallet.status,
+          currentBalance: typeof wallet.balance === 'string' ? parseFloat(wallet.balance) : wallet.balance,
+          totalTopUp,
+          totalSpent,
+          transactions: wallet.transactions?.map((t: any) => ({
+            id: t.id,
+            type: t.type === 'load' ? 'Load' : 'Sale',
+            amount: t.type === 'load' ? parseFloat(t.amount) : -Math.abs(parseFloat(t.amount)),
+            description: t.description,
+            timestamp: new Date(t.created_at).toLocaleString()
+          })) || []
+        };
+
+        setWalletData(formattedWallet);
+        
         toast({
-          title: "No Wallet Found",
-          description: `NFC tag ${result.tagId} scanned but no wallet is linked to this tag. Please issue this tag first.`,
-          variant: "destructive",
+          title: "Wallet Found",
+          description: `Successfully loaded wallet for ${wallet.attendee_name}`,
         });
       } else {
         toast({
