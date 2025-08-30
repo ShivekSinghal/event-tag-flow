@@ -77,12 +77,14 @@ export default function Dashboard() {
 
       // Fetch today's transactions for sales calculation
       const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      const todayEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
       
       const { data: todaysTransactions, error: transactionsError } = await supabase
         .from('transactions')
         .select('amount')
-        .gte('created_at', today.toISOString())
+        .gte('created_at', todayStart.toISOString())
+        .lt('created_at', todayEnd.toISOString())
         .eq('type', 'spend');
 
       if (transactionsError) throw transactionsError;
