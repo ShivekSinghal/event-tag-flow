@@ -57,7 +57,7 @@ export default function Layout() {
                 <div className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center">
                   <Nfc className="w-5 h-5 text-primary-foreground" />
                 </div>
-                <h1 className="text-xl font-bold text-foreground">Event Wallet</h1>
+                <h1 className="text-xl font-bold text-foreground">Pink'D wallet system</h1>
               </div>
             </div>
             
