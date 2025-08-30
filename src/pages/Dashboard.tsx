@@ -16,7 +16,7 @@ import {
 interface DashboardStats {
   totalWallets: number;
   totalBalance: number;
-  todaysSales: number;
+  totalSales: number;
   activeTags: number;
 }
 
@@ -44,7 +44,7 @@ export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats>({
     totalWallets: 0,
     totalBalance: 0,
-    todaysSales: 0,
+    totalSales: 0,
     activeTags: 0
   });
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
@@ -75,21 +75,15 @@ export default function Dashboard() {
       }, 0) || 0;
       const activeTags = wallets?.filter(wallet => wallet.status === 'active').length || 0;
 
-      // Fetch today's transactions for sales calculation
-      const today = new Date();
-      const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-      const todayEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
-      
-      const { data: todaysTransactions, error: transactionsError } = await supabase
+      // Fetch all sales transactions
+      const { data: allSalesTransactions, error: transactionsError } = await supabase
         .from('transactions')
         .select('amount')
-        .gte('created_at', todayStart.toISOString())
-        .lt('created_at', todayEnd.toISOString())
         .eq('type', 'spend');
 
       if (transactionsError) throw transactionsError;
 
-      const todaysSales = Math.abs(todaysTransactions?.reduce((sum, tx) => {
+      const totalSales = Math.abs(allSalesTransactions?.reduce((sum, tx) => {
         const amount = typeof tx.amount === 'string' ? parseFloat(tx.amount) : tx.amount;
         return sum + Math.abs(amount);
       }, 0) || 0);
@@ -97,7 +91,7 @@ export default function Dashboard() {
       setStats({
         totalWallets,
         totalBalance,
-        todaysSales,
+        totalSales,
         activeTags
       });
 
@@ -171,9 +165,9 @@ export default function Dashboard() {
       color: "text-success"
     },
     {
-      title: "Today's Sales",
-      value: isLoading ? "..." : `₹${stats.todaysSales.toFixed(2)}`,
-      change: stats.todaysSales > 0 ? "Revenue generated today" : "No transactions yet",
+      title: "Total Sales",
+      value: isLoading ? "..." : `₹${stats.totalSales.toFixed(2)}`,
+      change: stats.totalSales > 0 ? "Total revenue generated" : "No transactions yet",
       icon: TrendingUp,
       color: "text-accent"
     },
