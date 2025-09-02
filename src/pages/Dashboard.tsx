@@ -11,8 +11,16 @@ import {
   Users, 
   AlertTriangle,
   DollarSign,
-  CreditCard
+  CreditCard,
+  Plus,
+  Package,
+  Utensils
 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface DashboardStats {
   totalWallets: number;
@@ -69,6 +77,14 @@ export default function Dashboard() {
   const [studioSales, setStudioSales] = useState<StudioSales[]>([]);
   const [gameSales, setGameSales] = useState<GameSales[]>([]);
   const [showGameSales, setShowGameSales] = useState(false);
+  const [isAddItemOpen, setIsAddItemOpen] = useState(false);
+  const [itemForm, setItemForm] = useState({
+    name: '',
+    description: '',
+    price: '',
+    studio: '',
+    category: 'games'
+  });
   const { toast } = useToast();
 
   useEffect(() => {
@@ -299,6 +315,57 @@ export default function Dashboard() {
     }
   };
 
+  const handleAddItem = async () => {
+    if (!itemForm.name || !itemForm.price || !itemForm.studio) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('games')
+        .insert({
+          name: itemForm.name,
+          description: itemForm.description || null,
+          price: parseFloat(itemForm.price),
+          studio: itemForm.studio
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: "Item Added Successfully",
+        description: `${itemForm.name} has been added to the system`,
+      });
+
+      // Reset form
+      setItemForm({
+        name: '',
+        description: '',
+        price: '',
+        studio: '',
+        category: 'games'
+      });
+      setIsAddItemOpen(false);
+
+      // Refresh game sales to show new item
+      if (showGameSales) {
+        fetchGameSales();
+      }
+    } catch (error) {
+      console.error('Error adding item:', error);
+      toast({
+        title: "Error Adding Item",
+        description: "Failed to add item. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const statsConfig = [
     {
       title: "Total Wallets",
@@ -373,15 +440,106 @@ export default function Dashboard() {
 
       {/* Game Sales Section */}
       <div className="flex justify-between items-center">
-        <h2 className="text-xl font-semibold text-foreground">Game Sales Analytics</h2>
-        <Button 
-          onClick={fetchGameSales}
-          variant="outline"
-          className="flex items-center space-x-2"
-        >
-          <DollarSign className="w-4 h-4" />
-          <span>View Game Sales</span>
-        </Button>
+        <h2 className="text-xl font-semibold text-foreground">Game Sales Analytics & Item Management</h2>
+        <div className="flex space-x-2">
+          <Dialog open={isAddItemOpen} onOpenChange={setIsAddItemOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="flex items-center space-x-2">
+                <Plus className="w-4 h-4" />
+                <span>Add Item</span>
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Add New Item</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="category">Category</Label>
+                  <Select
+                    value={itemForm.category}
+                    onValueChange={(value) => setItemForm(prev => ({ ...prev, category: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="games">
+                        <div className="flex items-center space-x-2">
+                          <Package className="w-4 h-4" />
+                          <span>Games</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="food">
+                        <div className="flex items-center space-x-2">
+                          <Utensils className="w-4 h-4" />
+                          <span>Food Items</span>
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="name">Name</Label>
+                  <Input
+                    id="name"
+                    value={itemForm.name}
+                    onChange={(e) => setItemForm(prev => ({ ...prev, name: e.target.value }))}
+                    placeholder="Enter item name"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="description">Description</Label>
+                  <Textarea
+                    id="description"
+                    value={itemForm.description}
+                    onChange={(e) => setItemForm(prev => ({ ...prev, description: e.target.value }))}
+                    placeholder="Enter item description"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="price">Price (₹)</Label>
+                  <Input
+                    id="price"
+                    type="number"
+                    value={itemForm.price}
+                    onChange={(e) => setItemForm(prev => ({ ...prev, price: e.target.value }))}
+                    placeholder="Enter price"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="studio">Studio</Label>
+                  <Input
+                    id="studio"
+                    value={itemForm.studio}
+                    onChange={(e) => setItemForm(prev => ({ ...prev, studio: e.target.value }))}
+                    placeholder="Enter studio name"
+                  />
+                </div>
+                <div className="flex space-x-2 pt-4">
+                  <Button onClick={handleAddItem} className="flex-1">
+                    Add Item
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setIsAddItemOpen(false)}
+                    className="flex-1"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+          <Button 
+            onClick={fetchGameSales}
+            variant="outline"
+            className="flex items-center space-x-2"
+          >
+            <DollarSign className="w-4 h-4" />
+            <span>View Sales</span>
+          </Button>
+        </div>
       </div>
 
       {/* Game Sales Breakdown */}

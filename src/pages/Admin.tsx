@@ -96,53 +96,6 @@ export default function Admin() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Staff Management */}
-        <Card className="shadow-card">
-          <CardHeader className="flex-row items-center justify-between">
-            <CardTitle className="flex items-center space-x-2">
-              <Users className="w-5 h-5 text-primary" />
-              <span>Staff Management</span>
-            </CardTitle>
-            <Button size="sm" variant="outline">
-              <Plus className="w-4 h-4 mr-2" />
-              Add Staff
-            </Button>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {staffMembers.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Users className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                  <p>No staff members added</p>
-                  <p className="text-sm">Add staff to manage the system</p>
-                </div>
-              ) : (
-                staffMembers.map((member, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
-                    <div className="flex items-center space-x-3">
-                      <div className={`w-3 h-3 rounded-full ${
-                        member.status === "Online" ? "bg-success" : "bg-muted-foreground"
-                      }`} />
-                      <div>
-                        <div className="font-medium text-foreground">{member.name}</div>
-                        <div className="text-sm text-muted-foreground">{member.lastSeen}</div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <Badge 
-                        variant={member.role === "Admin" ? "default" : "secondary"}
-                        className="text-xs"
-                      >
-                        {member.role}
-                      </Badge>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
         {/* Top Selling Items */}
         <Card className="shadow-card">
           <CardHeader className="flex-row items-center justify-between">
@@ -225,11 +178,7 @@ export default function Admin() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Button variant="outline" className="h-16 flex-col space-y-2">
-              <Users className="w-5 h-5" />
-              <span className="text-sm">Manage Staff</span>
-            </Button>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             <Button variant="outline" className="h-16 flex-col space-y-2">
               <Package className="w-5 h-5" />
               <span className="text-sm">Update Menu</span>
