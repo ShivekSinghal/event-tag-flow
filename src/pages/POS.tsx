@@ -45,7 +45,7 @@ export default function POS() {
       const { data: gamesData, error } = await supabase
         .from('games')
         .select('*')
-        .order('studio', { ascending: true });
+        .order('name', { ascending: true });
 
       if (error) throw error;
       setGames(gamesData || []);
@@ -232,8 +232,6 @@ export default function POS() {
     }
   };
 
-  const studios = [...new Set(games.map(game => game.studio))];
-
   return (
     <div className="max-w-7xl mx-auto space-y-8">
       {/* Header */}
@@ -258,39 +256,29 @@ export default function POS() {
                   <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-3" />
                   <p className="text-muted-foreground">Loading games...</p>
                 </div>
-              ) : studios.length === 0 ? (
+              ) : games.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <Package className="w-12 h-12 mx-auto mb-3 opacity-50" />
                   <p>No games available</p>
                 </div>
               ) : (
-                studios.map(studio => (
-                  <div key={studio} className="mb-6">
-                    <div className="flex items-center space-x-2 mb-3">
-                      <Badge variant="outline" className="font-medium">
-                        {studio}
-                      </Badge>
-                      <h3 className="text-lg font-semibold text-foreground">{studio} Games</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {games.map(game => (
+                    <div 
+                      key={game.id}
+                      className="flex items-center justify-between p-4 border rounded-lg hover:bg-secondary/50 transition-smooth cursor-pointer"
+                      onClick={() => addItem(game)}
+                    >
+                      <div>
+                        <div className="font-medium text-foreground">{game.name}</div>
+                        <div className="text-sm text-muted-foreground">{game.description}</div>
+                      </div>
+                      <div className="text-lg font-bold text-primary">
+                        ₹{typeof game.price === 'string' ? parseFloat(game.price).toFixed(2) : game.price.toFixed(2)}
+                      </div>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {games.filter(game => game.studio === studio).map(game => (
-                        <div 
-                          key={game.id}
-                          className="flex items-center justify-between p-4 border rounded-lg hover:bg-secondary/50 transition-smooth cursor-pointer"
-                          onClick={() => addItem(game)}
-                        >
-                          <div>
-                            <div className="font-medium text-foreground">{game.name}</div>
-                            <div className="text-sm text-muted-foreground">{game.description}</div>
-                          </div>
-                          <div className="text-lg font-bold text-primary">
-                            ₹{typeof game.price === 'string' ? parseFloat(game.price).toFixed(2) : game.price.toFixed(2)}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))
+                  ))}
+                </div>
               )}
             </CardContent>
           </Card>
@@ -366,11 +354,8 @@ export default function POS() {
                       <div key={item.id} className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
                         <div className="flex-1">
                           <div className="font-medium text-foreground">{item.name}</div>
-                          <div className="text-sm text-muted-foreground flex items-center space-x-2">
-                            <Badge variant="outline" className="text-xs">
-                              {item.studio}
-                            </Badge>
-                            <span>₹{typeof item.price === 'string' ? parseFloat(item.price).toFixed(2) : item.price.toFixed(2)} each</span>
+                          <div className="text-sm text-muted-foreground">
+                            ₹{typeof item.price === 'string' ? parseFloat(item.price).toFixed(2) : item.price.toFixed(2)} each
                           </div>
                         </div>
                         <div className="flex items-center space-x-2">
