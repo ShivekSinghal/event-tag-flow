@@ -73,7 +73,7 @@ export default function Dashboard() {
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
   const [lowBalanceAlerts, setLowBalanceAlerts] = useState<LowBalanceAlert[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [showSalesBreakdown, setShowSalesBreakdown] = useState(false);
+  
   const [studioSales, setStudioSales] = useState<StudioSales[]>([]);
   const [gameSales, setGameSales] = useState<GameSales[]>([]);
   const [showGameSales, setShowGameSales] = useState(false);
@@ -171,6 +171,9 @@ export default function Dashboard() {
 
       setLowBalanceAlerts(lowBalanceWallets || []);
 
+      // Fetch studio sales data
+      await fetchStudioSalesData();
+
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
       toast({
@@ -183,7 +186,7 @@ export default function Dashboard() {
     }
   };
 
-  const fetchStudioSales = async () => {
+  const fetchStudioSalesData = async () => {
     try {
       // Fetch sales transactions with wallet studio information
       const { data: salesData, error } = await supabase
@@ -227,7 +230,6 @@ export default function Dashboard() {
         .sort((a, b) => b.totalSales - a.totalSales);
 
       setStudioSales(studioSalesArray);
-      setShowSalesBreakdown(true);
     } catch (error) {
       toast({
         title: "Error Loading Sales Breakdown",
@@ -238,11 +240,8 @@ export default function Dashboard() {
   };
 
   const handleTotalSalesClick = () => {
-    if (showSalesBreakdown) {
-      setShowSalesBreakdown(false);
-    } else {
-      fetchStudioSales();
-    }
+    // Refresh studio sales data
+    fetchStudioSalesData();
   };
 
   const fetchGameSales = async () => {
@@ -436,6 +435,69 @@ export default function Dashboard() {
         })}
       </div>
 
+      {/* Studio Sales Breakdown - Always Visible */}
+      <Card className="shadow-card">
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <TrendingUp className="w-5 h-5 text-primary" />
+            <span>Sales Breakdown by Studio</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {isLoading ? (
+              <div className="space-y-3">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="flex items-center justify-between p-4 bg-secondary/30 rounded-lg">
+                    <div className="flex items-center space-x-3">
+                      <Skeleton className="w-8 h-8 rounded-full" />
+                      <div className="space-y-2">
+                        <Skeleton className="h-4 w-20" />
+                        <Skeleton className="h-3 w-24" />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Skeleton className="h-6 w-16" />
+                      <Skeleton className="h-3 w-12" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : studioSales.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <TrendingUp className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                <p>No sales data available</p>
+                <p className="text-sm">Sales breakdown will appear once transactions are recorded</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {studioSales.map((studioData, index) => (
+                  <div key={studioData.studio} className="flex items-center justify-between p-4 bg-secondary/30 rounded-lg">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold">
+                        {index + 1}
+                      </div>
+                      <div>
+                        <div className="font-medium text-foreground">{studioData.studio}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {studioData.transactionCount} transaction{studioData.transactionCount === 1 ? '' : 's'}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-bold text-lg text-success">₹{studioData.totalSales.toFixed(2)}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {stats.totalSales > 0 ? `${((studioData.totalSales / stats.totalSales) * 100).toFixed(1)}%` : '0%'} of total
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Game Sales Section */}
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-semibold text-foreground">Game Sales Analytics & Item Management</h2>
@@ -585,57 +647,6 @@ export default function Dashboard() {
         </Card>
       )}
 
-      {/* Sales Breakdown Modal/Section */}
-      {showSalesBreakdown && (
-        <Card className="shadow-card">
-          <CardHeader className="flex-row items-center justify-between">
-            <CardTitle className="flex items-center space-x-2">
-              <TrendingUp className="w-5 h-5 text-primary" />
-              <span>Sales Breakdown by Studio</span>
-            </CardTitle>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => setShowSalesBreakdown(false)}
-            >
-              Close
-            </Button>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {studioSales.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <TrendingUp className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                  <p>No sales data available</p>
-                  <p className="text-sm">Sales breakdown will appear once transactions are recorded</p>
-                </div>
-              ) : (
-                studioSales.map((studioData, index) => (
-                  <div key={studioData.studio} className="flex items-center justify-between p-4 bg-secondary/30 rounded-lg">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold">
-                        {index + 1}
-                      </div>
-                      <div>
-                        <div className="font-medium text-foreground">{studioData.studio}</div>
-                        <div className="text-sm text-muted-foreground">
-                          {studioData.transactionCount} transaction{studioData.transactionCount === 1 ? '' : 's'}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-bold text-lg text-success">₹{studioData.totalSales.toFixed(2)}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {stats.totalSales > 0 ? `${((studioData.totalSales / stats.totalSales) * 100).toFixed(1)}%` : '0%'} of total
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Recent Transactions */}
