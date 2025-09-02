@@ -21,6 +21,7 @@ interface Game {
   description: string;
   price: number;
   studio: string;
+  available: boolean;
 }
 
 interface SelectedItem extends Game {
@@ -130,6 +131,15 @@ export default function POS() {
   };
 
   const addItem = (game: Game) => {
+    if (!game.available) {
+      toast({
+        title: "Game Not Available",
+        description: `${game.name} is currently sold out and cannot be added to cart.`,
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setSelectedItems(prev => {
       const existing = prev.find(i => i.id === game.id);
       if (existing) {
@@ -275,14 +285,25 @@ export default function POS() {
                   {games.map(game => (
                     <div 
                       key={game.id}
-                      className="flex items-center justify-between p-4 border rounded-lg hover:bg-secondary/50 transition-smooth cursor-pointer"
-                      onClick={() => addItem(game)}
+                      className={`flex items-center justify-between p-4 border rounded-lg transition-smooth ${
+                        game.available 
+                          ? "hover:bg-secondary/50 cursor-pointer" 
+                          : "bg-destructive/5 border-destructive/20 cursor-not-allowed opacity-60"
+                      }`}
+                      onClick={() => game.available && addItem(game)}
                     >
                       <div>
-                        <div className="font-medium text-foreground">{game.name}</div>
+                        <div className="flex items-center space-x-2">
+                          <span className="font-medium text-foreground">{game.name}</span>
+                          {!game.available && (
+                            <Badge variant="destructive" className="text-xs">
+                              Sold Out
+                            </Badge>
+                          )}
+                        </div>
                         <div className="text-sm text-muted-foreground">{game.description}</div>
                       </div>
-                      <div className="text-lg font-bold text-primary">
+                      <div className={`text-lg font-bold ${game.available ? "text-primary" : "text-muted-foreground"}`}>
                         ₹{typeof game.price === 'string' ? parseFloat(game.price).toFixed(2) : game.price.toFixed(2)}
                       </div>
                     </div>
