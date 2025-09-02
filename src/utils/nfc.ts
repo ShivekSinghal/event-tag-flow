@@ -166,9 +166,9 @@ export class NFCManager {
     // Simulate scanning delay
     await new Promise(resolve => setTimeout(resolve, 2000));
     
-    // Return the existing tag ID from database for testing
+    // Return an existing tag ID from database for testing
     return {
-      tagId: 'NFCB5B745',
+      tagId: 'ED001',
       success: true
     };
   }
