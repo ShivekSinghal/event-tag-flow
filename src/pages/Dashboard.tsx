@@ -395,9 +395,7 @@ export default function Dashboard() {
     setIsScanning(true);
     
     try {
-      const result = nfcManager.isNFCSupported() 
-        ? await nfcManager.startScanning()
-        : await nfcManager.simulateNFCScan();
+      const result = await nfcManager.startScanning();
       
       if (result.success) {
         // Fetch wallet data from Supabase based on tag ID

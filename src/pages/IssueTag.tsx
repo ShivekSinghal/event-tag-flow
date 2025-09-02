@@ -32,9 +32,7 @@ export default function IssueTag() {
     
     try {
       // Use real NFC scanning if supported, otherwise simulate
-      const result = nfcManager.isNFCSupported() 
-        ? await nfcManager.startScanning()
-        : await nfcManager.simulateNFCScan();
+      const result = await nfcManager.startScanning();
       
       if (result.success) {
         setScannedTag(result.tagId);

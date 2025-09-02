@@ -50,7 +50,7 @@ export class NFCManager {
       return {
         tagId: '',
         success: false,
-        error: 'NFC not supported on this device. Use Chrome on Android for NFC support.'
+        error: 'NFC not supported on this device. Please use Chrome on Android for NFC support.'
       };
     }
 
@@ -135,12 +135,12 @@ export class NFCManager {
         }
       }
       
-      // Final fallback - generate random ID
-      return `NFC${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
+      // Final fallback - return empty string for production
+      return '';
       
     } catch (error) {
       console.warn('Error extracting tag ID:', error);
-      return `NFC${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
+      return '';
     }
   }
 
@@ -157,20 +157,6 @@ export class NFCManager {
     } else {
       return `NFC${cleanId.substring(0, 6)}`;
     }
-  }
-
-  /**
-   * Simulate NFC scan for testing (when real NFC not available)
-   */
-  async simulateNFCScan(): Promise<NFCReadResult> {
-    // Simulate scanning delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // Return an existing tag ID from database for testing
-    return {
-      tagId: 'ED001',
-      success: true
-    };
   }
 }
 
