@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,27 +15,50 @@ import {
   Package
 } from "lucide-react";
 
-const menuItems = [
-  { id: 1, name: "Limbo Game", price: 50, category: "Games" },
-  { id: 2, name: "Russian Roulette", price: 100, category: "Games" },
-  { id: 3, name: "Cricket Game", price: 75, category: "Games" },
-  { id: 4, name: "Beer Pong", price: 150, category: "Games" },
-  { id: 5, name: "Biryani", price: 200, category: "Food" },
-  { id: 6, name: "Samosa", price: 30, category: "Food" },
-  { id: 7, name: "Masala Chai", price: 25, category: "Food" },
-  { id: 8, name: "Dosa", price: 80, category: "Food" },
-  { id: 9, name: "Beer", price: 250, category: "Liquor" },
-  { id: 10, name: "Whiskey Shot", price: 150, category: "Liquor" },
-  { id: 11, name: "Vodka Shot", price: 120, category: "Liquor" },
-  { id: 12, name: "Event T-Shirt", price: 500, category: "Merchandise" },
-];
+interface Game {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  studio: string;
+}
+
+interface SelectedItem extends Game {
+  quantity: number;
+}
 
 export default function POS() {
   const { toast } = useToast();
   const [isScanning, setIsScanning] = useState(false);
   const [scannedWallet, setScannedWallet] = useState<any>(null);
-  const [selectedItems, setSelectedItems] = useState<any[]>([]);
+  const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [games, setGames] = useState<Game[]>([]);
+  const [isLoadingGames, setIsLoadingGames] = useState(true);
+
+  useEffect(() => {
+    fetchGames();
+  }, []);
+
+  const fetchGames = async () => {
+    try {
+      const { data: gamesData, error } = await supabase
+        .from('games')
+        .select('*')
+        .order('studio', { ascending: true });
+
+      if (error) throw error;
+      setGames(gamesData || []);
+    } catch (error) {
+      toast({
+        title: "Error Loading Games",
+        description: "Failed to load games. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingGames(false);
+    }
+  };
 
   const handleScanWallet = async () => {
     setIsScanning(true);
@@ -97,23 +120,23 @@ export default function POS() {
     }
   };
 
-  const addItem = (item: any) => {
+  const addItem = (game: Game) => {
     setSelectedItems(prev => {
-      const existing = prev.find(i => i.id === item.id);
+      const existing = prev.find(i => i.id === game.id);
       if (existing) {
-        return prev.map(i => i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i);
+        return prev.map(i => i.id === game.id ? { ...i, quantity: i.quantity + 1 } : i);
       }
-      return [...prev, { ...item, quantity: 1 }];
+      return [...prev, { ...game, quantity: 1 }];
     });
   };
 
-  const removeItem = (itemId: number) => {
+  const removeItem = (gameId: string) => {
     setSelectedItems(prev => {
-      const existing = prev.find(i => i.id === itemId);
+      const existing = prev.find(i => i.id === gameId);
       if (existing && existing.quantity > 1) {
-        return prev.map(i => i.id === itemId ? { ...i, quantity: i.quantity - 1 } : i);
+        return prev.map(i => i.id === gameId ? { ...i, quantity: i.quantity - 1 } : i);
       }
-      return prev.filter(i => i.id !== itemId);
+      return prev.filter(i => i.id !== gameId);
     });
   };
 
@@ -153,12 +176,12 @@ export default function POS() {
         throw updateError;
       }
 
-      // Create transaction record
+      // Create transaction record first
       const itemsDescription = selectedItems.map(item => 
         `${item.name} x${item.quantity}`
       ).join(', ');
 
-      const { error: transactionError } = await supabase
+      const { data: transactionData, error: transactionError } = await supabase
         .from('transactions')
         .insert({
           wallet_id: scannedWallet.id,
@@ -166,10 +189,28 @@ export default function POS() {
           amount: -totalAmount, // Negative for spending
           description: `POS Purchase: ${itemsDescription}`,
           reference: `POS_${Date.now()}`
-        });
+        })
+        .select()
+        .single();
 
       if (transactionError) {
         throw transactionError;
+      }
+
+      // Create game sales records for each item
+      const gameSalesRecords = selectedItems.map(item => ({
+        game_id: item.id,
+        transaction_id: transactionData.id,
+        quantity: item.quantity,
+        sale_price: item.price * item.quantity
+      }));
+
+      const { error: salesError } = await supabase
+        .from('game_sales')
+        .insert(gameSalesRecords);
+
+      if (salesError) {
+        throw salesError;
       }
       
       toast({
@@ -191,7 +232,7 @@ export default function POS() {
     }
   };
 
-  const categories = [...new Set(menuItems.map(item => item.category))];
+  const studios = [...new Set(games.map(game => game.studio))];
 
   return (
     <div className="max-w-7xl mx-auto space-y-8">
@@ -208,32 +249,49 @@ export default function POS() {
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
                 <Package className="w-5 h-5 text-primary" />
-                <span>Menu Items</span>
+                <span>Available Games</span>
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {categories.map(category => (
-                <div key={category} className="mb-6">
-                  <h3 className="text-lg font-semibold text-foreground mb-3">{category}</h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {menuItems.filter(item => item.category === category).map(item => (
-                      <div 
-                        key={item.id}
-                        className="flex items-center justify-between p-4 border rounded-lg hover:bg-secondary/50 transition-smooth cursor-pointer"
-                        onClick={() => addItem(item)}
-                      >
-                        <div>
-                          <div className="font-medium text-foreground">{item.name}</div>
-                          <div className="text-sm text-muted-foreground">{category}</div>
-                        </div>
-                        <div className="text-lg font-bold text-primary">
-                          ₹{item.price.toFixed(2)}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+              {isLoadingGames ? (
+                <div className="text-center py-8">
+                  <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                  <p className="text-muted-foreground">Loading games...</p>
                 </div>
-              ))}
+              ) : studios.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Package className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                  <p>No games available</p>
+                </div>
+              ) : (
+                studios.map(studio => (
+                  <div key={studio} className="mb-6">
+                    <div className="flex items-center space-x-2 mb-3">
+                      <Badge variant="outline" className="font-medium">
+                        {studio}
+                      </Badge>
+                      <h3 className="text-lg font-semibold text-foreground">{studio} Games</h3>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {games.filter(game => game.studio === studio).map(game => (
+                        <div 
+                          key={game.id}
+                          className="flex items-center justify-between p-4 border rounded-lg hover:bg-secondary/50 transition-smooth cursor-pointer"
+                          onClick={() => addItem(game)}
+                        >
+                          <div>
+                            <div className="font-medium text-foreground">{game.name}</div>
+                            <div className="text-sm text-muted-foreground">{game.description}</div>
+                          </div>
+                          <div className="text-lg font-bold text-primary">
+                            ₹{typeof game.price === 'string' ? parseFloat(game.price).toFixed(2) : game.price.toFixed(2)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              )}
             </CardContent>
           </Card>
         </div>
@@ -308,8 +366,11 @@ export default function POS() {
                       <div key={item.id} className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
                         <div className="flex-1">
                           <div className="font-medium text-foreground">{item.name}</div>
-                          <div className="text-sm text-muted-foreground">
-                            ₹{item.price.toFixed(2)} each
+                          <div className="text-sm text-muted-foreground flex items-center space-x-2">
+                            <Badge variant="outline" className="text-xs">
+                              {item.studio}
+                            </Badge>
+                            <span>₹{typeof item.price === 'string' ? parseFloat(item.price).toFixed(2) : item.price.toFixed(2)} each</span>
                           </div>
                         </div>
                         <div className="flex items-center space-x-2">
@@ -322,7 +383,7 @@ export default function POS() {
                           </Button>
                           <Badge variant="secondary">{item.quantity}</Badge>
                           <div className="font-bold text-foreground min-w-[60px] text-right">
-                            ₹{(item.price * item.quantity).toFixed(2)}
+                            ₹{(typeof item.price === 'string' ? parseFloat(item.price) * item.quantity : item.price * item.quantity).toFixed(2)}
                           </div>
                         </div>
                       </div>

@@ -14,11 +14,84 @@ export type Database = {
   }
   public: {
     Tables: {
+      game_sales: {
+        Row: {
+          created_at: string
+          game_id: string | null
+          id: string
+          quantity: number
+          sale_price: number
+          transaction_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          game_id?: string | null
+          id?: string
+          quantity?: number
+          sale_price: number
+          transaction_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          game_id?: string | null
+          id?: string
+          quantity?: number
+          sale_price?: number
+          transaction_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "game_sales_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "game_sales_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      games: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          price: number
+          studio: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          price?: number
+          studio: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          price?: number
+          studio?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       transactions: {
         Row: {
           amount: number
           created_at: string
           description: string
+          game_id: string | null
           id: string
           reference: string | null
           type: string
@@ -28,6 +101,7 @@ export type Database = {
           amount: number
           created_at?: string
           description: string
+          game_id?: string | null
           id?: string
           reference?: string | null
           type: string
@@ -37,12 +111,20 @@ export type Database = {
           amount?: number
           created_at?: string
           description?: string
+          game_id?: string | null
           id?: string
           reference?: string | null
           type?: string
           wallet_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "transactions_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "transactions_wallet_id_fkey"
             columns: ["wallet_id"]

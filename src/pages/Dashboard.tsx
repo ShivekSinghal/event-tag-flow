@@ -47,6 +47,14 @@ interface StudioSales {
   transactionCount: number;
 }
 
+interface GameSales {
+  game_id: string;
+  game_name: string;
+  studio: string;
+  total_quantity: number;
+  total_revenue: number;
+}
+
 export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats>({
     totalWallets: 0,
@@ -59,6 +67,8 @@ export default function Dashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [showSalesBreakdown, setShowSalesBreakdown] = useState(false);
   const [studioSales, setStudioSales] = useState<StudioSales[]>([]);
+  const [gameSales, setGameSales] = useState<GameSales[]>([]);
+  const [showGameSales, setShowGameSales] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -220,6 +230,75 @@ export default function Dashboard() {
     }
   };
 
+  const fetchGameSales = async () => {
+    try {
+      // Fetch game sales data with aggregated quantities and revenue
+      const { data: salesData, error } = await supabase
+        .from('game_sales')
+        .select(`
+          game_id,
+          quantity,
+          sale_price,
+          games!inner(name, studio)
+        `);
+
+      if (error) throw error;
+
+      // Group sales by game
+      const gameSalesMap = new Map<string, { 
+        game_name: string; 
+        studio: string; 
+        total_quantity: number; 
+        total_revenue: number; 
+      }>();
+      
+      salesData?.forEach((sale: any) => {
+        const gameId = sale.game_id;
+        const gameName = sale.games.name;
+        const studio = sale.games.studio;
+        const quantity = sale.quantity;
+        const revenue = typeof sale.sale_price === 'string' ? parseFloat(sale.sale_price) : sale.sale_price;
+        
+        if (gameSalesMap.has(gameId)) {
+          const existing = gameSalesMap.get(gameId)!;
+          gameSalesMap.set(gameId, {
+            game_name: gameName,
+            studio: studio,
+            total_quantity: existing.total_quantity + quantity,
+            total_revenue: existing.total_revenue + revenue
+          });
+        } else {
+          gameSalesMap.set(gameId, {
+            game_name: gameName,
+            studio: studio,
+            total_quantity: quantity,
+            total_revenue: revenue
+          });
+        }
+      });
+
+      // Convert to array and sort by total quantity
+      const gameSalesArray: GameSales[] = Array.from(gameSalesMap.entries())
+        .map(([game_id, data]) => ({
+          game_id,
+          game_name: data.game_name,
+          studio: data.studio,
+          total_quantity: data.total_quantity,
+          total_revenue: data.total_revenue
+        }))
+        .sort((a, b) => b.total_quantity - a.total_quantity);
+
+      setGameSales(gameSalesArray);
+      setShowGameSales(true);
+    } catch (error) {
+      toast({
+        title: "Error Loading Game Sales",
+        description: "Failed to load game sales data. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const statsConfig = [
     {
       title: "Total Wallets",
@@ -291,6 +370,77 @@ export default function Dashboard() {
           );
         })}
       </div>
+
+      {/* Game Sales Section */}
+      <div className="flex justify-between items-center">
+        <h2 className="text-xl font-semibold text-foreground">Game Sales Analytics</h2>
+        <Button 
+          onClick={fetchGameSales}
+          variant="outline"
+          className="flex items-center space-x-2"
+        >
+          <DollarSign className="w-4 h-4" />
+          <span>View Game Sales</span>
+        </Button>
+      </div>
+
+      {/* Game Sales Breakdown */}
+      {showGameSales && (
+        <Card className="shadow-card">
+          <CardHeader className="flex-row items-center justify-between">
+            <CardTitle className="flex items-center space-x-2">
+              <DollarSign className="w-5 h-5 text-primary" />
+              <span>Game Sales Breakdown</span>
+            </CardTitle>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setShowGameSales(false)}
+            >
+              Close
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {gameSales.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <DollarSign className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                  <p>No game sales data available</p>
+                  <p className="text-sm">Game sales will appear once purchases are made</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {gameSales.map((gameData, index) => (
+                    <div key={gameData.game_id} className="flex items-center justify-between p-4 bg-secondary/30 rounded-lg">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold">
+                          {index + 1}
+                        </div>
+                        <div>
+                          <div className="font-medium text-foreground">{gameData.game_name}</div>
+                          <div className="text-sm text-muted-foreground flex items-center space-x-2">
+                            <Badge variant="outline" className="text-xs">
+                              {gameData.studio}
+                            </Badge>
+                            <span>•</span>
+                            <span>{gameData.total_quantity} sold</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-bold text-lg text-success">₹{gameData.total_revenue.toFixed(2)}</div>
+                        <div className="text-xs text-muted-foreground">
+                          Qty: {gameData.total_quantity}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Sales Breakdown Modal/Section */}
       {showSalesBreakdown && (
