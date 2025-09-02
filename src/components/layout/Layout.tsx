@@ -5,7 +5,6 @@ import {
   LayoutDashboard, 
   NfcIcon as Nfc, 
   ShoppingCart, 
-  Settings, 
   Users,
   Wallet,
   LogOut,
@@ -22,7 +21,6 @@ const navigation = [
   { name: "Top Up", href: "/topup", icon: Wallet },
   { name: "POS Sale", href: "/pos", icon: ShoppingCart },
   { name: "Check Balance", href: "/balance", icon: CreditCard },
-  { name: "Admin", href: "/admin", icon: Settings },
 ];
 
 export default function Layout() {

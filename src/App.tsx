@@ -9,7 +9,6 @@ import IssueTag from "./pages/IssueTag";
 import TopUp from "./pages/TopUp";
 import POS from "./pages/POS";
 import Balance from "./pages/Balance";
-import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,7 +27,6 @@ const App = () => (
             <Route path="topup" element={<TopUp />} />
             <Route path="pos" element={<POS />} />
             <Route path="balance" element={<Balance />} />
-            <Route path="admin" element={<Admin />} />
           </Route>
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
