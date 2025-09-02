@@ -76,7 +76,6 @@ export default function Dashboard() {
   
   const [studioSales, setStudioSales] = useState<StudioSales[]>([]);
   const [gameSales, setGameSales] = useState<GameSales[]>([]);
-  const [showGameSales, setShowGameSales] = useState(false);
   const [isAddItemOpen, setIsAddItemOpen] = useState(false);
   const [itemForm, setItemForm] = useState({
     name: '',
@@ -174,6 +173,9 @@ export default function Dashboard() {
       // Fetch studio sales data
       await fetchStudioSalesData();
 
+      // Fetch game sales data
+      await fetchGameSalesData();
+
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
       toast({
@@ -244,7 +246,7 @@ export default function Dashboard() {
     fetchStudioSalesData();
   };
 
-  const fetchGameSales = async () => {
+  const fetchGameSalesData = async () => {
     try {
       // Fetch game sales data with aggregated quantities and revenue
       const { data: salesData, error } = await supabase
@@ -303,7 +305,6 @@ export default function Dashboard() {
         .sort((a, b) => b.total_quantity - a.total_quantity);
 
       setGameSales(gameSalesArray);
-      setShowGameSales(true);
     } catch (error) {
       toast({
         title: "Error Loading Game Sales",
@@ -350,9 +351,7 @@ export default function Dashboard() {
       setIsAddItemOpen(false);
 
       // Refresh game sales to show new item
-      if (showGameSales) {
-        fetchGameSales();
-      }
+      fetchGameSalesData();
     } catch (error) {
       console.error('Error adding item:', error);
       toast({
@@ -501,151 +500,150 @@ export default function Dashboard() {
       {/* Game Sales Section */}
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-semibold text-foreground">Game Sales Analytics & Item Management</h2>
-        <div className="flex space-x-2">
-          <Dialog open={isAddItemOpen} onOpenChange={setIsAddItemOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" className="flex items-center space-x-2">
-                <Plus className="w-4 h-4" />
-                <span>Add Item</span>
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
-              <DialogHeader>
-                <DialogTitle>Add New Item</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="category">Category</Label>
-                  <Select
-                    value={itemForm.category}
-                    onValueChange={(value) => setItemForm(prev => ({ ...prev, category: value }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="games">
-                        <div className="flex items-center space-x-2">
-                          <Package className="w-4 h-4" />
-                          <span>Games</span>
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="food">
-                        <div className="flex items-center space-x-2">
-                          <Utensils className="w-4 h-4" />
-                          <span>Food Items</span>
-                        </div>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="name">Name</Label>
-                  <Input
-                    id="name"
-                    value={itemForm.name}
-                    onChange={(e) => setItemForm(prev => ({ ...prev, name: e.target.value }))}
-                    placeholder="Enter item name"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="description">Description</Label>
-                  <Textarea
-                    id="description"
-                    value={itemForm.description}
-                    onChange={(e) => setItemForm(prev => ({ ...prev, description: e.target.value }))}
-                    placeholder="Enter item description"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="price">Price (₹)</Label>
-                  <Input
-                    id="price"
-                    type="number"
-                    value={itemForm.price}
-                    onChange={(e) => setItemForm(prev => ({ ...prev, price: e.target.value }))}
-                    placeholder="Enter price"
-                  />
-                </div>
-                <div className="flex space-x-2 pt-4">
-                  <Button onClick={handleAddItem} className="flex-1">
-                    Add Item
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    onClick={() => setIsAddItemOpen(false)}
-                    className="flex-1"
-                  >
-                    Cancel
-                  </Button>
-                </div>
+        <Dialog open={isAddItemOpen} onOpenChange={setIsAddItemOpen}>
+          <DialogTrigger asChild>
+            <Button variant="outline" className="flex items-center space-x-2">
+              <Plus className="w-4 h-4" />
+              <span>Add Item</span>
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Add New Item</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="category">Category</Label>
+                <Select
+                  value={itemForm.category}
+                  onValueChange={(value) => setItemForm(prev => ({ ...prev, category: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="games">
+                      <div className="flex items-center space-x-2">
+                        <Package className="w-4 h-4" />
+                        <span>Games</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="food">
+                      <div className="flex items-center space-x-2">
+                        <Utensils className="w-4 h-4" />
+                        <span>Food Items</span>
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-            </DialogContent>
-          </Dialog>
-          <Button 
-            onClick={fetchGameSales}
-            variant="outline"
-            className="flex items-center space-x-2"
-          >
-            <DollarSign className="w-4 h-4" />
-            <span>View Sales</span>
-          </Button>
-        </div>
+              <div className="space-y-2">
+                <Label htmlFor="name">Name</Label>
+                <Input
+                  id="name"
+                  value={itemForm.name}
+                  onChange={(e) => setItemForm(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="Enter item name"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="description">Description</Label>
+                <Textarea
+                  id="description"
+                  value={itemForm.description}
+                  onChange={(e) => setItemForm(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="Enter item description"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="price">Price (₹)</Label>
+                <Input
+                  id="price"
+                  type="number"
+                  value={itemForm.price}
+                  onChange={(e) => setItemForm(prev => ({ ...prev, price: e.target.value }))}
+                  placeholder="Enter price"
+                />
+              </div>
+              <div className="flex space-x-2 pt-4">
+                <Button onClick={handleAddItem} className="flex-1">
+                  Add Item
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setIsAddItemOpen(false)}
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
 
-      {/* Game Sales Breakdown */}
-      {showGameSales && (
-        <Card className="shadow-card">
-          <CardHeader className="flex-row items-center justify-between">
-            <CardTitle className="flex items-center space-x-2">
-              <DollarSign className="w-5 h-5 text-primary" />
-              <span>Game Sales Breakdown</span>
-            </CardTitle>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => setShowGameSales(false)}
-            >
-              Close
-            </Button>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {gameSales.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <DollarSign className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                  <p>No game sales data available</p>
-                  <p className="text-sm">Game sales will appear once purchases are made</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {gameSales.map((gameData, index) => (
-                    <div key={gameData.game_id} className="flex items-center justify-between p-4 bg-secondary/30 rounded-lg">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold">
-                          {index + 1}
-                        </div>
-                        <div>
-                          <div className="font-medium text-foreground">{gameData.game_name}</div>
-                          <div className="text-sm text-muted-foreground">
-                            {gameData.total_quantity} sold
-                          </div>
-                        </div>
+      {/* Game Sales Breakdown - Always Visible */}
+      <Card className="shadow-card">
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <DollarSign className="w-5 h-5 text-primary" />
+            <span>Game Sales Breakdown</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {isLoading ? (
+              <div className="space-y-3">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="flex items-center justify-between p-4 bg-secondary/30 rounded-lg">
+                    <div className="flex items-center space-x-3">
+                      <Skeleton className="w-8 h-8 rounded-full" />
+                      <div className="space-y-2">
+                        <Skeleton className="h-4 w-24" />
+                        <Skeleton className="h-3 w-16" />
                       </div>
-                      <div className="text-right">
-                        <div className="font-bold text-lg text-success">₹{gameData.total_revenue.toFixed(2)}</div>
-                        <div className="text-xs text-muted-foreground">
-                          Qty: {gameData.total_quantity}
+                    </div>
+                    <div className="space-y-2">
+                      <Skeleton className="h-6 w-20" />
+                      <Skeleton className="h-3 w-12" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : gameSales.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <DollarSign className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                <p>No game sales data available</p>
+                <p className="text-sm">Game sales will appear once purchases are made</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {gameSales.map((gameData, index) => (
+                  <div key={gameData.game_id} className="flex items-center justify-between p-4 bg-secondary/30 rounded-lg">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold">
+                        {index + 1}
+                      </div>
+                      <div>
+                        <div className="font-medium text-foreground">{gameData.game_name}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {gameData.total_quantity} sold
                         </div>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+                    <div className="text-right">
+                      <div className="font-bold text-lg text-success">₹{gameData.total_revenue.toFixed(2)}</div>
+                      <div className="text-xs text-muted-foreground">
+                        Qty: {gameData.total_quantity}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
