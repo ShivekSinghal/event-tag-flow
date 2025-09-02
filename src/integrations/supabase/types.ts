@@ -58,6 +58,7 @@ export type Database = {
       }
       games: {
         Row: {
+          available: boolean
           created_at: string
           description: string | null
           id: string
@@ -67,6 +68,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          available?: boolean
           created_at?: string
           description?: string | null
           id?: string
@@ -76,6 +78,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          available?: boolean
           created_at?: string
           description?: string | null
           id?: string

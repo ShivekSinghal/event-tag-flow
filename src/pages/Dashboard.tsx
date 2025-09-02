@@ -17,7 +17,9 @@ import {
   Utensils,
   Shield,
   ShieldOff,
-  Scan
+  Scan,
+  XCircle,
+  CheckCircle
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -65,6 +67,7 @@ interface GameSales {
   studio: string;
   total_quantity: number;
   total_revenue: number;
+  available: boolean;
 }
 
 export default function Dashboard() {
@@ -262,6 +265,13 @@ export default function Dashboard() {
 
   const fetchGameSalesData = async () => {
     try {
+      // First fetch all games to show availability status
+      const { data: allGames, error: gamesError } = await supabase
+        .from('games')
+        .select('id, name, studio, available');
+
+      if (gamesError) throw gamesError;
+
       // Fetch game sales data with aggregated quantities and revenue
       const { data: salesData, error } = await supabase
         .from('game_sales')
@@ -269,7 +279,7 @@ export default function Dashboard() {
           game_id,
           quantity,
           sale_price,
-          games!inner(name, studio)
+          games!inner(name, studio, available)
         `);
 
       if (error) throw error;
@@ -280,12 +290,14 @@ export default function Dashboard() {
         studio: string; 
         total_quantity: number; 
         total_revenue: number; 
+        available: boolean;
       }>();
       
       salesData?.forEach((sale: any) => {
         const gameId = sale.game_id;
         const gameName = sale.games.name;
         const studio = sale.games.studio;
+        const available = sale.games.available;
         const quantity = sale.quantity;
         const revenue = typeof sale.sale_price === 'string' ? parseFloat(sale.sale_price) : sale.sale_price;
         
@@ -294,6 +306,7 @@ export default function Dashboard() {
           gameSalesMap.set(gameId, {
             game_name: gameName,
             studio: studio,
+            available: available,
             total_quantity: existing.total_quantity + quantity,
             total_revenue: existing.total_revenue + revenue
           });
@@ -301,8 +314,22 @@ export default function Dashboard() {
           gameSalesMap.set(gameId, {
             game_name: gameName,
             studio: studio,
+            available: available,
             total_quantity: quantity,
             total_revenue: revenue
+          });
+        }
+      });
+
+      // Add games that haven't been sold yet
+      allGames?.forEach((game: any) => {
+        if (!gameSalesMap.has(game.id)) {
+          gameSalesMap.set(game.id, {
+            game_name: game.name,
+            studio: game.studio,
+            available: game.available,
+            total_quantity: 0,
+            total_revenue: 0
           });
         }
       });
@@ -313,6 +340,7 @@ export default function Dashboard() {
           game_id,
           game_name: data.game_name,
           studio: data.studio,
+          available: data.available,
           total_quantity: data.total_quantity,
           total_revenue: data.total_revenue
         }))
@@ -475,6 +503,35 @@ export default function Dashboard() {
       toast({
         title: "Error",
         description: "Failed to update wallet status. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleToggleGameAvailability = async (gameId: string, currentStatus: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('games')
+        .update({ 
+          available: !currentStatus,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', gameId);
+
+      if (error) throw error;
+
+      toast({
+        title: !currentStatus ? "Game Made Available" : "Game Marked as Sold Out",
+        description: !currentStatus ? "Game is now available for sale" : "Game is now marked as sold out",
+        variant: !currentStatus ? "default" : "destructive",
+      });
+
+      // Refresh game sales data
+      await fetchGameSalesData();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update game availability. Please try again.",
         variant: "destructive",
       });
     }
@@ -735,25 +792,67 @@ export default function Dashboard() {
                 <p className="text-sm">Game sales will appear once purchases are made</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4">
                 {gameSales.map((gameData, index) => (
-                  <div key={gameData.game_id} className="flex items-center justify-between p-4 bg-secondary/30 rounded-lg">
+                  <div key={gameData.game_id} className={cn(
+                    "flex items-center justify-between p-4 rounded-lg border-l-4",
+                    gameData.available 
+                      ? "bg-secondary/30 border-l-success" 
+                      : "bg-destructive/5 border-l-destructive"
+                  )}>
                     <div className="flex items-center space-x-3">
-                      <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold">
+                      <div className={cn(
+                        "w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold",
+                        gameData.available 
+                          ? "bg-primary text-primary-foreground" 
+                          : "bg-destructive text-destructive-foreground"
+                      )}>
                         {index + 1}
                       </div>
                       <div>
-                        <div className="font-medium text-foreground">{gameData.game_name}</div>
+                        <div className="flex items-center space-x-2">
+                          <span className="font-medium text-foreground">{gameData.game_name}</span>
+                          {!gameData.available && (
+                            <Badge variant="destructive" className="text-xs">
+                              Sold Out
+                            </Badge>
+                          )}
+                          {gameData.available && (
+                            <Badge variant="outline" className="text-xs border-success text-success">
+                              Available
+                            </Badge>
+                          )}
+                        </div>
                         <div className="text-sm text-muted-foreground">
-                          {gameData.total_quantity} sold
+                          {gameData.total_quantity} sold • Studio: {gameData.studio}
                         </div>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="font-bold text-lg text-success">₹{gameData.total_revenue.toFixed(2)}</div>
-                      <div className="text-xs text-muted-foreground">
-                        Qty: {gameData.total_quantity}
+                    <div className="flex items-center space-x-4">
+                      <div className="text-right">
+                        <div className="font-bold text-lg text-success">₹{gameData.total_revenue.toFixed(2)}</div>
+                        <div className="text-xs text-muted-foreground">
+                          Qty: {gameData.total_quantity}
+                        </div>
                       </div>
+                      <Button
+                        size="sm"
+                        variant={gameData.available ? "destructive" : "default"}
+                        onClick={() => handleToggleGameAvailability(gameData.game_id, gameData.available)}
+                        className="flex items-center space-x-1"
+                      >
+                        {gameData.available ? (
+                          <>
+                            <XCircle className="w-3 h-3" />
+                            <span className="hidden sm:inline">Mark Sold Out</span>
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle className="w-3 h-3" />
+                            <span className="hidden sm:inline">Mark Available</span>
+                          </>
+                        )}
+                      </Button>
                     </div>
                   </div>
                 ))}
