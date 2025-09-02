@@ -86,6 +86,17 @@ export default function POS() {
           return;
         }
 
+        // Check if wallet is blocked
+        if (wallet.status === 'blocked') {
+          toast({
+            title: "Tag Blocked",
+            description: `This NFC tag has been blocked and cannot be used for transactions. Contact admin for assistance.`,
+            variant: "destructive",
+          });
+          setScannedWallet(null);
+          return;
+        }
+
         // Format wallet data for UI
         const formattedWallet = {
           id: wallet.id,

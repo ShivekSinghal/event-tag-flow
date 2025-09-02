@@ -14,13 +14,17 @@ import {
   CreditCard,
   Plus,
   Package,
-  Utensils
+  Utensils,
+  Shield,
+  ShieldOff,
+  Scan
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { nfcManager } from "@/utils/nfc";
 
 interface DashboardStats {
   totalWallets: number;
@@ -83,6 +87,13 @@ export default function Dashboard() {
     price: '',
     category: 'games'
   });
+  
+  // Block Tag functionality state
+  const [isBlockTagOpen, setIsBlockTagOpen] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
+  const [scannedWallet, setScannedWallet] = useState<any>(null);
+  const [blockedWallets, setBlockedWallets] = useState<any[]>([]);
+  
   const { toast } = useToast();
 
   useEffect(() => {
@@ -175,6 +186,9 @@ export default function Dashboard() {
 
       // Fetch game sales data
       await fetchGameSalesData();
+
+      // Fetch blocked wallets
+      await fetchBlockedWallets();
 
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
@@ -357,6 +371,112 @@ export default function Dashboard() {
       toast({
         title: "Error Adding Item",
         description: "Failed to add item. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const fetchBlockedWallets = async () => {
+    try {
+      const { data: blocked, error } = await supabase
+        .from('wallets')
+        .select('*')
+        .eq('status', 'blocked')
+        .order('updated_at', { ascending: false });
+
+      if (error) throw error;
+      setBlockedWallets(blocked || []);
+    } catch (error) {
+      console.error('Error fetching blocked wallets:', error);
+    }
+  };
+
+  const handleScanForBlock = async () => {
+    setIsScanning(true);
+    
+    try {
+      const result = nfcManager.isNFCSupported() 
+        ? await nfcManager.startScanning()
+        : await nfcManager.simulateNFCScan();
+      
+      if (result.success) {
+        // Fetch wallet data from Supabase based on tag ID
+        const { data: wallet, error } = await supabase
+          .from('wallets')
+          .select('*')
+          .eq('tag_id', result.tagId)
+          .single();
+
+        if (error || !wallet) {
+          toast({
+            title: "No Wallet Found",
+            description: `NFC tag ${result.tagId} scanned but no wallet is linked to this tag.`,
+            variant: "destructive",
+          });
+          setScannedWallet(null);
+          return;
+        }
+
+        setScannedWallet(wallet);
+        
+        toast({
+          title: "Wallet Scanned",
+          description: `Found wallet for ${wallet.attendee_name}`,
+        });
+      } else {
+        toast({
+          title: "Scanning Failed",
+          description: result.error || "Could not scan NFC tag. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Scanning Failed",
+        description: "Could not scan NFC tag. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  const handleToggleBlockStatus = async () => {
+    if (!scannedWallet) return;
+
+    try {
+      const newStatus = scannedWallet.status === 'blocked' ? 'active' : 'blocked';
+      
+      const { error } = await supabase
+        .from('wallets')
+        .update({ 
+          status: newStatus,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', scannedWallet.id);
+
+      if (error) throw error;
+
+      // Update local state
+      setScannedWallet({ ...scannedWallet, status: newStatus });
+      
+      // Refresh blocked wallets list and dashboard stats
+      await fetchBlockedWallets();
+      await fetchDashboardData();
+
+      toast({
+        title: newStatus === 'blocked' ? "Tag Blocked" : "Tag Unblocked",
+        description: `${scannedWallet.attendee_name}'s wallet has been ${newStatus}.`,
+        variant: newStatus === 'blocked' ? "destructive" : "default",
+      });
+
+      // Close dialog after successful action
+      setIsBlockTagOpen(false);
+      setScannedWallet(null);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update wallet status. Please try again.",
         variant: "destructive",
       });
     }
@@ -773,6 +893,158 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Block Tag Section */}
+      <Card className="shadow-card border-destructive/20">
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <Shield className="w-5 h-5 text-destructive" />
+              <span>Block Tag Management</span>
+            </div>
+            <Dialog open={isBlockTagOpen} onOpenChange={setIsBlockTagOpen}>
+              <DialogTrigger asChild>
+                <Button variant="destructive" className="flex items-center space-x-2">
+                  <Shield className="w-4 h-4" />
+                  <span>Block Tag</span>
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                  <DialogTitle>Block/Unblock NFC Tag</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="text-sm text-muted-foreground">
+                    Scan an NFC tag to block or unblock it. Blocked tags cannot be used for transactions.
+                  </div>
+                  
+                  <Button 
+                    onClick={handleScanForBlock}
+                    disabled={isScanning}
+                    className="w-full"
+                    variant="outline"
+                  >
+                    {isScanning ? (
+                      <div className="flex items-center space-x-2">
+                        <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                        <span>Scanning...</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center space-x-2">
+                        <Scan className="w-4 h-4" />
+                        <span>Scan NFC Tag</span>
+                      </div>
+                    )}
+                  </Button>
+
+                  {scannedWallet && (
+                    <div className={cn(
+                      "border rounded-lg p-4",
+                      scannedWallet.status === 'blocked' 
+                        ? "bg-destructive/10 border-destructive/20" 
+                        : "bg-success/10 border-success/20"
+                    )}>
+                      <div className="flex items-center space-x-3 mb-3">
+                        {scannedWallet.status === 'blocked' ? (
+                          <ShieldOff className="w-5 h-5 text-destructive" />
+                        ) : (
+                          <Shield className="w-5 h-5 text-success" />
+                        )}
+                        <div>
+                          <div className="font-medium text-foreground">{scannedWallet.attendee_name}</div>
+                          <div className="text-sm text-muted-foreground">{scannedWallet.tag_id}</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between pt-3 border-t">
+                        <div>
+                          <div className="text-sm font-medium text-muted-foreground">Status</div>
+                          <Badge 
+                            variant={scannedWallet.status === 'blocked' ? "destructive" : "default"}
+                          >
+                            {scannedWallet.status === 'blocked' ? 'Blocked' : 'Active'}
+                          </Badge>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm font-medium text-muted-foreground">Balance</div>
+                          <div className="font-bold">₹{typeof scannedWallet.balance === 'string' ? parseFloat(scannedWallet.balance).toFixed(2) : scannedWallet.balance.toFixed(2)}</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {scannedWallet && (
+                    <div className="flex space-x-2 pt-4">
+                      <Button 
+                        onClick={handleToggleBlockStatus}
+                        variant={scannedWallet.status === 'blocked' ? "default" : "destructive"}
+                        className="flex-1"
+                      >
+                        {scannedWallet.status === 'blocked' ? (
+                          <div className="flex items-center space-x-2">
+                            <Shield className="w-4 h-4" />
+                            <span>Unblock Tag</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center space-x-2">
+                            <ShieldOff className="w-4 h-4" />
+                            <span>Block Tag</span>
+                          </div>
+                        )}
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        onClick={() => {
+                          setIsBlockTagOpen(false);
+                          setScannedWallet(null);
+                        }}
+                        className="flex-1"
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </DialogContent>
+            </Dialog>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {blockedWallets.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Shield className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                <p>No blocked tags</p>
+                <p className="text-sm">Blocked tags will appear here for management</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="text-sm font-medium text-foreground">
+                  Currently Blocked Tags ({blockedWallets.length})
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {blockedWallets.map((wallet) => (
+                    <div key={wallet.id} className="flex items-center justify-between p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+                      <div className="flex items-center space-x-3">
+                        <ShieldOff className="w-4 h-4 text-destructive" />
+                        <div>
+                          <div className="font-medium text-foreground">{wallet.attendee_name}</div>
+                          <div className="text-sm text-muted-foreground">{wallet.tag_id}</div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm font-medium text-destructive">Blocked</div>
+                        <div className="text-xs text-muted-foreground">
+                          ₹{typeof wallet.balance === 'string' ? parseFloat(wallet.balance).toFixed(2) : wallet.balance.toFixed(2)}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
