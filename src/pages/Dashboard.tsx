@@ -82,7 +82,6 @@ export default function Dashboard() {
     name: '',
     description: '',
     price: '',
-    studio: '',
     category: 'games'
   });
   const { toast } = useToast();
@@ -316,10 +315,10 @@ export default function Dashboard() {
   };
 
   const handleAddItem = async () => {
-    if (!itemForm.name || !itemForm.price || !itemForm.studio) {
+    if (!itemForm.name || !itemForm.price) {
       toast({
         title: "Missing Information",
-        description: "Please fill in all required fields",
+        description: "Please fill in name and price",
         variant: "destructive",
       });
       return;
@@ -332,7 +331,7 @@ export default function Dashboard() {
           name: itemForm.name,
           description: itemForm.description || null,
           price: parseFloat(itemForm.price),
-          studio: itemForm.studio
+          studio: 'General' // Default value since games are not studio-dependent
         });
 
       if (error) throw error;
@@ -347,7 +346,6 @@ export default function Dashboard() {
         name: '',
         description: '',
         price: '',
-        studio: '',
         category: 'games'
       });
       setIsAddItemOpen(false);
@@ -507,15 +505,6 @@ export default function Dashboard() {
                     placeholder="Enter price"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="studio">Studio</Label>
-                  <Input
-                    id="studio"
-                    value={itemForm.studio}
-                    onChange={(e) => setItemForm(prev => ({ ...prev, studio: e.target.value }))}
-                    placeholder="Enter studio name"
-                  />
-                </div>
                 <div className="flex space-x-2 pt-4">
                   <Button onClick={handleAddItem} className="flex-1">
                     Add Item
@@ -576,12 +565,8 @@ export default function Dashboard() {
                         </div>
                         <div>
                           <div className="font-medium text-foreground">{gameData.game_name}</div>
-                          <div className="text-sm text-muted-foreground flex items-center space-x-2">
-                            <Badge variant="outline" className="text-xs">
-                              {gameData.studio}
-                            </Badge>
-                            <span>•</span>
-                            <span>{gameData.total_quantity} sold</span>
+                          <div className="text-sm text-muted-foreground">
+                            {gameData.total_quantity} sold
                           </div>
                         </div>
                       </div>
