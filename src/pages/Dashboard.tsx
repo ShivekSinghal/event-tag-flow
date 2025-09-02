@@ -1,5 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -40,6 +41,12 @@ interface LowBalanceAlert {
   balance: number;
 }
 
+interface StudioSales {
+  studio: string;
+  totalSales: number;
+  transactionCount: number;
+}
+
 export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats>({
     totalWallets: 0,
@@ -50,6 +57,8 @@ export default function Dashboard() {
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
   const [lowBalanceAlerts, setLowBalanceAlerts] = useState<LowBalanceAlert[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [showSalesBreakdown, setShowSalesBreakdown] = useState(false);
+  const [studioSales, setStudioSales] = useState<StudioSales[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -149,6 +158,68 @@ export default function Dashboard() {
     }
   };
 
+  const fetchStudioSales = async () => {
+    try {
+      // Fetch sales transactions with wallet studio information
+      const { data: salesData, error } = await supabase
+        .from('transactions')
+        .select(`
+          amount,
+          wallets!inner(studio)
+        `)
+        .eq('type', 'spend');
+
+      if (error) throw error;
+
+      // Group sales by studio
+      const studioSalesMap = new Map<string, { totalSales: number; transactionCount: number }>();
+      
+      salesData?.forEach((transaction: any) => {
+        const studio = transaction.wallets.studio;
+        const amount = Math.abs(typeof transaction.amount === 'string' ? parseFloat(transaction.amount) : transaction.amount);
+        
+        if (studioSalesMap.has(studio)) {
+          const existing = studioSalesMap.get(studio)!;
+          studioSalesMap.set(studio, {
+            totalSales: existing.totalSales + amount,
+            transactionCount: existing.transactionCount + 1
+          });
+        } else {
+          studioSalesMap.set(studio, {
+            totalSales: amount,
+            transactionCount: 1
+          });
+        }
+      });
+
+      // Convert to array and sort by total sales
+      const studioSalesArray: StudioSales[] = Array.from(studioSalesMap.entries())
+        .map(([studio, data]) => ({
+          studio,
+          totalSales: data.totalSales,
+          transactionCount: data.transactionCount
+        }))
+        .sort((a, b) => b.totalSales - a.totalSales);
+
+      setStudioSales(studioSalesArray);
+      setShowSalesBreakdown(true);
+    } catch (error) {
+      toast({
+        title: "Error Loading Sales Breakdown",
+        description: "Failed to load sales data by studio. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleTotalSalesClick = () => {
+    if (showSalesBreakdown) {
+      setShowSalesBreakdown(false);
+    } else {
+      fetchStudioSales();
+    }
+  };
+
   const statsConfig = [
     {
       title: "Total Wallets",
@@ -169,7 +240,8 @@ export default function Dashboard() {
       value: isLoading ? "..." : `₹${stats.totalSales.toFixed(2)}`,
       change: stats.totalSales > 0 ? "Total revenue generated" : "No transactions yet",
       icon: TrendingUp,
-      color: "text-accent"
+      color: "text-accent",
+      clickable: true
     },
     {
       title: "Active Tags",
@@ -193,7 +265,14 @@ export default function Dashboard() {
         {statsConfig.map((stat) => {
           const Icon = stat.icon;
           return (
-            <Card key={stat.title} className="shadow-card hover:shadow-hover transition-smooth">
+            <Card 
+              key={stat.title} 
+              className={cn(
+                "shadow-card hover:shadow-hover transition-smooth",
+                (stat as any).clickable ? "cursor-pointer" : ""
+              )}
+              onClick={(stat as any).clickable ? handleTotalSalesClick : undefined}
+            >
               <CardHeader className="flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
                   {stat.title}
@@ -212,6 +291,58 @@ export default function Dashboard() {
           );
         })}
       </div>
+
+      {/* Sales Breakdown Modal/Section */}
+      {showSalesBreakdown && (
+        <Card className="shadow-card">
+          <CardHeader className="flex-row items-center justify-between">
+            <CardTitle className="flex items-center space-x-2">
+              <TrendingUp className="w-5 h-5 text-primary" />
+              <span>Sales Breakdown by Studio</span>
+            </CardTitle>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setShowSalesBreakdown(false)}
+            >
+              Close
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {studioSales.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <TrendingUp className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                  <p>No sales data available</p>
+                  <p className="text-sm">Sales breakdown will appear once transactions are recorded</p>
+                </div>
+              ) : (
+                studioSales.map((studioData, index) => (
+                  <div key={studioData.studio} className="flex items-center justify-between p-4 bg-secondary/30 rounded-lg">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold">
+                        {index + 1}
+                      </div>
+                      <div>
+                        <div className="font-medium text-foreground">{studioData.studio}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {studioData.transactionCount} transaction{studioData.transactionCount === 1 ? '' : 's'}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-bold text-lg text-success">₹{studioData.totalSales.toFixed(2)}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {stats.totalSales > 0 ? `${((studioData.totalSales / stats.totalSales) * 100).toFixed(1)}%` : '0%'} of total
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Recent Transactions */}

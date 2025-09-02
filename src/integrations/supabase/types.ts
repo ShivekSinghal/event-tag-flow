@@ -60,6 +60,7 @@ export type Database = {
           created_at: string
           id: string
           status: string
+          studio: string
           tag_id: string
           updated_at: string
         }
@@ -70,6 +71,7 @@ export type Database = {
           created_at?: string
           id?: string
           status?: string
+          studio?: string
           tag_id: string
           updated_at?: string
         }
@@ -80,6 +82,7 @@ export type Database = {
           created_at?: string
           id?: string
           status?: string
+          studio?: string
           tag_id?: string
           updated_at?: string
         }

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { nfcManager } from "@/utils/nfc";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,7 +15,8 @@ import {
   AlertCircle,
   User,
   Phone,
-  Tag
+  Tag,
+  Building
 } from "lucide-react";
 
 export default function IssueTag() {
@@ -23,6 +25,7 @@ export default function IssueTag() {
   const [scannedTag, setScannedTag] = useState<string | null>(null);
   const [attendeeName, setAttendeeName] = useState("");
   const [attendeePhone, setAttendeePhone] = useState("");
+  const [selectedStudio, setSelectedStudio] = useState<string>("");
 
   const handleScanNFC = async () => {
     setIsScanning(true);
@@ -58,10 +61,10 @@ export default function IssueTag() {
   };
 
   const handleIssueWallet = async () => {
-    if (!scannedTag || !attendeeName || !attendeePhone) {
+    if (!scannedTag || !attendeeName || !attendeePhone || !selectedStudio) {
       toast({
         title: "Missing Information",
-        description: "Please scan a tag and fill in all attendee details.",
+        description: "Please scan a tag and fill in all attendee details including studio.",
         variant: "destructive",
       });
       return;
@@ -91,6 +94,7 @@ export default function IssueTag() {
           tag_id: scannedTag,
           attendee_name: attendeeName,
           attendee_phone: attendeePhone,
+          studio: selectedStudio,
           balance: 0.00,
           status: 'active'
         })
@@ -110,6 +114,7 @@ export default function IssueTag() {
       setScannedTag(null);
       setAttendeeName("");
       setAttendeePhone("");
+      setSelectedStudio("");
     } catch (error) {
       toast({
         title: "Failed to Create Wallet",
@@ -209,6 +214,28 @@ export default function IssueTag() {
               className="transition-smooth focus:shadow-hover"
             />
           </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="studio" className="flex items-center space-x-2">
+              <Building className="w-4 h-4" />
+              <span>Studio</span>
+            </Label>
+            <Select value={selectedStudio} onValueChange={setSelectedStudio}>
+              <SelectTrigger className="transition-smooth focus:shadow-hover">
+                <SelectValue placeholder="Select studio" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="NDA">NDA</SelectItem>
+                <SelectItem value="RG">RG</SelectItem>
+                <SelectItem value="ED">ED</SelectItem>
+                <SelectItem value="PP">PP</SelectItem>
+                <SelectItem value="SD">SD</SelectItem>
+                <SelectItem value="GGN">GGN</SelectItem>
+                <SelectItem value="IPM">IPM</SelectItem>
+                <SelectItem value="RMG">RMG</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </CardContent>
       </Card>
 
@@ -216,7 +243,7 @@ export default function IssueTag() {
       <div className="text-center">
         <Button
           onClick={handleIssueWallet}
-          disabled={!scannedTag || !attendeeName || !attendeePhone}
+          disabled={!scannedTag || !attendeeName || !attendeePhone || !selectedStudio}
           size="lg"
           className="w-full max-w-xs bg-gradient-primary hover:shadow-hover transition-smooth"
         >
