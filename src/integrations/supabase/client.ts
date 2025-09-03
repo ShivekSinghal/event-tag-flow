@@ -8,56 +8,10 @@ const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
-// Create a more resilient storage mechanism for mobile Safari
-const createSupabaseStorage = () => {
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-  
-  return {
-    getItem: (key: string) => {
-      try {
-        if (isIOS) {
-          // For iOS, try both localStorage and sessionStorage
-          return localStorage.getItem(key) || sessionStorage.getItem(key);
-        }
-        return localStorage.getItem(key);
-      } catch (error) {
-        console.warn('Storage getItem failed:', error);
-        return null;
-      }
-    },
-    setItem: (key: string, value: string) => {
-      try {
-        if (isIOS) {
-          // For iOS, store in both localStorage and sessionStorage as fallback
-          try {
-            localStorage.setItem(key, value);
-          } catch {
-            sessionStorage.setItem(key, value);
-          }
-        } else {
-          localStorage.setItem(key, value);
-        }
-      } catch (error) {
-        console.warn('Storage setItem failed:', error);
-      }
-    },
-    removeItem: (key: string) => {
-      try {
-        localStorage.removeItem(key);
-        sessionStorage.removeItem(key);
-      } catch (error) {
-        console.warn('Storage removeItem failed:', error);
-      }
-    }
-  };
-};
-
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
-    storage: createSupabaseStorage(),
+    storage: localStorage,
     persistSession: true,
     autoRefreshToken: true,
-    detectSessionInUrl: true,
-    flowType: 'pkce'
   }
 });
