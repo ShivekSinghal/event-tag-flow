@@ -45,8 +45,8 @@ export default function POS() {
       if (!profile?.assigned_game_id) {
         setGames([]);
         toast({
-          title: "No Game Assigned",
-          description: "You have not been assigned a game by an admin. Please contact an administrator.",
+          title: "Cannot access games",
+          description: "Ask admin to access games",
           variant: "destructive",
         });
         return;
