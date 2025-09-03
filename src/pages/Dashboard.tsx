@@ -27,6 +27,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { nfcManager } from "@/utils/nfc";
+import StaffManagement from "@/components/admin/StaffManagement";
 
 interface DashboardStats {
   totalWallets: number;
@@ -1142,6 +1143,9 @@ export default function Dashboard() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Staff Management Section */}
+      <StaffManagement />
     </div>
   );
 }
