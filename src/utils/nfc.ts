@@ -1,6 +1,6 @@
 /**
  * NFC Utility functions for cross-platform NFC scanning
- * Uses Capacitor NFC plugin for iOS/Android and WebNFC API as fallback
+ * Uses @exxili/capacitor-nfc for iOS/Android and WebNFC API as fallback
  */
 
 import { Capacitor } from '@capacitor/core';
@@ -26,7 +26,7 @@ export class NFCManager {
   constructor() {
     // Import NFC plugin dynamically for mobile platforms
     if (Capacitor.isNativePlatform()) {
-      import('capacitor-nfc').then((module) => {
+      import('@exxili/capacitor-nfc').then((module) => {
         this.nfcPlugin = module.NFC;
       }).catch(() => {
         console.warn('NFC plugin not available');
@@ -84,7 +84,7 @@ export class NFCManager {
   }
 
   /**
-   * Scan using Capacitor NFC plugin (iOS/Android)
+   * Scan using @exxili/capacitor-nfc plugin (iOS/Android)
    */
   private async scanWithNativePlugin(): Promise<NFCReadResult> {
     try {
@@ -98,15 +98,28 @@ export class NFCManager {
         };
       }
 
-      // Start scanning
-      const result = await this.nfcPlugin.startScan({
-        techTypes: ['Ndef', 'NfcA', 'NfcB', 'NfcF', 'NfcV'],
-        alertMessage: 'Hold your device near an NFC tag'
-      });
+      // Start scanning for NDEF messages
+      const result = await this.nfcPlugin.readTag();
 
-      if (result && result.id) {
+      if (result && result.message && result.message.records && result.message.records.length > 0) {
+        // Extract tag identifier from the first record or use a generated ID
+        const record = result.message.records[0];
+        let tagId = '';
+        
+        if (record.id) {
+          tagId = this.formatTagId(record.id);
+        } else if (record.payload) {
+          // Generate ID from payload
+          const decoder = new TextDecoder();
+          const text = decoder.decode(new Uint8Array(record.payload));
+          tagId = this.formatTagId(text.substring(0, 6));
+        } else {
+          // Generate a timestamp-based ID
+          tagId = this.formatTagId(Date.now().toString().slice(-6));
+        }
+
         return {
-          tagId: this.formatTagId(result.id),
+          tagId,
           success: true
         };
       } else {
@@ -178,13 +191,10 @@ export class NFCManager {
    * Stop NFC scanning
    */
   stopScanning(): void {
-    // Stop native NFC scanning
+    // Stop native NFC scanning - this plugin doesn't require explicit stop
     if (Capacitor.isNativePlatform() && this.nfcPlugin) {
-      try {
-        this.nfcPlugin.stopScan();
-      } catch (error) {
-        console.warn('Error stopping native NFC scan:', error);
-      }
+      // The @exxili/capacitor-nfc plugin doesn't require explicit stop
+      console.log('NFC scan completed');
     }
 
     // Stop WebNFC scanning
