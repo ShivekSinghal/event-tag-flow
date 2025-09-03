@@ -65,7 +65,6 @@ export type Database = {
           name: string
           price: number
           studio: string
-          subcategory: string
           updated_at: string
         }
         Insert: {
@@ -76,7 +75,6 @@ export type Database = {
           name: string
           price?: number
           studio: string
-          subcategory?: string
           updated_at?: string
         }
         Update: {
@@ -87,7 +85,6 @@ export type Database = {
           name?: string
           price?: number
           studio?: string
-          subcategory?: string
           updated_at?: string
         }
         Relationships: []

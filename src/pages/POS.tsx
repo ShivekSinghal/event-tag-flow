@@ -23,7 +23,6 @@ interface Game {
   price: number;
   studio: string;
   available: boolean;
-  subcategory: string;
 }
 
 export default function POS() {
@@ -313,9 +312,6 @@ export default function POS() {
                       <div>
                         <div className="flex items-center space-x-2">
                           <span className="font-medium text-foreground">{game.name}</span>
-                          <Badge variant="outline" className="text-xs">
-                            {game.subcategory}
-                          </Badge>
                           {selectedGame?.id === game.id && (
                             <Badge variant="default" className="text-xs">
                               Selected

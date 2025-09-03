@@ -89,8 +89,7 @@ export default function Dashboard() {
     name: '',
     description: '',
     price: '',
-    category: 'games',
-    subcategory: 'general'
+    category: 'games'
   });
   
   // Block Tag functionality state
@@ -270,7 +269,7 @@ export default function Dashboard() {
       // First fetch all games to show availability status
       const { data: allGames, error: gamesError } = await supabase
         .from('games')
-        .select('id, name, studio, available, subcategory');
+        .select('id, name, studio, available');
 
       if (gamesError) throw gamesError;
 
@@ -375,8 +374,7 @@ export default function Dashboard() {
           name: itemForm.name,
           description: itemForm.description || null,
           price: parseFloat(itemForm.price),
-          studio: 'General', // Default value since games are not studio-dependent
-          subcategory: itemForm.subcategory
+          studio: itemForm.category === 'games' ? 'General' : 'General'
         });
 
       if (error) throw error;
@@ -391,8 +389,7 @@ export default function Dashboard() {
         name: '',
         description: '',
         price: '',
-        category: 'games',
-        subcategory: 'general'
+        category: 'games'
       });
       setIsAddItemOpen(false);
 
@@ -703,20 +700,20 @@ export default function Dashboard() {
                   <SelectTrigger>
                     <SelectValue placeholder="Select category" />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="games">
-                      <div className="flex items-center space-x-2">
-                        <Package className="w-4 h-4" />
-                        <span>Games</span>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="food">
-                      <div className="flex items-center space-x-2">
-                        <Utensils className="w-4 h-4" />
-                        <span>Food Items</span>
-                      </div>
-                    </SelectItem>
-                  </SelectContent>
+                   <SelectContent>
+                     <SelectItem value="games">
+                       <div className="flex items-center space-x-2">
+                         <Package className="w-4 h-4" />
+                         <span>Games</span>
+                       </div>
+                     </SelectItem>
+                     <SelectItem value="general">
+                       <div className="flex items-center space-x-2">
+                         <Utensils className="w-4 h-4" />
+                         <span>General Items</span>
+                       </div>
+                     </SelectItem>
+                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
@@ -735,15 +732,6 @@ export default function Dashboard() {
                   value={itemForm.description}
                   onChange={(e) => setItemForm(prev => ({ ...prev, description: e.target.value }))}
                   placeholder="Enter item description"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="subcategory">Subcategory</Label>
-                <Input
-                  id="subcategory"
-                  value={itemForm.subcategory}
-                  onChange={(e) => setItemForm(prev => ({ ...prev, subcategory: e.target.value }))}
-                  placeholder="Enter subcategory (e.g., general, action, puzzle)"
                 />
               </div>
               <div className="space-y-2">

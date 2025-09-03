@@ -25,7 +25,6 @@ interface Game {
   id: string;
   name: string;
   studio: string;
-  subcategory: string;
 }
 
 export default function StaffManagement() {
@@ -73,7 +72,7 @@ export default function StaffManagement() {
     try {
       const { data, error } = await supabase
         .from('games')
-        .select('id, name, studio, subcategory')
+        .select('id, name, studio')
         .order('name');
 
       if (error) throw error;
@@ -259,7 +258,7 @@ export default function StaffManagement() {
                        <SelectItem value="none">No game assigned</SelectItem>
                         {games.map((game) => (
                           <SelectItem key={game.id} value={game.id}>
-                            {game.name} ({game.studio}) - {game.subcategory}
+                            {game.name} ({game.studio})
                           </SelectItem>
                         ))}
                      </SelectContent>
