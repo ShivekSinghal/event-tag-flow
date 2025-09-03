@@ -38,11 +38,11 @@ export class NFCManager {
    * Check if NFC is supported on this device
    */
   isNFCSupported(): boolean {
-    // For native platforms (iOS/Android), check if NFC plugin is available
+    // For native platforms (iOS/Android), assume NFC is available
     if (Capacitor.isNativePlatform()) {
-      return this.nfcPlugin !== null;
+      return true; // Will be checked properly when scanning
     }
-    // For web, check WebNFC API
+    // For web, check WebNFC API (Chrome on Android)
     return 'NDEFReader' in window;
   }
 
@@ -66,12 +66,19 @@ export class NFCManager {
    */
   async startScanning(): Promise<NFCReadResult> {
     if (!this.isNFCSupported()) {
-      const platform = Capacitor.isNativePlatform() ? 'mobile device' : 'browser';
-      return {
-        tagId: '',
-        success: false,
-        error: `NFC not supported on this ${platform}. For iPhone/Android use the native app, for web use Chrome on Android.`
-      };
+      if (Capacitor.isNativePlatform()) {
+        return {
+          tagId: '',
+          success: false,
+          error: 'NFC not available. Please enable NFC in device settings.'
+        };
+      } else {
+        return {
+          tagId: '',
+          success: false,
+          error: 'NFC not supported in this browser. Please use Chrome on Android or install the mobile app for iPhone/Android NFC support.'
+        };
+      }
     }
 
     // Use native NFC plugin for iOS/Android
