@@ -164,14 +164,20 @@ export default function StaffManagement() {
                         <Shield className="w-5 h-5 text-muted-foreground" />
                       )}
                     </div>
-                    <div>
+                    <div className="flex-1">
                       <div className="font-medium">{member.full_name || member.email}</div>
                       <div className="text-sm text-muted-foreground">{member.email}</div>
-                      {member.assigned_game && (
-                        <div className="text-xs text-accent-foreground">
-                          Assigned to: {member.assigned_game.name} ({member.assigned_game.studio})
+                      {member.assigned_game ? (
+                        <div className="flex items-center mt-1">
+                          <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800">
+                            🎮 {member.assigned_game.name} ({member.assigned_game.studio})
+                          </Badge>
                         </div>
-                      )}
+                      ) : member.role === 'staff' ? (
+                        <div className="text-xs text-muted-foreground mt-1">
+                          No game assigned
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                   
