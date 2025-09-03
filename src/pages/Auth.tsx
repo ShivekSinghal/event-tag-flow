@@ -27,10 +27,21 @@ const Auth = () => {
     e.preventDefault();
     setIsLoading(true);
     
-    const { error } = await signIn(email, password);
-    
-    if (!error) {
-      navigate('/');
+    try {
+      console.log('Attempting sign in for:', email);
+      const { error } = await signIn(email, password);
+      
+      if (error) {
+        console.error('Sign in error:', error);
+        // Show user-friendly error message
+        alert(`Sign in failed: ${error.message || 'Unknown error'}\n\nPlease check:\n1. Email and password are correct\n2. Internet connection\n3. Try refreshing the page`);
+      } else {
+        console.log('Sign in successful, navigating...');
+        navigate('/');
+      }
+    } catch (err) {
+      console.error('Unexpected error:', err);
+      alert('Unexpected error occurred. Please try refreshing the page.');
     }
     
     setIsLoading(false);
@@ -40,11 +51,23 @@ const Auth = () => {
     e.preventDefault();
     setIsLoading(true);
     
-    const { error } = await signUp(email, password, fullName);
+    try {
+      console.log('Attempting sign up for:', email);
+      const { error } = await signUp(email, password, fullName);
+      
+      if (error) {
+        console.error('Sign up error:', error);
+        alert(`Sign up failed: ${error.message || 'Unknown error'}\n\nPlease check:\n1. Email format is valid\n2. Password meets requirements\n3. Internet connection`);
+      } else {
+        console.log('Sign up successful');
+        alert('Account created successfully! Please check your email to verify your account.');
+      }
+    } catch (err) {
+      console.error('Unexpected error:', err);
+      alert('Unexpected error occurred. Please try refreshing the page.');
+    }
     
     setIsLoading(false);
-    
-    // Don't navigate on signup - user needs to verify email
   };
 
   if (loading) {
