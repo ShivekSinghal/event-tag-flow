@@ -610,6 +610,9 @@ export default function Dashboard() {
         })}
       </div>
 
+      {/* Staff Management Section */}
+      <StaffManagement />
+
       {/* Studio Sales Breakdown - Always Visible */}
       <Card className="shadow-card">
         <CardHeader>
@@ -1143,9 +1146,6 @@ export default function Dashboard() {
           </div>
         </CardContent>
       </Card>
-
-      {/* Staff Management Section */}
-      <StaffManagement />
     </div>
   );
 }
