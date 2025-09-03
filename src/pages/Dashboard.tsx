@@ -89,7 +89,8 @@ export default function Dashboard() {
     name: '',
     description: '',
     price: '',
-    category: 'games'
+    category: 'games',
+    subcategory: 'general'
   });
   
   // Block Tag functionality state
@@ -269,7 +270,7 @@ export default function Dashboard() {
       // First fetch all games to show availability status
       const { data: allGames, error: gamesError } = await supabase
         .from('games')
-        .select('id, name, studio, available');
+        .select('id, name, studio, available, subcategory');
 
       if (gamesError) throw gamesError;
 
@@ -374,7 +375,8 @@ export default function Dashboard() {
           name: itemForm.name,
           description: itemForm.description || null,
           price: parseFloat(itemForm.price),
-          studio: 'General' // Default value since games are not studio-dependent
+          studio: 'General', // Default value since games are not studio-dependent
+          subcategory: itemForm.subcategory
         });
 
       if (error) throw error;
@@ -389,7 +391,8 @@ export default function Dashboard() {
         name: '',
         description: '',
         price: '',
-        category: 'games'
+        category: 'games',
+        subcategory: 'general'
       });
       setIsAddItemOpen(false);
 
@@ -732,6 +735,15 @@ export default function Dashboard() {
                   value={itemForm.description}
                   onChange={(e) => setItemForm(prev => ({ ...prev, description: e.target.value }))}
                   placeholder="Enter item description"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="subcategory">Subcategory</Label>
+                <Input
+                  id="subcategory"
+                  value={itemForm.subcategory}
+                  onChange={(e) => setItemForm(prev => ({ ...prev, subcategory: e.target.value }))}
+                  placeholder="Enter subcategory (e.g., general, action, puzzle)"
                 />
               </div>
               <div className="space-y-2">

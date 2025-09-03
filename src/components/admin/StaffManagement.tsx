@@ -25,6 +25,7 @@ interface Game {
   id: string;
   name: string;
   studio: string;
+  subcategory: string;
 }
 
 export default function StaffManagement() {
@@ -72,7 +73,7 @@ export default function StaffManagement() {
     try {
       const { data, error } = await supabase
         .from('games')
-        .select('id, name, studio')
+        .select('id, name, studio, subcategory')
         .order('name');
 
       if (error) throw error;
@@ -256,11 +257,11 @@ export default function StaffManagement() {
                     </SelectTrigger>
                      <SelectContent className="bg-background border shadow-lg z-50">
                        <SelectItem value="none">No game assigned</SelectItem>
-                       {games.map((game) => (
-                         <SelectItem key={game.id} value={game.id}>
-                           {game.name} ({game.studio})
-                         </SelectItem>
-                       ))}
+                        {games.map((game) => (
+                          <SelectItem key={game.id} value={game.id}>
+                            {game.name} ({game.studio}) - {game.subcategory}
+                          </SelectItem>
+                        ))}
                      </SelectContent>
                   </Select>
                 </div>
