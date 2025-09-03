@@ -39,18 +39,24 @@ export default function POS() {
 
   const fetchGames = async () => {
     try {
-      let query = supabase
-        .from('games')
-        .select('*')
-        .eq('available', true)
-        .order('name');
+      setIsLoadingGames(true);
       
-      // For staff users, filter by assigned game
-      if (isStaff && profile?.assigned_game_id) {
-        query = query.eq('id', profile.assigned_game_id);
+      // Only show games if user has been assigned a game by admin
+      if (!profile?.assigned_game_id) {
+        setGames([]);
+        toast({
+          title: "No Game Assigned",
+          description: "You have not been assigned a game by an admin. Please contact an administrator.",
+          variant: "destructive",
+        });
+        return;
       }
 
-      const { data: gamesData, error } = await query;
+      const { data: gamesData, error } = await supabase
+        .from('games')
+        .select('*')
+        .eq('id', profile.assigned_game_id)
+        .eq('available', true);
 
       if (error) throw error;
       setGames(gamesData || []);
