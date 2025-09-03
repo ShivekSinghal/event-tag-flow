@@ -41,11 +41,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
-  console.log('AuthProvider rendering, loading:', loading, 'user:', user?.id);
-
   const fetchProfile = async (userId: string) => {
     try {
-      console.log('Fetching profile for user:', userId);
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -57,7 +54,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
 
-      console.log('Profile fetched successfully:', data);
       setProfile(data as Profile);
     } catch (error) {
       console.error('Error fetching profile:', error);
@@ -65,40 +61,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
-
-    // Set up auth state listener with better error handling
+    // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('Auth state change:', event, session?.user?.id);
-        
-        // Handle token refresh errors on mobile
-        if (event === 'TOKEN_REFRESHED' && !session) {
-          console.warn('Token refresh failed, signing out');
-          await supabase.auth.signOut();
-          return;
-        }
-
-        // Handle sign out events
-        if (event === 'SIGNED_OUT') {
-          setSession(null);
-          setUser(null);
-          setProfile(null);
-          setLoading(false);
-          return;
-        }
-
+      (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
         
         if (session?.user) {
-          // Clear any existing timeout
-          if (timeoutId) clearTimeout(timeoutId);
-          
           // Defer profile fetching to avoid blocking auth state changes
-          timeoutId = setTimeout(() => {
+          setTimeout(() => {
             fetchProfile(session.user.id);
-          }, 100);
+          }, 0);
         } else {
           setProfile(null);
         }
@@ -107,43 +80,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     );
 
-    // Check for existing session with error handling
-    const initializeAuth = async () => {
-      try {
-        console.log('Initializing auth...');
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error('Session initialization error:', error);
-          // Clear any corrupted session data
-          await supabase.auth.signOut();
-          setLoading(false);
-          return;
-        }
-
-        console.log('Session initialized:', !!session);
-        setSession(session);
-        setUser(session?.user ?? null);
-        
-        if (session?.user) {
-          timeoutId = setTimeout(() => {
-            fetchProfile(session.user.id);
-          }, 100);
-        }
-      } catch (error) {
-        console.error('Auth initialization failed:', error);
-        await supabase.auth.signOut();
-      } finally {
-        setLoading(false);
+    // Check for existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      
+      if (session?.user) {
+        setTimeout(() => {
+          fetchProfile(session.user.id);
+        }, 0);
       }
-    };
+      
+      setLoading(false);
+    });
 
-    initializeAuth();
-
-    return () => {
-      subscription.unsubscribe();
-      if (timeoutId) clearTimeout(timeoutId);
-    };
+    return () => subscription.unsubscribe();
   }, []);
 
   const signIn = async (email: string, password: string) => {
@@ -244,13 +195,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isStaff,
     isStudioManager,
   };
-
-  console.log('AuthProvider value:', { 
-    userExists: !!user, 
-    sessionExists: !!session, 
-    profileExists: !!profile, 
-    loading 
-  });
 
   return (
     <AuthContext.Provider value={value}>
