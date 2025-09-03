@@ -6,7 +6,7 @@ const hookSecret = Deno.env.get("SUPABASE_AUTH_EXTERNAL_WEBHOOK_SECRET");
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-webhook-signature",
 };
 
 interface AuthEmailData {
@@ -30,24 +30,41 @@ const handler = async (req: Request): Promise<Response> => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  console.log("Webhook received:", req.method, req.url);
+  console.log("=== WEBHOOK DEBUG START ===");
+  console.log("Method:", req.method);
+  console.log("URL:", req.url);
   console.log("Headers:", Object.fromEntries(req.headers.entries()));
-
+  console.log("Hook Secret Configured:", !!hookSecret);
+  
   try {
-    // Verify webhook signature if secret is configured
-    if (hookSecret) {
-      const signature = req.headers.get("x-webhook-signature");
-      if (!signature) {
-        console.error("Missing webhook signature");
-        return new Response("Unauthorized", { status: 401 });
-      }
-    }
-
     const authData: AuthEmailData = await req.json();
-    console.log("Received auth webhook:", JSON.stringify(authData, null, 2));
+    console.log("Received auth webhook data:", JSON.stringify(authData, null, 2));
+
+    // Log the specific event type
+    console.log("Email action type:", authData.email_data?.email_action_type);
+    console.log("User email:", authData.user?.email);
 
     const { user, email_data } = authData;
+    
+    if (!email_data) {
+      console.error("No email_data provided in webhook");
+      return new Response("Missing email data", { status: 400 });
+    }
+    
     const { token, token_hash, redirect_to, email_action_type, site_url } = email_data;
+
+    if (!user?.email) {
+      console.error("No user email provided");
+      return new Response("No user email", { status: 400 });
+    }
+
+    console.log("Processing email for:", {
+      email: user.email,
+      action: email_action_type,
+      hasToken: !!token,
+      hasTokenHash: !!token_hash,
+      siteUrl: site_url
+    });
 
     let subject = "";
     let htmlContent = "";
@@ -56,86 +73,72 @@ const handler = async (req: Request): Promise<Response> => {
       case "signup":
         subject = "Confirm your Game POS account";
         htmlContent = `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h1 style="color: #333;">Welcome to Game POS!</h1>
-            <p>Thanks for signing up! Please confirm your email address by clicking the link below:</p>
-            <div style="margin: 30px 0;">
-              <a href="${site_url}/auth/v1/verify?token=${token_hash}&type=${email_action_type}&redirect_to=${redirect_to}" 
-                 style="background-color: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #333;">Welcome to Game POS!</h2>
+            <p>Thank you for creating an account. Please confirm your email address by clicking the button below:</p>
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${site_url}/auth/confirm?token_hash=${token_hash}&type=email&redirect_to=${encodeURIComponent(redirect_to || site_url)}" 
+                 style="background-color: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block; font-weight: bold;">
                 Confirm Email Address
               </a>
             </div>
-            <p style="color: #666; font-size: 14px;">
-              If you didn't create this account, you can safely ignore this email.
-            </p>
+            <p style="color: #666; font-size: 14px;">If the button doesn't work, you can copy and paste this link into your browser:</p>
+            <p style="word-break: break-all; font-size: 12px; color: #888;">${site_url}/auth/confirm?token_hash=${token_hash}&type=email&redirect_to=${encodeURIComponent(redirect_to || site_url)}</p>
           </div>
         `;
         break;
-
       case "recovery":
         subject = "Reset your Game POS password";
         htmlContent = `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h1 style="color: #333;">Reset Your Password</h1>
-            <p>We received a request to reset your password. Click the link below to set a new password:</p>
-            <div style="margin: 30px 0;">
-              <a href="${site_url}/auth/v1/verify?token=${token_hash}&type=${email_action_type}&redirect_to=${redirect_to}" 
-                 style="background-color: #DC2626; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #333;">Password Reset Request</h2>
+            <p>You requested to reset your password. Click the button below to reset it:</p>
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${site_url}/auth/confirm?token_hash=${token_hash}&type=recovery&redirect_to=${encodeURIComponent(redirect_to || site_url)}" 
+                 style="background-color: #dc3545; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block; font-weight: bold;">
                 Reset Password
               </a>
             </div>
-            <p style="color: #666; font-size: 14px;">
-              This link will expire in 24 hours. If you didn't request this, you can safely ignore this email.
-            </p>
           </div>
         `;
         break;
-
       case "invite":
         subject = "You've been invited to Game POS";
         htmlContent = `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h1 style="color: #333;">You're Invited!</h1>
-            <p>You've been invited to join Game POS. Click the link below to accept the invitation:</p>
-            <div style="margin: 30px 0;">
-              <a href="${site_url}/auth/v1/verify?token=${token_hash}&type=${email_action_type}&redirect_to=${redirect_to}" 
-                 style="background-color: #059669; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #333;">You're Invited!</h2>
+            <p>You've been invited to join Game POS. Click the button below to accept the invitation:</p>
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${site_url}/auth/confirm?token_hash=${token_hash}&type=invite&redirect_to=${encodeURIComponent(redirect_to || site_url)}" 
+                 style="background-color: #28a745; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block; font-weight: bold;">
                 Accept Invitation
               </a>
             </div>
-            <p style="color: #666; font-size: 14px;">
-              If you didn't expect this invitation, you can safely ignore this email.
-            </p>
           </div>
         `;
         break;
-
       default:
-        subject = "Game POS Email Verification";
-        htmlContent = `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h1 style="color: #333;">Email Verification</h1>
-            <p>Please verify your email address by clicking the link below:</p>
-            <div style="margin: 30px 0;">
-              <a href="${site_url}/auth/v1/verify?token=${token_hash}&type=${email_action_type}&redirect_to=${redirect_to}" 
-                 style="background-color: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
-                Verify Email
-              </a>
-            </div>
-          </div>
-        `;
+        console.log(`Unhandled email action type: ${email_action_type}`);
+        return new Response(JSON.stringify({ success: true, message: "No email needed for this action" }), { 
+          status: 200, 
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
     }
 
-    const emailResponse = await resend.emails.send({
+    console.log(`Attempting to send ${email_action_type} email to ${user.email} with subject: ${subject}`);
+
+    
+    const emailResult = await resend.emails.send({
       from: "Game POS <onboarding@resend.dev>",
       to: [user.email],
       subject: subject,
       html: htmlContent,
     });
 
-    console.log("Email sent successfully:", emailResponse);
+    console.log("Email sent successfully:", JSON.stringify(emailResult, null, 2));
+    console.log("=== WEBHOOK DEBUG END ===");
 
-    return new Response(JSON.stringify({ success: true, emailResponse }), {
+    return new Response(JSON.stringify({ success: true, result: emailResult }), {
       status: 200,
       headers: {
         "Content-Type": "application/json",
@@ -143,9 +146,17 @@ const handler = async (req: Request): Promise<Response> => {
       },
     });
   } catch (error: any) {
-    console.error("Error in send-auth-email function:", error);
+    console.error("=== ERROR IN WEBHOOK ===");
+    console.error("Error type:", error.constructor.name);
+    console.error("Error message:", error.message);
+    console.error("Error stack:", error.stack);
+    console.error("========================");
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: error.message,
+        type: error.constructor.name,
+        timestamp: new Date().toISOString()
+      }),
       {
         status: 500,
         headers: { "Content-Type": "application/json", ...corsHeaders },
