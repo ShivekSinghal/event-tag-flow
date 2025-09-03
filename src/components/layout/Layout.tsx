@@ -30,12 +30,13 @@ export default function Layout() {
   const location = useLocation();
   const isMobile = useIsMobile();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const { profile, signOut, isAdmin, isStaff } = useAuth();
+  const { profile, signOut, isAdmin, isStaff, isStudioManager } = useAuth();
   
   // Filter navigation based on user role
   const filteredNavigation = navigation.filter(item => {
     if (isAdmin) return true; // Admin can see all
     if (isStaff) return item.href === '/pos' || item.href === '/donation-progress'; // Staff can see POS and donation progress
+    if (isStudioManager) return item.href === '/issue-tag' || item.href === '/topup'; // Studio manager can see issue tag and top up
     return false;
   });
   
@@ -72,7 +73,7 @@ export default function Layout() {
             
             <div className="flex items-center space-x-4">
               <span className="text-sm text-muted-foreground hidden sm:inline">
-                {profile?.role === 'admin' ? 'Admin Portal' : 'Staff Portal'}
+                {profile?.role === 'admin' ? 'Admin Portal' : profile?.role === 'studio_manager' ? 'Studio Manager Portal' : 'Staff Portal'}
               </span>
               <Button variant="ghost" size="sm" onClick={signOut}>
                 <LogOut className="w-4 h-4" />
