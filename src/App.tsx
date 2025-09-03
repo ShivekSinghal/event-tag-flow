@@ -41,16 +41,8 @@ const App = () => (
                   <Dashboard />
                 </ProtectedRoute>
               } />
-              <Route path="issue-tag" element={
-                <ProtectedRoute requiredRole="admin">
-                  <IssueTag />
-                </ProtectedRoute>
-              } />
-              <Route path="topup" element={
-                <ProtectedRoute requiredRole="admin">
-                  <TopUp />
-                </ProtectedRoute>
-              } />
+              <Route path="issue-tag" element={<IssueTag />} />
+              <Route path="topup" element={<TopUp />} />
               <Route path="pos" element={<POS />} />
               <Route path="balance" element={
                 <ProtectedRoute requiredRole="admin">

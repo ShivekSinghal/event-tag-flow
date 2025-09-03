@@ -13,7 +13,7 @@ interface StaffMember {
   id: string;
   email: string;
   full_name: string | null;
-  role: string;
+  role: 'staff' | 'admin' | 'studio_manager';
   assigned_game_id: string | null;
   assigned_game?: {
     name: string;
@@ -55,7 +55,7 @@ export default function StaffManagement() {
         .order('created_at', { ascending: true });
 
       if (error) throw error;
-      setStaffMembers(data || []);
+      setStaffMembers((data || []) as StaffMember[]);
     } catch (error) {
       console.error('Error fetching staff members:', error);
       toast({
@@ -82,7 +82,7 @@ export default function StaffManagement() {
     }
   };
 
-  const handleUpdateUser = async (userId: string, updates: { role?: string; assigned_game_id?: string | null }) => {
+  const handleUpdateUser = async (userId: string, updates: { role?: 'staff' | 'admin' | 'studio_manager'; assigned_game_id?: string | null }) => {
     try {
       const { error } = await supabase
         .from('profiles')
@@ -226,15 +226,16 @@ export default function StaffManagement() {
                 <Label htmlFor="role">Role</Label>
                 <Select
                   value={editingUser.role}
-                  onValueChange={(value) => setEditingUser({ ...editingUser, role: value })}
+                  onValueChange={(value: 'staff' | 'admin' | 'studio_manager') => setEditingUser({ ...editingUser, role: value })}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                      <SelectContent className="bg-background border shadow-lg z-50">
-                      <SelectItem value="staff">Staff</SelectItem>
-                      <SelectItem value="admin">Admin</SelectItem>
-                    </SelectContent>
+                       <SelectItem value="staff">Staff</SelectItem>
+                       <SelectItem value="admin">Admin</SelectItem>
+                       <SelectItem value="studio_manager">Studio Manager</SelectItem>
+                     </SelectContent>
                 </Select>
               </div>
 

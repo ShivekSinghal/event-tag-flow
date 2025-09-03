@@ -5,7 +5,7 @@ import { Gamepad2 } from 'lucide-react';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  requiredRole?: 'admin' | 'staff';
+  requiredRole?: 'admin' | 'staff' | 'studio_manager';
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRole }) => {
@@ -28,8 +28,12 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRole 
 
   if (requiredRole && profile?.role !== requiredRole) {
     // Redirect based on user role
-    if (profile?.role === 'staff') {
+    const userRole = profile?.role;
+    if (userRole === 'staff') {
       return <Navigate to="/pos" replace />;
+    }
+    if (userRole === 'studio_manager') {
+      return <Navigate to="/issue-tag" replace />;
     }
     return <Navigate to="/" replace />;
   }

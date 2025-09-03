@@ -7,7 +7,7 @@ interface Profile {
   id: string;
   email: string;
   full_name: string | null;
-  role: 'admin' | 'staff';
+  role: 'admin' | 'staff' | 'studio_manager';
   assigned_game_id: string | null;
 }
 
