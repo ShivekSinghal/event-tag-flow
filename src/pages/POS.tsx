@@ -67,7 +67,7 @@ export default function POS() {
     }
   };
 
-  const handleGameSelect = (game: Game) => {
+  const handleGameSelect = async (game: Game) => {
     if (!game.available) {
       toast({
         title: "Game Not Available",
@@ -76,24 +76,22 @@ export default function POS() {
       });
       return;
     }
+
+    if (isScanning || isProcessing) {
+      return;
+    }
     
     setSelectedGame(game);
     toast({
-      title: "Game Selected",
-      description: `Selected ${game.name} (₹${game.price.toFixed(2)}). Now scan the customer's NFC tag.`,
+      title: "Scanning Started",
+      description: `Selected ${game.name} (₹${game.price.toFixed(2)}). Please scan the customer's NFC tag.`,
     });
+    
+    // Automatically start NFC scanning
+    await handleScanForPayment(game);
   };
 
-  const handleScanWallet = async () => {
-    if (!selectedGame) {
-      toast({
-        title: "No Game Selected",
-        description: "Please select a game first before scanning.",
-        variant: "destructive",
-      });
-      return;
-    }
-
+  const handleScanForPayment = async (game: Game) => {
     setIsScanning(true);
     
     try {
@@ -113,6 +111,7 @@ export default function POS() {
             description: `NFC tag ${result.tagId} scanned but no wallet is linked to this tag. Please issue this tag first.`,
             variant: "destructive",
           });
+          setSelectedGame(null);
           return;
         }
 
@@ -123,6 +122,7 @@ export default function POS() {
             description: `This NFC tag has been blocked and cannot be used for transactions. Contact admin for assistance.`,
             variant: "destructive",
           });
+          setSelectedGame(null);
           return;
         }
 
@@ -139,13 +139,14 @@ export default function POS() {
         setScannedWallet(formattedWallet);
         
         // Immediately process the payment
-        await processPayment(formattedWallet, selectedGame);
+        await processPayment(formattedWallet, game);
       } else {
         toast({
           title: "Scanning Failed",
           description: result.error || "Could not scan NFC tag. Please try again.",
           variant: "destructive",
         });
+        setSelectedGame(null);
       }
     } catch (error) {
       toast({
@@ -153,6 +154,7 @@ export default function POS() {
         description: "Could not scan NFC tag. Please try again.",
         variant: "destructive",
       });
+      setSelectedGame(null);
     } finally {
       setIsScanning(false);
     }
@@ -372,33 +374,29 @@ export default function POS() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <Button
-                onClick={handleScanWallet}
-                disabled={!selectedGame || isScanning || isProcessing}
-                className="w-full bg-gradient-primary hover:shadow-hover transition-smooth"
-              >
-                {isProcessing ? (
-                  <div className="flex items-center space-x-2">
-                    <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
-                    <span>Processing Payment...</span>
-                  </div>
-                ) : isScanning ? (
-                  <div className="flex items-center space-x-2">
-                    <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
-                    <span>Scanning...</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center space-x-2">
-                    <Scan className="w-4 h-4" />
-                    <span>Scan NFC Tag to Pay</span>
-                  </div>
-                )}
-              </Button>
-
-              {!selectedGame && (
+              {selectedGame ? (
+                <div className="text-center py-4">
+                  {isProcessing ? (
+                    <div className="flex items-center justify-center space-x-2 text-primary">
+                      <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                      <span className="font-medium">Processing Payment...</span>
+                    </div>
+                  ) : isScanning ? (
+                    <div className="flex items-center justify-center space-x-2 text-primary">
+                      <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                      <span className="font-medium">Scanning for NFC Tag...</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center space-x-2 text-muted-foreground">
+                      <Scan className="w-6 h-6" />
+                      <span className="font-medium">Please scan customer's NFC tag</span>
+                    </div>
+                  )}
+                </div>
+              ) : (
                 <div className="bg-warning/10 border border-warning/20 rounded-lg p-3 flex items-center space-x-2">
                   <AlertCircle className="w-4 h-4 text-warning" />
-                  <span className="text-sm text-warning">Please select a game first</span>
+                  <span className="text-sm text-warning">Click on a game to start payment process</span>
                 </div>
               )}
 
