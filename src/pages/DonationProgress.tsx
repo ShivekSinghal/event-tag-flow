@@ -110,7 +110,11 @@ const DonationProgress = () => {
           >
             <div className="text-center">
               <div className="mb-4">
-                <Hash className="w-16 h-16 text-primary mx-auto" />
+                <img 
+                  src="/lovable-uploads/39450c63-d438-4b34-97b6-ee61d75c29dd.png" 
+                  alt="Pink D Logo" 
+                  className="w-16 h-16 mx-auto object-contain"
+                />
               </div>
             </div>
           </CircularProgress>
