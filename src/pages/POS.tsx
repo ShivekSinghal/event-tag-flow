@@ -7,13 +7,13 @@ import { nfcManager } from "@/utils/nfc";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { 
-  ShoppingCart, 
   Scan, 
   CheckCircle, 
   AlertCircle,
-  Minus,
   DollarSign,
-  Package
+  Package,
+  CreditCard,
+  ArrowRight
 } from "lucide-react";
 
 interface Game {
@@ -25,16 +25,12 @@ interface Game {
   available: boolean;
 }
 
-interface SelectedItem extends Game {
-  quantity: number;
-}
-
 export default function POS() {
   const { toast } = useToast();
   const { profile, isStaff } = useAuth();
   const [isScanning, setIsScanning] = useState(false);
   const [scannedWallet, setScannedWallet] = useState<any>(null);
-  const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
+  const [selectedGame, setSelectedGame] = useState<Game | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [games, setGames] = useState<Game[]>([]);
   const [isLoadingGames, setIsLoadingGames] = useState(true);
@@ -71,7 +67,33 @@ export default function POS() {
     }
   };
 
+  const handleGameSelect = (game: Game) => {
+    if (!game.available) {
+      toast({
+        title: "Game Not Available",
+        description: `${game.name} is currently sold out.`,
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setSelectedGame(game);
+    toast({
+      title: "Game Selected",
+      description: `Selected ${game.name} (₹${game.price.toFixed(2)}). Now scan the customer's NFC tag.`,
+    });
+  };
+
   const handleScanWallet = async () => {
+    if (!selectedGame) {
+      toast({
+        title: "No Game Selected",
+        description: "Please select a game first before scanning.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsScanning(true);
     
     try {
@@ -91,7 +113,6 @@ export default function POS() {
             description: `NFC tag ${result.tagId} scanned but no wallet is linked to this tag. Please issue this tag first.`,
             variant: "destructive",
           });
-          setScannedWallet(null);
           return;
         }
 
@@ -102,7 +123,6 @@ export default function POS() {
             description: `This NFC tag has been blocked and cannot be used for transactions. Contact admin for assistance.`,
             variant: "destructive",
           });
-          setScannedWallet(null);
           return;
         }
 
@@ -118,10 +138,8 @@ export default function POS() {
 
         setScannedWallet(formattedWallet);
         
-        toast({
-          title: "Wallet Found",
-          description: `Successfully loaded wallet for ${wallet.attendee_name}`,
-        });
+        // Immediately process the payment
+        await processPayment(formattedWallet, selectedGame);
       } else {
         toast({
           title: "Scanning Failed",
@@ -140,51 +158,11 @@ export default function POS() {
     }
   };
 
-  const addItem = (game: Game) => {
-    if (!game.available) {
-      toast({
-        title: "Game Not Available",
-        description: `${game.name} is currently sold out and cannot be added to cart.`,
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    setSelectedItems(prev => {
-      const existing = prev.find(i => i.id === game.id);
-      if (existing) {
-        return prev.map(i => i.id === game.id ? { ...i, quantity: i.quantity + 1 } : i);
-      }
-      return [...prev, { ...game, quantity: 1 }];
-    });
-  };
-
-  const removeItem = (gameId: string) => {
-    setSelectedItems(prev => {
-      const existing = prev.find(i => i.id === gameId);
-      if (existing && existing.quantity > 1) {
-        return prev.map(i => i.id === gameId ? { ...i, quantity: i.quantity - 1 } : i);
-      }
-      return prev.filter(i => i.id !== gameId);
-    });
-  };
-
-  const totalAmount = selectedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-
-  const handleProcessSale = async () => {
-    if (!scannedWallet || selectedItems.length === 0) {
-      toast({
-        title: "Cannot Process Sale",
-        description: "Please scan a wallet and select items to purchase.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (totalAmount > scannedWallet.currentBalance) {
+  const processPayment = async (wallet: any, game: Game) => {
+    if (game.price > wallet.currentBalance) {
       toast({
         title: "Insufficient Balance",
-        description: `Balance: ₹${scannedWallet.currentBalance.toFixed(2)} | Required: ₹${totalAmount.toFixed(2)}`,
+        description: `Balance: ₹${wallet.currentBalance.toFixed(2)} | Required: ₹${game.price.toFixed(2)}`,
         variant: "destructive",
       });
       return;
@@ -193,31 +171,28 @@ export default function POS() {
     setIsProcessing(true);
     
     try {
-      const newBalance = scannedWallet.currentBalance - totalAmount;
+      const newBalance = wallet.currentBalance - game.price;
       
       // Update wallet balance in Supabase
       const { error: updateError } = await supabase
         .from('wallets')
         .update({ balance: newBalance })
-        .eq('id', scannedWallet.id);
+        .eq('id', wallet.id);
 
       if (updateError) {
         throw updateError;
       }
 
-      // Create transaction record first
-      const itemsDescription = selectedItems.map(item => 
-        `${item.name} x${item.quantity}`
-      ).join(', ');
-
+      // Create transaction record
       const { data: transactionData, error: transactionError } = await supabase
         .from('transactions')
         .insert({
-          wallet_id: scannedWallet.id,
+          wallet_id: wallet.id,
           type: 'spend',
-          amount: -totalAmount, // Negative for spending
-          description: `POS Purchase: ${itemsDescription}`,
-          reference: `POS_${Date.now()}`
+          amount: -game.price,
+          description: `POS Purchase: ${game.name}`,
+          reference: `POS_${Date.now()}`,
+          game_id: game.id
         })
         .select()
         .single();
@@ -226,34 +201,32 @@ export default function POS() {
         throw transactionError;
       }
 
-      // Create game sales records for each item
-      const gameSalesRecords = selectedItems.map(item => ({
-        game_id: item.id,
-        transaction_id: transactionData.id,
-        quantity: item.quantity,
-        sale_price: item.price * item.quantity
-      }));
-
+      // Create game sales record
       const { error: salesError } = await supabase
         .from('game_sales')
-        .insert(gameSalesRecords);
+        .insert({
+          game_id: game.id,
+          transaction_id: transactionData.id,
+          quantity: 1,
+          sale_price: game.price
+        });
 
       if (salesError) {
         throw salesError;
       }
       
       toast({
-        title: "Sale Completed",
-        description: `₹${totalAmount.toFixed(2)} charged. New balance: ₹${newBalance.toFixed(2)}`,
+        title: "Payment Successful!",
+        description: `₹${game.price.toFixed(2)} charged for ${game.name}. New balance: ₹${newBalance.toFixed(2)}`,
       });
 
       // Reset state
-      setScannedWallet({ ...scannedWallet, currentBalance: newBalance });
-      setSelectedItems([]);
+      setScannedWallet({ ...wallet, currentBalance: newBalance });
+      setSelectedGame(null);
     } catch (error) {
       toast({
-        title: "Sale Failed",
-        description: "There was an error processing the sale. Please try again.",
+        title: "Payment Failed",
+        description: "There was an error processing the payment. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -261,22 +234,52 @@ export default function POS() {
     }
   };
 
+  const resetTransaction = () => {
+    setSelectedGame(null);
+    setScannedWallet(null);
+  };
+
   return (
     <div className="max-w-7xl mx-auto space-y-8">
       {/* Header */}
       <div className="text-center">
         <h1 className="text-3xl font-bold text-foreground">Point of Sale</h1>
-        <p className="text-muted-foreground mt-2">Process purchases and deduct from digital wallets</p>
+        <p className="text-muted-foreground mt-2">Select a game, scan NFC tag, and process payment instantly</p>
+      </div>
+
+      {/* Transaction Flow */}
+      <div className="flex items-center justify-center space-x-4 text-sm text-muted-foreground">
+        <div className={`flex items-center space-x-2 ${selectedGame ? 'text-success' : 'text-muted-foreground'}`}>
+          <div className={`w-3 h-3 rounded-full ${selectedGame ? 'bg-success' : 'bg-muted'}`} />
+          <span>Select Game</span>
+        </div>
+        <ArrowRight className="w-4 h-4" />
+        <div className={`flex items-center space-x-2 ${scannedWallet ? 'text-success' : selectedGame ? 'text-foreground' : 'text-muted-foreground'}`}>
+          <div className={`w-3 h-3 rounded-full ${scannedWallet ? 'bg-success' : selectedGame ? 'bg-primary' : 'bg-muted'}`} />
+          <span>Scan NFC Tag</span>
+        </div>
+        <ArrowRight className="w-4 h-4" />
+        <div className={`flex items-center space-x-2 ${scannedWallet && !isProcessing ? 'text-success' : 'text-muted-foreground'}`}>
+          <div className={`w-3 h-3 rounded-full ${scannedWallet && !isProcessing ? 'bg-success' : 'bg-muted'}`} />
+          <span>Payment Complete</span>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Menu Items */}
+        {/* Games */}
         <div className="lg:col-span-2">
           <Card className="shadow-card">
             <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Package className="w-5 h-5 text-primary" />
-                <span>Available Games</span>
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Package className="w-5 h-5 text-primary" />
+                  <span>Available Games</span>
+                </div>
+                {selectedGame && (
+                  <Button variant="outline" size="sm" onClick={resetTransaction}>
+                    Reset
+                  </Button>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -296,15 +299,22 @@ export default function POS() {
                     <div 
                       key={game.id}
                       className={`flex items-center justify-between p-4 border rounded-lg transition-smooth ${
-                        game.available 
-                          ? "hover:bg-secondary/50 cursor-pointer" 
-                          : "bg-destructive/5 border-destructive/20 cursor-not-allowed opacity-60"
+                        selectedGame?.id === game.id 
+                          ? "bg-primary/10 border-primary" 
+                          : game.available 
+                            ? "hover:bg-secondary/50 cursor-pointer" 
+                            : "bg-destructive/5 border-destructive/20 cursor-not-allowed opacity-60"
                       }`}
-                      onClick={() => game.available && addItem(game)}
+                      onClick={() => game.available && handleGameSelect(game)}
                     >
                       <div>
                         <div className="flex items-center space-x-2">
                           <span className="font-medium text-foreground">{game.name}</span>
+                          {selectedGame?.id === game.id && (
+                            <Badge variant="default" className="text-xs">
+                              Selected
+                            </Badge>
+                          )}
                           {!game.available && (
                             <Badge variant="destructive" className="text-xs">
                               Sold Out
@@ -313,7 +323,10 @@ export default function POS() {
                         </div>
                         <div className="text-sm text-muted-foreground">{game.description}</div>
                       </div>
-                      <div className={`text-lg font-bold ${game.available ? "text-primary" : "text-muted-foreground"}`}>
+                      <div className={`text-lg font-bold ${
+                        selectedGame?.id === game.id ? "text-primary" : 
+                        game.available ? "text-primary" : "text-muted-foreground"
+                      }`}>
                         ₹{typeof game.price === 'string' ? parseFloat(game.price).toFixed(2) : game.price.toFixed(2)}
                       </div>
                     </div>
@@ -324,23 +337,52 @@ export default function POS() {
           </Card>
         </div>
 
-        {/* Cart & Wallet */}
+        {/* Transaction Panel */}
         <div className="space-y-6">
-          {/* Wallet Scanner */}
+          {/* Selected Game */}
+          {selectedGame && (
+            <Card className="shadow-card border-primary/20">
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <CreditCard className="w-5 h-5 text-primary" />
+                  <span>Selected Game</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="bg-primary/10 border border-primary/20 rounded-lg p-4">
+                  <div className="font-medium text-foreground">{selectedGame.name}</div>
+                  <div className="text-sm text-muted-foreground mb-3">{selectedGame.description}</div>
+                  <div className="flex items-center justify-between pt-3 border-t border-primary/20">
+                    <span className="text-sm font-medium text-muted-foreground">Price</span>
+                    <span className="text-lg font-bold text-primary">
+                      ₹{selectedGame.price.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* NFC Scanner */}
           <Card className="shadow-card">
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
                 <Scan className="w-5 h-5 text-primary" />
-                <span>Customer Wallet</span>
+                <span>Customer Payment</span>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <Button
                 onClick={handleScanWallet}
-                disabled={isScanning}
+                disabled={!selectedGame || isScanning || isProcessing}
                 className="w-full bg-gradient-primary hover:shadow-hover transition-smooth"
               >
-                {isScanning ? (
+                {isProcessing ? (
+                  <div className="flex items-center space-x-2">
+                    <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
+                    <span>Processing Payment...</span>
+                  </div>
+                ) : isScanning ? (
                   <div className="flex items-center space-x-2">
                     <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
                     <span>Scanning...</span>
@@ -348,10 +390,17 @@ export default function POS() {
                 ) : (
                   <div className="flex items-center space-x-2">
                     <Scan className="w-4 h-4" />
-                    <span>Scan NFC Tag</span>
+                    <span>Scan NFC Tag to Pay</span>
                   </div>
                 )}
               </Button>
+
+              {!selectedGame && (
+                <div className="bg-warning/10 border border-warning/20 rounded-lg p-3 flex items-center space-x-2">
+                  <AlertCircle className="w-4 h-4 text-warning" />
+                  <span className="text-sm text-warning">Please select a game first</span>
+                </div>
+              )}
 
               {scannedWallet && (
                 <div className="bg-success/10 border border-success/20 rounded-lg p-4">
@@ -369,84 +418,6 @@ export default function POS() {
                     </span>
                   </div>
                 </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Shopping Cart */}
-          <Card className="shadow-card">
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <ShoppingCart className="w-5 h-5 text-primary" />
-                <span>Cart</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {selectedItems.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <ShoppingCart className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                  <p>No items selected</p>
-                </div>
-              ) : (
-                <>
-                  <div className="space-y-3">
-                    {selectedItems.map(item => (
-                      <div key={item.id} className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
-                        <div className="flex-1">
-                          <div className="font-medium text-foreground">{item.name}</div>
-                          <div className="text-sm text-muted-foreground">
-                            ₹{typeof item.price === 'string' ? parseFloat(item.price).toFixed(2) : item.price.toFixed(2)} each
-                          </div>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => removeItem(item.id)}
-                          >
-                            <Minus className="w-3 h-3" />
-                          </Button>
-                          <Badge variant="secondary">{item.quantity}</Badge>
-                          <div className="font-bold text-foreground min-w-[60px] text-right">
-                            ₹{(typeof item.price === 'string' ? parseFloat(item.price) * item.quantity : item.price * item.quantity).toFixed(2)}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="border-t pt-4">
-                    <div className="flex items-center justify-between text-lg font-bold">
-                      <span className="text-foreground">Total</span>
-                      <span className="text-primary">₹{totalAmount.toFixed(2)}</span>
-                    </div>
-                  </div>
-
-                  <Button
-                    onClick={handleProcessSale}
-                    disabled={!scannedWallet || isProcessing || totalAmount > (scannedWallet?.currentBalance || 0)}
-                    className="w-full bg-gradient-primary hover:shadow-hover transition-smooth"
-                  >
-                    {isProcessing ? (
-                      <div className="flex items-center space-x-2">
-                        <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
-                        <span>Processing...</span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center space-x-2">
-                        <DollarSign className="w-4 h-4" />
-                        <span>Charge ₹{totalAmount.toFixed(2)}</span>
-                      </div>
-                    )}
-                  </Button>
-
-                  {scannedWallet && totalAmount > scannedWallet.currentBalance && (
-                    <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 flex items-center space-x-2">
-                      <AlertCircle className="w-4 h-4 text-destructive" />
-                      <span className="text-sm text-destructive">Insufficient balance</span>
-                    </div>
-                  )}
-                </>
               )}
             </CardContent>
           </Card>
