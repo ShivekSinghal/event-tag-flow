@@ -52,14 +52,14 @@ const DonationProgress = () => {
 
       // Calculate total from all positive transactions (top-ups contribute to donations)
       const totalRaised = transactions
-        ?.filter(t => t.type === 'topup')
+        ?.filter(t => t.type === 'load')
         .reduce((sum, transaction) => sum + Number(transaction.amount), 0) || 0;
 
       const percentage = Math.min(100, (totalRaised / stats.goal) * 100);
 
       // Show gratitude and flying animation for new top-ups
       if (showGratitude && transactions && transactions.length > 0) {
-        const latestTopup = transactions.find(t => t.type === 'topup');
+        const latestTopup = transactions.find(t => t.type === 'load');
         if (latestTopup && latestTopup.id !== lastTransactionId) {
           const walletData = latestTopup.wallets as any;
           
