@@ -176,6 +176,11 @@ export default function StaffManagement() {
                   </div>
                   
                   <div className="flex items-center space-x-3">
+                    <Badge variant="outline" className="text-green-600 border-green-600">
+                      <UserCheck className="w-3 h-3 mr-1" />
+                      Signed Up
+                    </Badge>
+                    
                     <Badge variant={member.role === 'admin' ? 'default' : 'secondary'}>
                       {member.role}
                     </Badge>
