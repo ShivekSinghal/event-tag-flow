@@ -220,10 +220,10 @@ export default function StaffManagement() {
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="staff">Staff</SelectItem>
-                    <SelectItem value="admin">Admin</SelectItem>
-                  </SelectContent>
+                     <SelectContent className="bg-background border shadow-lg z-50">
+                      <SelectItem value="staff">Staff</SelectItem>
+                      <SelectItem value="admin">Admin</SelectItem>
+                    </SelectContent>
                 </Select>
               </div>
 
@@ -242,14 +242,14 @@ export default function StaffManagement() {
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">No game assigned</SelectItem>
-                      {games.map((game) => (
-                        <SelectItem key={game.id} value={game.id}>
-                          {game.name} ({game.studio})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
+                     <SelectContent className="bg-background border shadow-lg z-50">
+                       <SelectItem value="none">No game assigned</SelectItem>
+                       {games.map((game) => (
+                         <SelectItem key={game.id} value={game.id}>
+                           {game.name} ({game.studio})
+                         </SelectItem>
+                       ))}
+                     </SelectContent>
                   </Select>
                 </div>
               )}
