@@ -87,6 +87,23 @@ const handler = async (req: Request): Promise<Response> => {
           </div>
         `;
         break;
+      case "magiclink":
+        subject = "Your Game POS sign-in link";
+        htmlContent = `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #333;">Sign in to Game POS</h2>
+            <p>Click the button below to sign in to your Game POS account:</p>
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${site_url}/auth/confirm?token_hash=${token_hash}&type=magiclink&redirect_to=${encodeURIComponent(redirect_to || site_url)}" 
+                 style="background-color: #28a745; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block; font-weight: bold;">
+                Sign In
+              </a>
+            </div>
+            <p style="color: #666; font-size: 14px;">If the button doesn't work, you can copy and paste this link into your browser:</p>
+            <p style="word-break: break-all; font-size: 12px; color: #888;">${site_url}/auth/confirm?token_hash=${token_hash}&type=magiclink&redirect_to=${encodeURIComponent(redirect_to || site_url)}</p>
+          </div>
+        `;
+        break;
       case "recovery":
         subject = "Reset your Game POS password";
         htmlContent = `
