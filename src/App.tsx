@@ -11,6 +11,7 @@ import IssueTag from "./pages/IssueTag";
 import TopUp from "./pages/TopUp";
 import POS from "./pages/POS";
 import Balance from "./pages/Balance";
+import DonationProgress from "./pages/DonationProgress";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -56,6 +57,7 @@ const App = () => (
                   <Balance />
                 </ProtectedRoute>
               } />
+              <Route path="donation-progress" element={<DonationProgress />} />
             </Route>
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />

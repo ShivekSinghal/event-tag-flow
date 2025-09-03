@@ -10,7 +10,8 @@ import {
   Wallet,
   LogOut,
   Menu,
-  X
+  X,
+  TrendingUp
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
@@ -22,6 +23,7 @@ const navigation = [
   { name: "Top Up", href: "/topup", icon: Wallet },
   { name: "POS Sale", href: "/pos", icon: ShoppingCart },
   { name: "Check Balance", href: "/balance", icon: CreditCard },
+  { name: "Donation Progress", href: "/donation-progress", icon: TrendingUp },
 ];
 
 export default function Layout() {
@@ -33,7 +35,7 @@ export default function Layout() {
   // Filter navigation based on user role
   const filteredNavigation = navigation.filter(item => {
     if (isAdmin) return true; // Admin can see all
-    if (isStaff) return item.href === '/pos'; // Staff can only see POS
+    if (isStaff) return item.href === '/pos' || item.href === '/donation-progress'; // Staff can see POS and donation progress
     return false;
   });
   
