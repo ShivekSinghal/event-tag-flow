@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { Resend } from "npm:resend@2.0.0";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
+const hookSecret = Deno.env.get("SUPABASE_AUTH_EXTERNAL_WEBHOOK_SECRET");
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -29,9 +30,21 @@ const handler = async (req: Request): Promise<Response> => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  console.log("Webhook received:", req.method, req.url);
+  console.log("Headers:", Object.fromEntries(req.headers.entries()));
+
   try {
+    // Verify webhook signature if secret is configured
+    if (hookSecret) {
+      const signature = req.headers.get("x-webhook-signature");
+      if (!signature) {
+        console.error("Missing webhook signature");
+        return new Response("Unauthorized", { status: 401 });
+      }
+    }
+
     const authData: AuthEmailData = await req.json();
-    console.log("Received auth webhook:", authData);
+    console.log("Received auth webhook:", JSON.stringify(authData, null, 2));
 
     const { user, email_data } = authData;
     const { token, token_hash, redirect_to, email_action_type, site_url } = email_data;
