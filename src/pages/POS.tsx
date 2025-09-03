@@ -33,11 +33,9 @@ export default function POS() {
   const [selectedGame, setSelectedGame] = useState<Game | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [games, setGames] = useState<Game[]>([]);
-  const [isLoadingGames, setIsLoadingGames] = useState(true);
+  const [isLoadingGames, setIsLoadingGames] = useState(false);
 
-  useEffect(() => {
-    fetchGames();
-  }, [profile, isStaff]);
+  // Remove automatic game fetching - games will be loaded manually
 
   const fetchGames = async () => {
     try {
@@ -277,11 +275,18 @@ export default function POS() {
                   <Package className="w-5 h-5 text-primary" />
                   <span>Available Games</span>
                 </div>
-                {selectedGame && (
-                  <Button variant="outline" size="sm" onClick={resetTransaction}>
-                    Reset
-                  </Button>
-                )}
+                <div className="flex items-center space-x-2">
+                  {games.length === 0 && !isLoadingGames && (
+                    <Button variant="default" size="sm" onClick={fetchGames}>
+                      Load Games
+                    </Button>
+                  )}
+                  {selectedGame && (
+                    <Button variant="outline" size="sm" onClick={resetTransaction}>
+                      Reset
+                    </Button>
+                  )}
+                </div>
               </CardTitle>
             </CardHeader>
             <CardContent>
