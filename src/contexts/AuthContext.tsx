@@ -99,24 +99,46 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signIn = async (email: string, password: string) => {
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      console.log('Attempting sign in for:', email);
+      
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
+      console.log('Sign in result:', { data, error });
+
       if (error) {
+        console.error('Sign in error:', error);
+        
+        let errorMessage = error.message;
+        
+        // Provide more helpful error messages
+        if (error.message.includes('Invalid login credentials')) {
+          errorMessage = "Invalid email or password. Please check your credentials and try again. If you just signed up, please verify your email first.";
+        } else if (error.message.includes('Email not confirmed')) {
+          errorMessage = "Please verify your email address before signing in. Check your inbox for the verification link.";
+        }
+        
         toast({
           title: "Sign In Failed",
-          description: error.message,
+          description: errorMessage,
           variant: "destructive",
+        });
+      } else {
+        console.log('Sign in successful:', data);
+        toast({
+          title: "Welcome back!",
+          description: "You have been signed in successfully.",
         });
       }
 
       return { error };
     } catch (error: any) {
+      console.error('Sign in exception:', error);
       toast({
         title: "Sign In Failed",
-        description: "An unexpected error occurred",
+        description: "An unexpected error occurred. Please try again.",
         variant: "destructive",
       });
       return { error };
