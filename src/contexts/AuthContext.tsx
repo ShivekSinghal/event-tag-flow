@@ -138,14 +138,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (error) {
         toast({
-          title: "Sign Up Failed",
+          title: "Sign Up Failed", 
           description: error.message,
           variant: "destructive",
         });
       } else {
         toast({
-          title: "Account Created",
-          description: "Please check your email to verify your account.",
+          title: "Account Created Successfully",
+          description: "Please check your email to verify your account before signing in.",
         });
       }
 
