@@ -268,8 +268,75 @@ export default function POS() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Games */}
-        <div className="lg:col-span-2">
+        {/* Games and General Entries */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* General Entry Section */}
+          {games.filter(game => game.studio === 'General').length > 0 && (
+            <Card className="shadow-card">
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <DollarSign className="w-5 h-5 text-primary" />
+                    <span>General Entry</span>
+                  </div>
+                  {selectedGame && (
+                    <Button variant="outline" size="sm" onClick={resetTransaction}>
+                      Reset
+                    </Button>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {isLoadingGames ? (
+                  <div className="text-center py-8">
+                    <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                    <p className="text-muted-foreground">Loading entries...</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {games.filter(game => game.studio === 'General').map(game => (
+                      <div 
+                        key={game.id}
+                        className={`flex items-center justify-between p-4 border rounded-lg transition-smooth ${
+                          selectedGame?.id === game.id 
+                            ? "bg-primary/10 border-primary" 
+                            : game.available 
+                              ? "hover:bg-secondary/50 cursor-pointer" 
+                              : "bg-destructive/5 border-destructive/20 cursor-not-allowed opacity-60"
+                        }`}
+                        onClick={() => game.available && handleGameSelect(game)}
+                      >
+                        <div>
+                          <div className="flex items-center space-x-2">
+                            <span className="font-medium text-foreground">{game.name}</span>
+                            {selectedGame?.id === game.id && (
+                              <Badge variant="default" className="text-xs">
+                                Selected
+                              </Badge>
+                            )}
+                            {!game.available && (
+                              <Badge variant="destructive" className="text-xs">
+                                Sold Out
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="text-sm text-muted-foreground">{game.description}</div>
+                        </div>
+                        <div className={`text-lg font-bold ${
+                          selectedGame?.id === game.id ? "text-primary" : 
+                          game.available ? "text-primary" : "text-muted-foreground"
+                        }`}>
+                          ₹{typeof game.price === 'string' ? parseFloat(game.price).toFixed(2) : game.price.toFixed(2)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Available Games Section */}
           <Card className="shadow-card">
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
@@ -290,14 +357,14 @@ export default function POS() {
                   <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-3" />
                   <p className="text-muted-foreground">Loading games...</p>
                 </div>
-              ) : games.length === 0 ? (
+              ) : games.filter(game => game.studio !== 'General').length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <Package className="w-12 h-12 mx-auto mb-3 opacity-50" />
                   <p>No games available</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {games.map(game => (
+                  {games.filter(game => game.studio !== 'General').map(game => (
                     <div 
                       key={game.id}
                       className={`flex items-center justify-between p-4 border rounded-lg transition-smooth ${
