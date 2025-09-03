@@ -47,6 +47,14 @@ export class NFCManager {
   }
 
   /**
+   * Check if device is iOS in web browser
+   */
+  isIOSWeb(): boolean {
+    return !Capacitor.isNativePlatform() && 
+           /iPad|iPhone|iPod/.test(navigator.userAgent);
+  }
+
+  /**
    * Check if NFC permission is granted
    */
   async checkNFCPermission(): Promise<boolean> {
@@ -72,6 +80,9 @@ export class NFCManager {
           success: false,
           error: 'NFC not available. Please enable NFC in device settings.'
         };
+      } else if (this.isIOSWeb()) {
+        // Show manual input for iOS Safari users
+        return this.showManualInput();
       } else {
         return {
           tagId: '',
@@ -245,6 +256,32 @@ export class NFCManager {
       console.warn('Error extracting tag ID:', error);
       return '';
     }
+  }
+
+  /**
+   * Show manual input dialog for iOS users (fallback)
+   */
+  private async showManualInput(): Promise<NFCReadResult> {
+    return new Promise((resolve) => {
+      const tagId = prompt(
+        "iOS Safari doesn't support NFC scanning.\n\n" +
+        "Please enter the NFC tag ID manually\n" +
+        "(or use the native iOS app for proper NFC scanning):"
+      );
+
+      if (tagId && tagId.trim()) {
+        resolve({
+          tagId: this.formatTagId(tagId.trim()),
+          success: true
+        });
+      } else {
+        resolve({
+          tagId: '',
+          success: false,
+          error: 'Manual input cancelled. For full NFC support, please use the native iOS app.'
+        });
+      }
+    });
   }
 
   /**
