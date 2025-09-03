@@ -109,13 +109,11 @@ const DonationProgress = () => {
             className="drop-shadow-lg"
           >
             <div className="text-center">
-              <div className="mb-4">
-                <img 
-                  src="/lovable-uploads/39450c63-d438-4b34-97b6-ee61d75c29dd.png" 
-                  alt="Pink D Logo" 
-                  className="w-16 h-16 mx-auto object-contain"
-                />
-              </div>
+              <img 
+                src="/lovable-uploads/39450c63-d438-4b34-97b6-ee61d75c29dd.png" 
+                alt="Pink D Logo" 
+                className="w-24 h-24 mx-auto object-contain"
+              />
             </div>
           </CircularProgress>
         </div>
