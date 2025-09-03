@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { CircularProgress } from "@/components/ui/circular-progress";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Hash } from "lucide-react";
+import { Maximize, Minimize } from "lucide-react";
 
 interface DonationStats {
   totalRaised: number;
@@ -14,17 +15,26 @@ interface DonationStats {
 const DonationProgress = () => {
   const [stats, setStats] = useState<DonationStats>({
     totalRaised: 0,
-    goal: 10000, // $10,000 goal
+    goal: 100000, // ₹1,00,000 goal
     percentage: 0
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [lastTransactionId, setLastTransactionId] = useState<string | null>(null);
 
-  const fetchDonationStats = async () => {
+  const fetchDonationStats = async (showGratitude = false) => {
     try {
-      // Get all transactions (top-ups and payments)
+      // Get all transactions with wallet information for names
       const { data: transactions, error: transactionError } = await supabase
         .from('transactions')
-        .select('amount, type');
+        .select(`
+          id,
+          amount, 
+          type,
+          created_at,
+          wallets!inner(attendee_name)
+        `)
+        .order('created_at', { ascending: false });
 
       if (transactionError) {
         console.error('Error fetching transactions:', transactionError);
@@ -39,6 +49,19 @@ const DonationProgress = () => {
 
       const percentage = Math.min(100, (totalRaised / stats.goal) * 100);
 
+      // Show gratitude for new top-ups
+      if (showGratitude && transactions && transactions.length > 0) {
+        const latestTopup = transactions.find(t => t.type === 'topup');
+        if (latestTopup && latestTopup.id !== lastTransactionId) {
+          const walletData = latestTopup.wallets as any;
+          toast.success(
+            `🙏 Thank you ${walletData?.attendee_name || 'Anonymous'} for your generous contribution of ₹${Number(latestTopup.amount).toFixed(2)}! Your support helps aspiring dancers achieve their dreams.`,
+            { duration: 6000 }
+          );
+          setLastTransactionId(latestTopup.id);
+        }
+      }
+
       setStats(prev => ({
         ...prev,
         totalRaised,
@@ -52,6 +75,15 @@ const DonationProgress = () => {
     }
   };
 
+  const toggleFullscreen = () => {
+    if (!isFullscreen) {
+      document.documentElement.requestFullscreen?.();
+    } else {
+      document.exitFullscreen?.();
+    }
+    setIsFullscreen(!isFullscreen);
+  };
+
   useEffect(() => {
     fetchDonationStats();
 
@@ -61,12 +93,12 @@ const DonationProgress = () => {
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'INSERT',
           schema: 'public',
           table: 'transactions'
         },
         () => {
-          fetchDonationStats();
+          fetchDonationStats(true); // Show gratitude for new transactions
         }
       )
       .subscribe();
@@ -74,6 +106,15 @@ const DonationProgress = () => {
     return () => {
       supabase.removeChannel(channel);
     };
+  }, []);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
 
   if (isLoading) {
@@ -88,9 +129,18 @@ const DonationProgress = () => {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-8">
-      {/* Header */}
-      <div className="text-center mb-12">
+    <div className={`${isFullscreen ? 'fixed inset-0 z-50 bg-background overflow-auto' : 'container mx-auto'} p-6 space-y-8`}>
+      {/* Header with Fullscreen Toggle */}
+      <div className="text-center mb-12 relative">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={toggleFullscreen}
+          className="absolute top-0 right-0"
+        >
+          {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+          {isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+        </Button>
         <h1 className="text-4xl font-bold mb-4">
           Donation <span className="text-primary">Progress</span>
         </h1>
@@ -112,7 +162,7 @@ const DonationProgress = () => {
               <img 
                 src="/lovable-uploads/39450c63-d438-4b34-97b6-ee61d75c29dd.png" 
                 alt="Pink D Logo" 
-                className="w-24 h-24 mx-auto object-contain"
+                className="w-32 h-32 mx-auto object-contain"
               />
             </div>
           </CircularProgress>
@@ -134,7 +184,7 @@ const DonationProgress = () => {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold">
-              ${stats.totalRaised.toFixed(2)}
+              ₹{stats.totalRaised.toFixed(2)}
             </div>
           </CardContent>
         </Card>
@@ -145,7 +195,7 @@ const DonationProgress = () => {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold">
-              ${stats.goal.toLocaleString()}
+              ₹{stats.goal.toLocaleString()}
             </div>
           </CardContent>
         </Card>
@@ -156,7 +206,7 @@ const DonationProgress = () => {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold">
-              ${Math.max(0, stats.goal - stats.totalRaised).toFixed(2)}
+              ₹{Math.max(0, stats.goal - stats.totalRaised).toFixed(2)}
             </div>
           </CardContent>
         </Card>
