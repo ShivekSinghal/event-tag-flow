@@ -1,5 +1,6 @@
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
 import { 
   CreditCard, 
   LayoutDashboard, 
@@ -27,6 +28,14 @@ export default function Layout() {
   const location = useLocation();
   const isMobile = useIsMobile();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { profile, signOut, isAdmin, isStaff } = useAuth();
+  
+  // Filter navigation based on user role
+  const filteredNavigation = navigation.filter(item => {
+    if (isAdmin) return true; // Admin can see all
+    if (isStaff) return item.href === '/pos'; // Staff can only see POS
+    return false;
+  });
   
   const closeMobileMenu = () => setIsMobileMenuOpen(false);
   
@@ -60,8 +69,10 @@ export default function Layout() {
             </div>
             
             <div className="flex items-center space-x-4">
-              <span className="text-sm text-muted-foreground hidden sm:inline">Staff Portal</span>
-              <Button variant="ghost" size="sm">
+              <span className="text-sm text-muted-foreground hidden sm:inline">
+                {profile?.role === 'admin' ? 'Admin Portal' : 'Staff Portal'}
+              </span>
+              <Button variant="ghost" size="sm" onClick={signOut}>
                 <LogOut className="w-4 h-4" />
               </Button>
             </div>
@@ -77,7 +88,7 @@ export default function Layout() {
             <aside className="fixed left-0 top-16 bottom-0 w-64 bg-card border-r shadow-card">
               <nav className="p-4">
                 <ul className="space-y-2">
-                  {navigation.map((item) => {
+                  {filteredNavigation.map((item) => {
                     const isActive = location.pathname === item.href;
                     const Icon = item.icon;
                     
@@ -109,7 +120,7 @@ export default function Layout() {
         <aside className="hidden md:block w-64 bg-card border-r min-h-[calc(100vh-4rem)] shadow-card">
           <nav className="p-4">
             <ul className="space-y-2">
-              {navigation.map((item) => {
+              {filteredNavigation.map((item) => {
                 const isActive = location.pathname === item.href;
                 const Icon = item.icon;
                 

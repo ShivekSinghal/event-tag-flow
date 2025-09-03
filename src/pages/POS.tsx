@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { nfcManager } from "@/utils/nfc";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { 
   ShoppingCart, 
   Scan, 
@@ -30,6 +31,7 @@ interface SelectedItem extends Game {
 
 export default function POS() {
   const { toast } = useToast();
+  const { profile, isStaff } = useAuth();
   const [isScanning, setIsScanning] = useState(false);
   const [scannedWallet, setScannedWallet] = useState<any>(null);
   const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
@@ -39,14 +41,22 @@ export default function POS() {
 
   useEffect(() => {
     fetchGames();
-  }, []);
+  }, [profile, isStaff]);
 
   const fetchGames = async () => {
     try {
-      const { data: gamesData, error } = await supabase
+      let query = supabase
         .from('games')
         .select('*')
-        .order('name', { ascending: true });
+        .eq('available', true)
+        .order('name');
+      
+      // For staff users, filter by assigned game
+      if (isStaff && profile?.assigned_game_id) {
+        query = query.eq('id', profile.assigned_game_id);
+      }
+
+      const { data: gamesData, error } = await query;
 
       if (error) throw error;
       setGames(gamesData || []);
