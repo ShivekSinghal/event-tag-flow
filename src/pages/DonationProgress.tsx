@@ -6,6 +6,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Maximize, Minimize } from "lucide-react";
 
+interface FlyingNotification {
+  id: string;
+  name: string;
+  studio: string;
+  amount: number;
+}
+
 interface DonationStats {
   totalRaised: number;
   goal: number;
@@ -21,10 +28,11 @@ const DonationProgress = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [lastTransactionId, setLastTransactionId] = useState<string | null>(null);
+  const [flyingNotifications, setFlyingNotifications] = useState<FlyingNotification[]>([]);
 
   const fetchDonationStats = async (showGratitude = false) => {
     try {
-      // Get all transactions with wallet information for names
+      // Get all transactions with wallet information for names and studio
       const { data: transactions, error: transactionError } = await supabase
         .from('transactions')
         .select(`
@@ -32,7 +40,7 @@ const DonationProgress = () => {
           amount, 
           type,
           created_at,
-          wallets!inner(attendee_name)
+          wallets!inner(attendee_name, studio)
         `)
         .order('created_at', { ascending: false });
 
@@ -49,11 +57,27 @@ const DonationProgress = () => {
 
       const percentage = Math.min(100, (totalRaised / stats.goal) * 100);
 
-      // Show gratitude for new top-ups
+      // Show gratitude and flying animation for new top-ups
       if (showGratitude && transactions && transactions.length > 0) {
         const latestTopup = transactions.find(t => t.type === 'topup');
         if (latestTopup && latestTopup.id !== lastTransactionId) {
           const walletData = latestTopup.wallets as any;
+          
+          // Add flying notification
+          const flyingNotification: FlyingNotification = {
+            id: latestTopup.id,
+            name: walletData?.attendee_name || 'Anonymous',
+            studio: walletData?.studio || 'Unknown',
+            amount: Number(latestTopup.amount)
+          };
+          
+          setFlyingNotifications(prev => [...prev, flyingNotification]);
+          
+          // Remove flying notification after animation completes
+          setTimeout(() => {
+            setFlyingNotifications(prev => prev.filter(n => n.id !== latestTopup.id));
+          }, 3000);
+          
           toast.success(
             `🙏 Thank you ${walletData?.attendee_name || 'Anonymous'} for your generous contribution of ₹${Number(latestTopup.amount).toFixed(2)}! Your support helps aspiring dancers achieve their dreams.`,
             { duration: 6000 }
@@ -129,7 +153,21 @@ const DonationProgress = () => {
   }
 
   return (
-    <div className={`${isFullscreen ? 'fixed inset-0 z-50 bg-background overflow-auto' : 'container mx-auto'} p-6 space-y-8`}>
+    <div className={`${isFullscreen ? 'fixed inset-0 z-50 bg-background overflow-auto' : 'container mx-auto'} p-6 space-y-8 relative overflow-hidden`}>
+      {/* Flying Notifications */}
+      {flyingNotifications.map((notification) => (
+        <div
+          key={notification.id}
+          className="fixed bottom-0 left-1/2 transform -translate-x-1/2 z-50 animate-fly-up pointer-events-none"
+        >
+          <div className="bg-primary text-primary-foreground px-6 py-4 rounded-lg shadow-lg text-center">
+            <div className="font-bold text-lg">{notification.name}</div>
+            <div className="text-sm opacity-90">{notification.studio}</div>
+            <div className="text-lg font-semibold">₹{notification.amount.toFixed(2)}</div>
+          </div>
+        </div>
+      ))}
+      
       {/* Header with Fullscreen Toggle */}
       <div className="text-center mb-12 relative">
         <Button
