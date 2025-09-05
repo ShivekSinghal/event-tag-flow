@@ -14,6 +14,51 @@ export type Database = {
   }
   public: {
     Tables: {
+      bookings: {
+        Row: {
+          amount: number
+          booking_date: string
+          created_at: string
+          id: string
+          package_name: string
+          payment_id: string | null
+          payment_status: string | null
+          studio_location: string
+          updated_at: string
+          user_email: string
+          user_name: string
+          user_phone: string
+        }
+        Insert: {
+          amount: number
+          booking_date?: string
+          created_at?: string
+          id?: string
+          package_name: string
+          payment_id?: string | null
+          payment_status?: string | null
+          studio_location: string
+          updated_at?: string
+          user_email: string
+          user_name: string
+          user_phone: string
+        }
+        Update: {
+          amount?: number
+          booking_date?: string
+          created_at?: string
+          id?: string
+          package_name?: string
+          payment_id?: string | null
+          payment_status?: string | null
+          studio_location?: string
+          updated_at?: string
+          user_email?: string
+          user_name?: string
+          user_phone?: string
+        }
+        Relationships: []
+      }
       game_sales: {
         Row: {
           created_at: string

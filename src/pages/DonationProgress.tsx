@@ -5,13 +5,7 @@ import { CircularProgress } from "@/components/ui/circular-progress";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Maximize, Minimize } from "lucide-react";
-
-interface FlyingNotification {
-  id: string;
-  name: string;
-  studio: string;
-  amount: number;
-}
+import { useFlyingCards } from "@/hooks/use-flying-cards";
 
 interface DonationStats {
   totalRaised: number;
@@ -20,6 +14,7 @@ interface DonationStats {
 }
 
 const DonationProgress = () => {
+  const { addCard } = useFlyingCards();
   const [stats, setStats] = useState<DonationStats>({
     totalRaised: 0,
     goal: 100000, // ₹1,00,000 goal
@@ -28,7 +23,6 @@ const DonationProgress = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [lastTransactionId, setLastTransactionId] = useState<string | null>(null);
-  const [flyingNotifications, setFlyingNotifications] = useState<FlyingNotification[]>([]);
 
   const fetchDonationStats = async (showGratitude = false) => {
     try {
@@ -63,20 +57,13 @@ const DonationProgress = () => {
         if (latestTopup && latestTopup.id !== lastTransactionId) {
           const walletData = latestTopup.wallets as any;
           
-          // Add flying notification
-          const flyingNotification: FlyingNotification = {
-            id: latestTopup.id,
+          // Add flying card using centralized system
+          addCard({
+            amount: Number(latestTopup.amount),
             name: walletData?.attendee_name || 'Anonymous',
             studio: walletData?.studio || 'Unknown',
-            amount: Number(latestTopup.amount)
-          };
-          
-          setFlyingNotifications(prev => [...prev, flyingNotification]);
-          
-          // Remove flying notification after animation completes
-          setTimeout(() => {
-            setFlyingNotifications(prev => prev.filter(n => n.id !== latestTopup.id));
-          }, 3000);
+            type: "topup"
+          });
           
           toast.success(
             `🙏 Thank you ${walletData?.attendee_name || 'Anonymous'} for your generous contribution of ₹${Number(latestTopup.amount).toFixed(2)}! Your support helps aspiring dancers achieve their dreams.`,
@@ -113,7 +100,7 @@ const DonationProgress = () => {
 
     // Set up real-time subscription for transaction updates
     const channel = supabase
-      .channel('donation-progress')
+      .channel('donation-progress-realtime')
       .on(
         'postgres_changes',
         {
@@ -121,16 +108,40 @@ const DonationProgress = () => {
           schema: 'public',
           table: 'transactions'
         },
-        () => {
-          fetchDonationStats(true); // Show gratitude for new transactions
+        (payload) => {
+          console.log('New transaction received:', payload);
+          // Add a small delay to ensure the transaction is fully written
+          setTimeout(() => {
+            fetchDonationStats(true); // Show gratitude for new transactions
+          }, 500);
         }
       )
-      .subscribe();
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public', 
+          table: 'transactions'
+        },
+        (payload) => {
+          console.log('Transaction updated:', payload);
+          setTimeout(() => {
+            fetchDonationStats(false); // Update stats without gratitude
+          }, 500);
+        }
+      )
+      .subscribe((status) => {
+        console.log('Realtime subscription status:', status);
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Successfully subscribed to transaction updates');
+        }
+      });
 
     return () => {
+      console.log('Cleaning up realtime subscription');
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [lastTransactionId]); // Include lastTransactionId in dependencies to track latest transaction
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -154,20 +165,6 @@ const DonationProgress = () => {
 
   return (
     <div className={`${isFullscreen ? 'fixed inset-0 z-50 bg-background overflow-auto' : 'container mx-auto'} p-6 space-y-8 relative overflow-hidden`}>
-      {/* Flying Notifications */}
-      {flyingNotifications.map((notification) => (
-        <div
-          key={notification.id}
-          className="fixed bottom-0 left-1/2 transform -translate-x-1/2 z-50 animate-fly-up pointer-events-none"
-        >
-          <div className="bg-primary text-primary-foreground px-6 py-4 rounded-lg shadow-lg text-center">
-            <div className="font-bold text-lg">{notification.name}</div>
-            <div className="text-sm opacity-90">{notification.studio}</div>
-            <div className="text-lg font-semibold">₹{notification.amount.toFixed(2)}</div>
-          </div>
-        </div>
-      ))}
-      
       {/* Header with Fullscreen Toggle */}
       <div className="text-center mb-12 relative">
         <Button
