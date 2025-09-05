@@ -51,25 +51,33 @@ const DonationProgress = () => {
 
       const percentage = Math.min(100, (totalRaised / stats.goal) * 100);
 
-      // Show gratitude and flying animation for new top-ups
+      // Show gratitude and flying animation for new transactions (both top-ups and payments)
       if (showGratitude && transactions && transactions.length > 0) {
-        const latestTopup = transactions.find(t => t.type === 'load');
-        if (latestTopup && latestTopup.id !== lastTransactionId) {
-          const walletData = latestTopup.wallets as any;
+        const latestTransaction = transactions[0]; // Get the most recent transaction
+        if (latestTransaction && latestTransaction.id !== lastTransactionId) {
+          const walletData = latestTransaction.wallets as any;
           
-          // Add flying card using centralized system
+          // Add flying card for both top-ups and payments
           addCard({
-            amount: Number(latestTopup.amount),
+            amount: Number(latestTransaction.amount),
             name: walletData?.attendee_name || 'Anonymous',
             studio: walletData?.studio || 'Unknown',
-            type: "topup"
+            type: latestTransaction.type === 'load' ? "topup" : "sale"
           });
           
-          toast.success(
-            `🙏 Thank you ${walletData?.attendee_name || 'Anonymous'} for your generous contribution of ₹${Number(latestTopup.amount).toFixed(2)}! Your support helps aspiring dancers achieve their dreams.`,
-            { duration: 6000 }
-          );
-          setLastTransactionId(latestTopup.id);
+          // Show different messages for top-ups vs payments
+          if (latestTransaction.type === 'load') {
+            toast.success(
+              `🙏 Thank you ${walletData?.attendee_name || 'Anonymous'} for your generous contribution of ₹${Number(latestTransaction.amount).toFixed(2)}! Your support helps aspiring dancers achieve their dreams.`,
+              { duration: 6000 }
+            );
+          } else {
+            toast.success(
+              `💃 ${walletData?.attendee_name || 'Anonymous'} made a purchase of ₹${Number(latestTransaction.amount).toFixed(2)}!`,
+              { duration: 4000 }
+            );
+          }
+          setLastTransactionId(latestTransaction.id);
         }
       }
 
@@ -165,7 +173,7 @@ const DonationProgress = () => {
 
   if (isFullscreen) {
     return (
-      <div className="fixed inset-0 z-[9999] bg-background overflow-hidden p-4 space-y-4">
+      <div className="fixed inset-0 z-[99999] bg-background overflow-hidden flex flex-col h-screen">
         {/* Flying Cards and Donation Dots */}
         <FlyingCards />
         <DonationDots />
@@ -175,73 +183,76 @@ const DonationProgress = () => {
           variant="outline"
           size="sm"
           onClick={toggleFullscreen}
-          className="absolute top-4 right-4 z-40"
+          className="absolute top-4 right-4 z-50"
         >
           <Minimize className="w-4 h-4" />
           Exit
         </Button>
 
-        {/* Progress Circle */}
-        <div className="flex justify-center mb-6 mt-8">
-          <div className="relative">
-            <CircularProgress
-              value={stats.percentage}
-              size={240}
-              strokeWidth={10}
-              className="drop-shadow-lg"
-            >
-              <div className="text-center">
-                <img 
-                  src="/lovable-uploads/39450c63-d438-4b34-97b6-ee61d75c29dd.png" 
-                  alt="Pink D Logo" 
-                  className="w-24 h-24 mx-auto object-contain"
-                />
-              </div>
-            </CircularProgress>
+        {/* Content Container - Full Height */}
+        <div className="flex-1 flex flex-col justify-center items-center p-8 space-y-8">
+          {/* Progress Circle */}
+          <div className="flex justify-center">
+            <div className="relative">
+              <CircularProgress
+                value={stats.percentage}
+                size={300}
+                strokeWidth={12}
+                className="drop-shadow-lg"
+              >
+                <div className="text-center">
+                  <img 
+                    src="/lovable-uploads/39450c63-d438-4b34-97b6-ee61d75c29dd.png" 
+                    alt="Pink D Logo" 
+                    className="w-32 h-32 mx-auto object-contain"
+                  />
+                </div>
+              </CircularProgress>
+            </div>
           </div>
-        </div>
 
-        {/* Progress Text */}
-        <div className="text-center mb-6">
-          <div className="text-4xl font-bold text-primary mb-2">
-            {Math.round(stats.percentage)}% <span className="text-foreground">Complete</span>
+          {/* Progress Text */}
+          <div className="text-center">
+            <div className="text-5xl font-bold text-primary mb-4">
+              {Math.round(stats.percentage)}% <span className="text-foreground">Complete</span>
+            </div>
           </div>
-        </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-3 gap-4 max-w-3xl mx-auto">
-          <Card className="text-center">
-            <CardHeader className="pb-2 pt-4">
-              <CardTitle className="text-primary text-sm">Total Raised</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0 pb-4">
-              <div className="text-xl font-bold">
-                ₹{stats.totalRaised.toFixed(2)}
-              </div>
-            </CardContent>
-          </Card>
+          {/* Stats Cards */}
+          <div className="grid grid-cols-3 gap-6 max-w-4xl w-full">
+            <Card className="text-center">
+              <CardHeader className="pb-3 pt-4">
+                <CardTitle className="text-primary text-base">Total Raised</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0 pb-4">
+                <div className="text-2xl font-bold">
+                  ₹{stats.totalRaised.toFixed(2)}
+                </div>
+              </CardContent>
+            </Card>
 
-          <Card className="text-center">
-            <CardHeader className="pb-2 pt-4">
-              <CardTitle className="text-primary text-sm">Goal</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0 pb-4">
-              <div className="text-xl font-bold">
-                ₹{stats.goal.toLocaleString()}
-              </div>
-            </CardContent>
-          </Card>
+            <Card className="text-center">
+              <CardHeader className="pb-3 pt-4">
+                <CardTitle className="text-primary text-base">Goal</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0 pb-4">
+                <div className="text-2xl font-bold">
+                  ₹{stats.goal.toLocaleString()}
+                </div>
+              </CardContent>
+            </Card>
 
-          <Card className="text-center">
-            <CardHeader className="pb-2 pt-4">
-              <CardTitle className="text-primary text-sm">Remaining</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0 pb-4">
-              <div className="text-xl font-bold">
-                ₹{Math.max(0, stats.goal - stats.totalRaised).toFixed(2)}
-              </div>
-            </CardContent>
-          </Card>
+            <Card className="text-center">
+              <CardHeader className="pb-3 pt-4">
+                <CardTitle className="text-primary text-base">Remaining</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0 pb-4">
+                <div className="text-2xl font-bold">
+                  ₹{Math.max(0, stats.goal - stats.totalRaised).toFixed(2)}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
     );
