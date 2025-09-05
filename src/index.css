@@ -130,7 +130,7 @@
   }
 
   .animate-scroll-up-donation {
-    animation: scroll-up-donation 3s ease-out forwards;
+    animation: scroll-up-donation 6s ease-out forwards;
   }
 
   .donation-dot {

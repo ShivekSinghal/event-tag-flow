@@ -24,15 +24,17 @@ export function FlyingCard({ amount, name, studio, type, onComplete }: FlyingCar
     // Complete animation and place dot
     const timer = setTimeout(() => {
       setIsVisible(false);
-      // Generate random dot position
+      // Generate random dot position near center logo area
+      const centerX = window.innerWidth / 2;
+      const centerY = window.innerHeight / 2;
       const dotPosition = {
-        x: Math.random() * window.innerWidth,
-        y: Math.random() * window.innerHeight
+        x: centerX + (Math.random() - 0.5) * 400, // ±200px from center
+        y: centerY + (Math.random() - 0.5) * 200  // ±100px from center
       };
       setTimeout(() => {
         onComplete?.(dotPosition);
       }, 300);
-    }, 3000);
+    }, 6000);
 
     return () => {
       clearTimeout(timer);

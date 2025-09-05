@@ -53,10 +53,11 @@ export function useFlyingCards() {
       {dots.map(dot => (
         <div
           key={dot.id}
-          className="fixed w-2 h-2 bg-primary rounded-full donation-dot pointer-events-none z-30"
+          className="fixed w-2 h-2 rounded-full donation-dot pointer-events-none z-30"
           style={{
             left: dot.x,
             top: dot.y,
+            backgroundColor: '#ff007f'
           }}
         />
       ))}

@@ -164,44 +164,59 @@ const DonationProgress = () => {
   }
 
   return (
-    <div className={`${isFullscreen ? 'fixed inset-0 z-50 bg-background overflow-auto' : 'container mx-auto'} p-6 space-y-8 relative overflow-hidden`}>
+    <div className={`${isFullscreen ? 'fixed inset-0 z-50 bg-background overflow-hidden' : 'container mx-auto'} ${isFullscreen ? 'p-4' : 'p-6'} ${isFullscreen ? 'space-y-4' : 'space-y-8'} relative overflow-hidden`}>
       {/* Flying Cards and Donation Dots */}
       <FlyingCards />
       <DonationDots />
       
       {/* Header with Fullscreen Toggle */}
-      <div className="text-center mb-12 relative">
+      {!isFullscreen && (
+        <div className="text-center mb-12 relative">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={toggleFullscreen}
+            className="absolute top-0 right-0"
+          >
+            <Maximize className="w-4 h-4" />
+            Fullscreen
+          </Button>
+          <h1 className="text-4xl font-bold mb-4">
+            Donation <span className="text-primary">Progress</span>
+          </h1>
+          <p className="text-xl text-muted-foreground">
+            Help us reach our goal to support aspiring dancers
+          </p>
+        </div>
+      )}
+
+      {/* Fullscreen Exit Button */}
+      {isFullscreen && (
         <Button
           variant="outline"
           size="sm"
           onClick={toggleFullscreen}
-          className="absolute top-0 right-0"
+          className="absolute top-4 right-4 z-40"
         >
-          {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
-          {isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+          <Minimize className="w-4 h-4" />
+          Exit
         </Button>
-        <h1 className="text-4xl font-bold mb-4">
-          Donation <span className="text-primary">Progress</span>
-        </h1>
-        <p className="text-xl text-muted-foreground">
-          Help us reach our goal to support aspiring dancers
-        </p>
-      </div>
+      )}
 
       {/* Progress Circle */}
-      <div className="flex justify-center mb-12">
+      <div className={`flex justify-center ${isFullscreen ? 'mb-4' : 'mb-12'}`}>
         <div className="relative">
           <CircularProgress
             value={stats.percentage}
-            size={300}
-            strokeWidth={12}
+            size={isFullscreen ? 200 : 300}
+            strokeWidth={isFullscreen ? 8 : 12}
             className="drop-shadow-lg"
           >
             <div className="text-center">
               <img 
                 src="/lovable-uploads/39450c63-d438-4b34-97b6-ee61d75c29dd.png" 
                 alt="Pink D Logo" 
-                className="w-32 h-32 mx-auto object-contain"
+                className={`${isFullscreen ? 'w-20 h-20' : 'w-32 h-32'} mx-auto object-contain`}
               />
             </div>
           </CircularProgress>
@@ -209,60 +224,62 @@ const DonationProgress = () => {
       </div>
 
       {/* Progress Text */}
-      <div className="text-center mb-12">
-        <div className="text-6xl font-bold text-primary mb-2">
+      <div className={`text-center ${isFullscreen ? 'mb-4' : 'mb-12'}`}>
+        <div className={`${isFullscreen ? 'text-3xl' : 'text-6xl'} font-bold text-primary mb-2`}>
           {Math.round(stats.percentage)}% <span className="text-foreground">Complete</span>
         </div>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+      <div className={`grid grid-cols-1 md:grid-cols-3 gap-${isFullscreen ? '3' : '6'} max-w-4xl mx-auto ${isFullscreen ? 'mb-4' : ''}`}>
         <Card className="text-center">
-          <CardHeader>
-            <CardTitle className="text-primary">Total Raised</CardTitle>
+          <CardHeader className={isFullscreen ? 'pb-2 pt-4' : ''}>
+            <CardTitle className={`text-primary ${isFullscreen ? 'text-sm' : ''}`}>Total Raised</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">
+          <CardContent className={isFullscreen ? 'pt-0 pb-4' : ''}>
+            <div className={`${isFullscreen ? 'text-xl' : 'text-3xl'} font-bold`}>
               ₹{stats.totalRaised.toFixed(2)}
             </div>
           </CardContent>
         </Card>
 
         <Card className="text-center">
-          <CardHeader>
-            <CardTitle className="text-primary">Goal</CardTitle>
+          <CardHeader className={isFullscreen ? 'pb-2 pt-4' : ''}>
+            <CardTitle className={`text-primary ${isFullscreen ? 'text-sm' : ''}`}>Goal</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">
+          <CardContent className={isFullscreen ? 'pt-0 pb-4' : ''}>
+            <div className={`${isFullscreen ? 'text-xl' : 'text-3xl'} font-bold`}>
               ₹{stats.goal.toLocaleString()}
             </div>
           </CardContent>
         </Card>
 
         <Card className="text-center">
-          <CardHeader>
-            <CardTitle className="text-primary">Remaining</CardTitle>
+          <CardHeader className={isFullscreen ? 'pb-2 pt-4' : ''}>
+            <CardTitle className={`text-primary ${isFullscreen ? 'text-sm' : ''}`}>Remaining</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">
+          <CardContent className={isFullscreen ? 'pt-0 pb-4' : ''}>
+            <div className={`${isFullscreen ? 'text-xl' : 'text-3xl'} font-bold`}>
               ₹{Math.max(0, stats.goal - stats.totalRaised).toFixed(2)}
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Description */}
-      <div className="text-center max-w-2xl mx-auto">
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-muted-foreground leading-relaxed">
-              Every wallet top-up contributes to our goal of supporting aspiring dancers. 
-              Your contributions help provide resources, training, and opportunities for 
-              talented individuals to pursue their passion for dance.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Description - Hidden in fullscreen */}
+      {!isFullscreen && (
+        <div className="text-center max-w-2xl mx-auto">
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-muted-foreground leading-relaxed">
+                Every wallet top-up contributes to our goal of supporting aspiring dancers. 
+                Your contributions help provide resources, training, and opportunities for 
+                talented individuals to pursue their passion for dance.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 };
