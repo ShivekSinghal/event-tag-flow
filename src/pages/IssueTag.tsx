@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,12 +26,57 @@ export default function IssueTag() {
   const [attendeeName, setAttendeeName] = useState("");
   const [attendeePhone, setAttendeePhone] = useState("");
   const [selectedStudio, setSelectedStudio] = useState<string>("");
+  const [nfcSupported, setNfcSupported] = useState<boolean | null>(null);
+
+  // Check NFC support on component mount
+  useEffect(() => {
+    const checkNFCSupport = async () => {
+      try {
+        const supported = await nfcManager.isNFCSupported();
+        setNfcSupported(supported);
+        
+        if (!supported) {
+          toast({
+            title: "NFC Not Supported",
+            description: "This device/browser doesn't support NFC scanning.",
+            variant: "destructive",
+          });
+        }
+      } catch (error) {
+        console.warn('Error checking NFC support:', error);
+        setNfcSupported(false);
+      }
+    };
+    
+    checkNFCSupport();
+  }, [toast]);
 
   const handleScanNFC = async () => {
+    // Check NFC support first
+    if (nfcSupported === false) {
+      toast({
+        title: "NFC Not Supported",
+        description: "This device/browser doesn't support NFC scanning.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check NFC permission
+    const hasPermission = await nfcManager.checkNFCPermission();
+    if (!hasPermission) {
+      toast({
+        title: "NFC Permission Required",
+        description: "Please enable NFC in your device settings and browser permissions.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsScanning(true);
     
     try {
-      // Use real NFC scanning if supported, otherwise simulate
+      console.log('Starting NFC scan...');
       const result = await nfcManager.startScanning();
       
       if (result.success) {
@@ -48,6 +93,7 @@ export default function IssueTag() {
         });
       }
     } catch (error) {
+      console.error('NFC scan error:', error);
       toast({
         title: "Scanning Failed",
         description: "Could not scan NFC tag. Please try again.",
@@ -113,6 +159,9 @@ export default function IssueTag() {
       setAttendeeName("");
       setAttendeePhone("");
       setSelectedStudio("");
+      
+      // Stop any ongoing NFC scanning
+      nfcManager.stopScanning();
     } catch (error) {
       toast({
         title: "Failed to Create Wallet",
@@ -143,7 +192,7 @@ export default function IssueTag() {
           <div className="text-center">
             <Button
               onClick={handleScanNFC}
-              disabled={isScanning}
+              disabled={isScanning || nfcSupported === false}
               size="lg"
               className="w-full max-w-xs bg-gradient-primary hover:shadow-hover transition-smooth"
             >

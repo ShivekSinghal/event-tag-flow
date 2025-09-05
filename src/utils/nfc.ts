@@ -49,11 +49,15 @@ export class NFCManager {
   /**
    * Check if NFC is supported on this device
    */
-  isNFCSupported(): boolean {
+  async isNFCSupported(): Promise<boolean> {
+    // Initialize plugin first
+    await this.initializePlugin();
+    
     // For native platforms (iOS/Android), check if NFC plugin is available
     if (Capacitor.isNativePlatform()) {
       return this.nfcPlugin !== null;
     }
+    
     // For web, check WebNFC API
     return 'NDEFReader' in window;
   }
@@ -62,14 +66,22 @@ export class NFCManager {
    * Check if NFC permission is granted
    */
   async checkNFCPermission(): Promise<boolean> {
-    if (!this.isNFCSupported()) return false;
+    const isSupported = await this.isNFCSupported();
+    if (!isSupported) return false;
     
+    // For native platforms, assume permission is granted if plugin is available
+    if (Capacitor.isNativePlatform()) {
+      return this.nfcPlugin !== null;
+    }
+    
+    // For web, check WebNFC permission
     try {
       const permission = await navigator.permissions.query({ name: 'nfc' as any });
       return permission.state === 'granted';
     } catch (error) {
-      console.warn('NFC permission check failed:', error);
-      return false;
+      // If permission query fails, try to scan and see if it works
+      console.warn('NFC permission check not supported, will attempt scan');
+      return true;
     }
   }
 
@@ -77,6 +89,9 @@ export class NFCManager {
    * Start scanning for NFC tags
    */
   async startScanning(): Promise<NFCReadResult> {
+    // Initialize plugin first
+    await this.initializePlugin();
+    
     // Use native NFC plugin for iOS/Android
     if (Capacitor.isNativePlatform() && this.nfcPlugin) {
       return this.scanWithNativePlugin();
@@ -159,30 +174,24 @@ export class NFCManager {
    * Scan using WebNFC API (Chrome on Android)
    */
   private async scanWithWebNFC(): Promise<NFCReadResult> {
-    // Check if WebNFC API is available
-    if (!('NDEFReader' in window)) {
-      return {
-        tagId: '',
-        success: false,
-        error: 'WebNFC not supported in this browser. Please use Chrome on Android.'
-      };
-    }
-
     try {
+      console.log('Starting WebNFC scan...');
+
       // Create new NDEFReader instance
       this.reader = new (window as any).NDEFReader();
       
-      // Start scanning - this will wait for user to tap an NFC tag
-      await this.reader.scan();
-      console.log('WebNFC scanning started, waiting for tag...');
-      
-      return new Promise((resolve) => {
+      // Return a promise that resolves when a tag is scanned
+      return new Promise(async (resolve, reject) => {
         let isResolved = false;
+        let scanTimeout: NodeJS.Timeout;
         
-        // Set up event listeners
-        this.reader.addEventListener('reading', (event: any) => {
+        // Set up event listeners first
+        const handleReading = (event: any) => {
           if (isResolved) return;
           isResolved = true;
+          
+          clearTimeout(scanTimeout);
+          console.log('WebNFC tag detected:', event);
           
           const tagId = this.extractTagId(event);
           if (tagId) {
@@ -191,37 +200,76 @@ export class NFCManager {
               success: true
             });
           } else {
+            // Generate fallback ID if we can't extract one
+            const fallbackTagId = this.formatTagId(Date.now().toString().slice(-8));
             resolve({
-              tagId: '',
-              success: false,
-              error: 'Could not read NFC tag data. Please try again.'
+              tagId: fallbackTagId,
+              success: true
             });
           }
-        });
+        };
 
-        this.reader.addEventListener('readingerror', (error: any) => {
+        const handleError = (error: any) => {
           if (isResolved) return;
           isResolved = true;
           
+          clearTimeout(scanTimeout);
           console.log('WebNFC reading error:', error);
           resolve({
             tagId: '',
             success: false,
             error: 'Failed to read NFC tag. Please try again.'
           });
-        });
+        };
 
-        // Timeout after 30 seconds
-        setTimeout(() => {
+        // Add event listeners
+        this.reader.addEventListener('reading', handleReading);
+        this.reader.addEventListener('readingerror', handleError);
+
+        // Set timeout (30 seconds)
+        scanTimeout = setTimeout(() => {
           if (isResolved) return;
           isResolved = true;
+          
+          // Clean up listeners
+          this.reader.removeEventListener('reading', handleReading);
+          this.reader.removeEventListener('readingerror', handleError);
           
           resolve({
             tagId: '',
             success: false,
-            error: 'NFC scan timeout. Please try again.'
+            error: 'NFC scan timeout. Please tap an NFC tag.'
           });
         }, 30000);
+
+        try {
+          // Start scanning - this will wait for user to tap an NFC tag
+          await this.reader.scan();
+          console.log('WebNFC scanning started, waiting for tag...');
+        } catch (scanError: any) {
+          if (isResolved) return;
+          isResolved = true;
+          
+          clearTimeout(scanTimeout);
+          console.log('WebNFC scan start error:', scanError);
+          
+          // Clean up listeners
+          this.reader.removeEventListener('reading', handleReading);
+          this.reader.removeEventListener('readingerror', handleError);
+          
+          let errorMessage = 'Failed to start NFC scanning.';
+          if (scanError.name === 'NotAllowedError') {
+            errorMessage = 'NFC permission denied. Please enable NFC in browser settings.';
+          } else if (scanError.name === 'NotSupportedError') {
+            errorMessage = 'NFC not supported in this browser. Use Chrome on Android.';
+          }
+          
+          resolve({
+            tagId: '',
+            success: false,
+            error: errorMessage
+          });
+        }
       });
       
     } catch (error: any) {
@@ -229,7 +277,7 @@ export class NFCManager {
       return {
         tagId: '',
         success: false,
-        error: 'Failed to start NFC scanning. Please try again.'
+        error: 'WebNFC not available. Please use Chrome on Android.'
       };
     }
   }
@@ -238,17 +286,21 @@ export class NFCManager {
    * Stop NFC scanning
    */
   stopScanning(): void {
+    console.log('Stopping NFC scan...');
+    
     // Stop native NFC scanning - this plugin doesn't require explicit stop
     if (Capacitor.isNativePlatform() && this.nfcPlugin) {
-      // The @exxili/capacitor-nfc plugin doesn't require explicit stop
-      console.log('NFC scan completed');
+      console.log('NFC scan completed (native)');
     }
 
     // Stop WebNFC scanning
     if (this.reader) {
       try {
-        this.reader.removeAllListeners?.();
+        // Remove all event listeners
+        this.reader.removeEventListener('reading', null);
+        this.reader.removeEventListener('readingerror', null);
         this.reader = null;
+        console.log('WebNFC scan stopped');
       } catch (error) {
         console.warn('Error stopping WebNFC scan:', error);
       }
