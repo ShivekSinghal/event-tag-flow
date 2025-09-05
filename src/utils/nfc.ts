@@ -65,15 +65,6 @@ export class NFCManager {
    * Start scanning for NFC tags
    */
   async startScanning(): Promise<NFCReadResult> {
-    if (!this.isNFCSupported()) {
-      const platform = Capacitor.isNativePlatform() ? 'mobile device' : 'browser';
-      return {
-        tagId: '',
-        success: false,
-        error: `NFC not supported on this ${platform}. For iPhone/Android use the native app, for web use Chrome on Android.`
-      };
-    }
-
     // Use native NFC plugin for iOS/Android
     if (Capacitor.isNativePlatform() && this.nfcPlugin) {
       return this.scanWithNativePlugin();
