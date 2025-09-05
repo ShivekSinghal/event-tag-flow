@@ -115,11 +115,14 @@ export class NFCManager {
 
         this.reader.onreadingerror = (error: any) => {
           console.warn('❌ NFC reading error:', error);
-          resolveOnce({
-            tagId: '',
-            success: false,
-            error: 'Cannot read data from the NFC tag. Try another one?'
-          });
+          // Give user 3 seconds to reposition the tag before showing error
+          setTimeout(() => {
+            resolveOnce({
+              tagId: '',
+              success: false,
+              error: 'Cannot read data from the NFC tag. Try repositioning it or use another one?'
+            });
+          }, 3000);
         };
 
         // Setup timeout
