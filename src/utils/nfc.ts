@@ -64,6 +64,9 @@ export class NFCManager {
     // Always stop any existing scan before starting a new one
     this.stopScanning();
     
+    // Add vibration feedback when starting scan
+    this.vibrate([100]);
+    
     return this.scanWithWebNFC();
   }
 
@@ -138,6 +141,10 @@ export class NFCManager {
           console.log('✅ NFC tag detected!', event);
           const tagId = this.extractTagId(event);
           console.log('Extracted tag ID:', tagId);
+          
+          // Add success vibration when tag is detected
+          this.vibrate([200, 100, 200]);
+          
           resolveOnce({
             tagId,
             success: true
@@ -346,6 +353,20 @@ export class NFCManager {
       return cleanId.substring(0, 9); // NFC + 6 characters
     } else {
       return `NFC${cleanId.substring(0, 6)}`;
+    }
+  }
+
+  /**
+   * Trigger vibration if supported
+   */
+  private vibrate(pattern: number | number[]): void {
+    try {
+      if ('vibrate' in navigator) {
+        navigator.vibrate(pattern);
+      }
+    } catch (error) {
+      // Silently fail if vibration not supported
+      console.log('Vibration not supported');
     }
   }
 

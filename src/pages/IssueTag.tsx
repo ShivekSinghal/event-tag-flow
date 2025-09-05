@@ -39,6 +39,14 @@ export default function IssueTag() {
   }, []);
 
   const handleScanNFC = async () => {
+    // If already scanned, reset and start new scan
+    if (scannedTag && !scanState.isScanning) {
+      setScannedTag(null);
+      setAttendeeName("");
+      setAttendeePhone("");
+      setSelectedStudio("");
+    }
+    
     if (isScanning) {
       console.log('Scan already in progress, ignoring request');
       return;
@@ -87,15 +95,6 @@ export default function IssueTag() {
     });
   };
 
-  const handleResetScanner = () => {
-    nfcManager.forceReset();
-    setIsScanning(false);
-    setScannedTag(null);
-    toast({
-      title: "Scanner Reset",
-      description: "NFC scanner has been reset. You can try scanning again.",
-    });
-  };
 
   const handleIssueWallet = async () => {
     if (!scannedTag || !attendeeName || !attendeePhone || !selectedStudio) {
@@ -179,56 +178,62 @@ export default function IssueTag() {
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Scan Button */}
-          <div className="text-center space-y-3">
-            <Button
-              onClick={scanState.isScanning ? handleStopScanning : handleScanNFC}
-              size="lg"
-              className={`w-full max-w-xs transition-smooth ${
-                scanState.isScanning 
-                  ? "bg-destructive hover:bg-destructive/90" 
-                  : "bg-gradient-primary hover:shadow-hover"
-              }`}
-            >
-              {scanState.isScanning ? (
-                <div className="flex items-center space-x-2">
-                  <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
-                  <span>Stop Scanning</span>
-                </div>
-              ) : (
-                <div className="flex items-center space-x-2">
-                  <Scan className="w-5 h-5" />
-                  <span>Scan NFC Tag</span>
-                </div>
-              )}
-            </Button>
-            
-            {/* Scanning Progress */}
-            {scanState.isScanning && (
-              <div className="space-y-2">
-                <div className="text-sm text-muted-foreground">
-                  Scanning for {Math.floor(scanState.duration / 1000)}s... 
-                  <span className="block text-xs mt-1">
-                    Place NFC tag near your device
-                  </span>
-                </div>
-                {scanState.lastError && (
-                  <div className="text-xs text-orange-500">
-                    {scanState.lastError}
+          <div className="text-center space-y-4">
+            <div className={`relative ${scanState.isScanning ? 'animate-pulse' : ''}`}>
+              <Button
+                onClick={scanState.isScanning ? handleStopScanning : handleScanNFC}
+                size="lg"
+                className={`w-full max-w-xs transition-smooth ${
+                  scanState.isScanning 
+                    ? "bg-destructive hover:bg-destructive/90" 
+                    : scannedTag 
+                      ? "bg-secondary hover:bg-secondary/80"
+                      : "bg-gradient-primary hover:shadow-hover"
+                }`}
+              >
+                {scanState.isScanning ? (
+                  <div className="flex items-center space-x-2">
+                    <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
+                    <span>Stop Scanning</span>
+                  </div>
+                ) : scannedTag ? (
+                  <div className="flex items-center space-x-2">
+                    <Scan className="w-5 h-5" />
+                    <span>Scan New Tag</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center space-x-2">
+                    <Scan className="w-5 h-5" />
+                    <span>Scan NFC Tag</span>
                   </div>
                 )}
-              </div>
-            )}
-            
-            {/* Reset Scanner Button - shown when tag already scanned */}
-            {scannedTag && !scanState.isScanning && (
-              <Button
-                onClick={handleResetScanner}
-                variant="outline"
-                size="sm"
-                className="w-full max-w-xs"
-              >
-                Reset Scanner
               </Button>
+              
+              {/* Scanning pulse effect */}
+              {scanState.isScanning && (
+                <div className="absolute inset-0 rounded-md bg-primary/20 animate-ping pointer-events-none" />
+              )}
+            </div>
+            
+            {/* Scanning Status */}
+            {scanState.isScanning && (
+              <div className="space-y-3 animate-fade-in">
+                <div className="flex items-center justify-center space-x-2 text-primary">
+                  <div className="w-2 h-2 bg-primary rounded-full animate-pulse" />
+                  <span className="font-medium">Scanning...</span>
+                  <div className="w-2 h-2 bg-primary rounded-full animate-pulse animation-delay-150" />
+                </div>
+                
+                <div className="text-sm text-muted-foreground space-y-1">
+                  <div>Duration: {Math.floor(scanState.duration / 1000)}s</div>
+                  <div className="text-xs">Hold your device near the NFC tag</div>
+                  {scanState.lastError && (
+                    <div className="text-xs text-orange-500 animate-fade-in">
+                      {scanState.lastError}
+                    </div>
+                  )}
+                </div>
+              </div>
             )}
           </div>
 
