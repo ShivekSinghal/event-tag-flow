@@ -15,6 +15,7 @@ export class NFCManager {
   private static instance: NFCManager;
   private reader: any = null;
   private nfcPlugin: any = null;
+  private pluginInitialized: boolean = false;
 
   static getInstance(): NFCManager {
     if (!NFCManager.instance) {
@@ -24,14 +25,25 @@ export class NFCManager {
   }
 
   constructor() {
-    // Import NFC plugin dynamically for mobile platforms
+    // Don't initialize anything in constructor - wait for actual usage
+  }
+
+  /**
+   * Initialize NFC plugin only when needed
+   */
+  private async initializePlugin(): Promise<void> {
+    if (this.pluginInitialized) return;
+    
     if (Capacitor.isNativePlatform()) {
-      import('@exxili/capacitor-nfc').then((module) => {
+      try {
+        const module = await import('@exxili/capacitor-nfc');
         this.nfcPlugin = module.NFC;
-      }).catch(() => {
-        console.warn('NFC plugin not available');
-      });
+        console.log('NFC plugin initialized successfully');
+      } catch (error) {
+        console.warn('NFC plugin not available:', error);
+      }
     }
+    this.pluginInitialized = true;
   }
 
   /**
@@ -297,5 +309,24 @@ export class NFCManager {
   }
 }
 
-// Export singleton instance
-export const nfcManager = NFCManager.getInstance();
+// Create a lazy-loaded singleton instance
+let _instance: NFCManager | null = null;
+
+export const nfcManager = {
+  get startScanning() {
+    if (!_instance) _instance = NFCManager.getInstance();
+    return _instance.startScanning.bind(_instance);
+  },
+  get stopScanning() {
+    if (!_instance) _instance = NFCManager.getInstance();
+    return _instance.stopScanning.bind(_instance);
+  },
+  get isNFCSupported() {
+    if (!_instance) _instance = NFCManager.getInstance();
+    return _instance.isNFCSupported.bind(_instance);
+  },
+  get checkNFCPermission() {
+    if (!_instance) _instance = NFCManager.getInstance();
+    return _instance.checkNFCPermission.bind(_instance);
+  }
+};
