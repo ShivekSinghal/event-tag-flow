@@ -37,6 +37,18 @@ export class NFCManager {
    */
   private async scanWithWebNFC(): Promise<NFCReadResult> {
     try {
+      // Check if NDEFReader is available before trying to use it
+      if (!('NDEFReader' in window) || typeof (window as any).NDEFReader !== 'function') {
+        console.log('NDEFReader not available in this browser/environment');
+        return {
+          tagId: '',
+          success: false,
+          error: 'NFC not supported. Please use Chrome on Android with NFC enabled.'
+        };
+      }
+
+      console.log('Starting NFC scan...');
+      
       // Create new NDEFReader instance
       this.reader = new (window as any).NDEFReader();
       
