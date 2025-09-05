@@ -73,27 +73,29 @@ export class NFCManager {
    * Start scanning for NFC tags
    */
   async startScanning(): Promise<NFCReadResult> {
+    if (!this.isNFCSupported()) {
+      if (Capacitor.isNativePlatform()) {
+        return {
+          tagId: '',
+          success: false,
+          error: 'NFC not available. Please enable NFC in device settings.'
+        };
+      } else {
+        return {
+          tagId: '',
+          success: false,
+          error: 'NFC not supported in this browser. Please use Chrome on Android or install the mobile app for iPhone/Android NFC support.'
+        };
+      }
+    }
+
     // Use native NFC plugin for iOS/Android
     if (Capacitor.isNativePlatform() && this.nfcPlugin) {
       return this.scanWithNativePlugin();
     }
 
-    // Use WebNFC API for web browsers if supported
-    if ('NDEFReader' in window) {
-      return this.scanWithWebNFC();
-    }
-
-    // For iOS web users, show manual input fallback
-    if (this.isIOSWeb()) {
-      return this.showManualInput();
-    }
-
-    // Fallback for other unsupported browsers
-    return {
-      tagId: '',
-      success: false,
-      error: 'NFC not supported in this browser. Please use Chrome on Android or install the mobile app for iPhone/Android NFC support.'
-    };
+    // Use WebNFC API for web browsers
+    return this.scanWithWebNFC();
   }
 
   /**
