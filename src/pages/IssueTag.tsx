@@ -172,11 +172,11 @@ export default function IssueTag() {
             <div className={`relative ${scanState.isScanning ? 'animate-pulse' : ''}`}>
               <Button
                 onClick={handleNFCScan}
-                disabled={isScanning}
+                disabled={scanState.isScanning}
                 size="lg"
                 className="w-full max-w-xs bg-gradient-primary hover:shadow-hover transition-smooth"
               >
-                {isScanning ? (
+                {scanState.isScanning ? (
                   <div className="flex items-center space-x-2">
                     <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
                     <span>Scanning...</span>
