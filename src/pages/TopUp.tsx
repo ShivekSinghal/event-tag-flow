@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { nfcManager } from "@/utils/nfc";
 import { supabase } from "@/integrations/supabase/client";
+import { useFlyingCards } from "@/hooks/use-flying-cards";
 import { 
   Wallet, 
   Scan, 
@@ -21,6 +22,7 @@ const quickAmounts = [100, 250, 500, 1000];
 
 export default function TopUp() {
   const { toast } = useToast();
+  const { addCard } = useFlyingCards();
   const [isScanning, setIsScanning] = useState(false);
   const [scannedWallet, setScannedWallet] = useState<any>(null);
   const [topUpAmount, setTopUpAmount] = useState("");
@@ -132,6 +134,14 @@ export default function TopUp() {
       toast({
         title: "Top-Up Successful",
         description: `Added ₹${amount.toFixed(2)} to wallet. New balance: ₹${newBalance.toFixed(2)}`,
+      });
+
+      // Show flying card animation
+      addCard({
+        amount: amount,
+        name: scannedWallet.attendeeName,
+        studio: "Staff Terminal", // You can get this from user context if needed
+        type: "topup"
       });
 
       // Update local state

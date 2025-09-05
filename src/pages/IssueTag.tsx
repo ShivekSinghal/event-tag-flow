@@ -21,7 +21,6 @@ import {
 
 export default function IssueTag() {
   const { toast } = useToast();
-  const [isScanning, setIsScanning] = useState(false);
   const [scanState, setScanState] = useState<NFCScanState>({ isScanning: false, duration: 0 });
   const [scannedTag, setScannedTag] = useState<string | null>(null);
   const [attendeeName, setAttendeeName] = useState("");
@@ -47,12 +46,10 @@ export default function IssueTag() {
       setSelectedStudio("");
     }
     
-    if (isScanning) {
+    if (scanState.isScanning) {
       console.log('Scan already in progress, ignoring request');
       return;
     }
-    
-    setIsScanning(true);
     
     try {
       // Always stop any existing scan first to prevent conflicts
@@ -81,8 +78,6 @@ export default function IssueTag() {
         description: "Could not scan NFC tag. Please try again.",
         variant: "destructive",
       });
-    } finally {
-      setIsScanning(false);
     }
   };
 

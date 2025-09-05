@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useFlyingCards } from "@/hooks/use-flying-cards";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -31,11 +32,12 @@ export default function Layout() {
   const isMobile = useIsMobile();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { profile, signOut, isAdmin, isStaff, isStudioManager } = useAuth();
+  const { FlyingCards } = useFlyingCards();
   
   // Filter navigation based on user role
   const filteredNavigation = navigation.filter(item => {
     if (isAdmin) return true; // Admin can see all
-    if (isStaff) return item.href === '/pos' || item.href === '/donation-progress'; // Staff can see POS and donation progress
+    if (isStaff) return item.href === '/pos'; // Staff can only see POS
     if (isStudioManager) return item.href === '/issue-tag' || item.href === '/topup'; // Studio manager can see issue tag and top up
     return false;
   });
@@ -153,6 +155,9 @@ export default function Layout() {
           <Outlet />
         </main>
       </div>
+      
+      {/* Flying Cards */}
+      <FlyingCards />
     </div>
   );
 }

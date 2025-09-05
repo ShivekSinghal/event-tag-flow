@@ -6,6 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { nfcManager } from "@/utils/nfc";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useFlyingCards } from "@/hooks/use-flying-cards";
 import { 
   Scan, 
   CheckCircle, 
@@ -28,6 +29,7 @@ interface Game {
 export default function POS() {
   const { toast } = useToast();
   const { profile, isStaff } = useAuth();
+  const { addCard } = useFlyingCards();
   const [isScanning, setIsScanning] = useState(false);
   const [scannedWallet, setScannedWallet] = useState<any>(null);
   const [selectedGame, setSelectedGame] = useState<Game | null>(null);
@@ -224,6 +226,14 @@ export default function POS() {
       toast({
         title: "Payment Successful!",
         description: `₹${game.price.toFixed(2)} charged for ${game.name}. New balance: ₹${newBalance.toFixed(2)}`,
+      });
+
+      // Show flying card animation
+      addCard({
+        amount: game.price,
+        name: wallet.attendeeName,
+        studio: game.studio,
+        type: "sale"
       });
 
       // Reset state
