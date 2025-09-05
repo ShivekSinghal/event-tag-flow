@@ -36,7 +36,14 @@ export class NFCManager {
    * Scan using WebNFC API (Chrome on Android)
    */
   private async scanWithWebNFC(): Promise<NFCReadResult> {
+    console.log('=== NFC SCAN DEBUG START ===');
+    
     try {
+      // Check browser and environment
+      console.log('User Agent:', navigator.userAgent);
+      console.log('Platform:', navigator.platform);
+      console.log('NFC available:', 'NDEFReader' in window);
+      
       // Proper feature detection as per Chrome docs
       if (!('NDEFReader' in window)) {
         console.log('NDEFReader not available - use Chrome on Android');
@@ -49,51 +56,77 @@ export class NFCManager {
 
       console.log('Creating NDEFReader instance...');
       
-      // Create new NDEFReader instance using proper Chrome pattern
+      // Create new NDEFReader instance
       this.reader = new (window as any).NDEFReader();
-      console.log('NDEFReader created successfully');
+      console.log('NDEFReader created successfully:', this.reader);
       
-      return new Promise((resolve) => {
+      return new Promise(async (resolve) => {
         let resolved = false;
+        let scanStarted = false;
         
-        // Set up event handlers BEFORE starting scan
+        console.log('Setting up Promise for NFC scan...');
+
+        // Only set up error handler for actual reading errors, not scan start errors
         this.reader.onreading = (event: any) => {
           if (resolved) return;
           resolved = true;
-          console.log('NFC tag detected!', event);
+          console.log('✅ NFC tag detected!', event);
           const tagId = this.extractTagId(event);
+          console.log('Extracted tag ID:', tagId);
           resolve({
             tagId,
             success: true
           });
         };
 
-        this.reader.onreadingerror = (error: any) => {
-          if (resolved) return;
+        // Timeout after 30 seconds - only if scan actually started
+        const timeoutId = setTimeout(() => {
+          if (resolved || !scanStarted) return;
           resolved = true;
-          console.warn('NFC reading error:', error);
+          console.log('⏰ NFC scan timeout after 30 seconds');
           resolve({
             tagId: '',
             success: false,
-            error: 'Cannot read data from the NFC tag. Try another one?'
+            error: 'NFC scan timeout. Please try again.'
           });
-        };
+        }, 30000);
 
-        // Start scanning after setting up handlers
-        this.reader.scan().then(() => {
-          console.log('Scan started successfully - waiting for NFC tag...');
-        }).catch((scanError: any) => {
+        try {
+          console.log('Attempting to start NFC scan...');
+          await this.reader.scan();
+          scanStarted = true;
+          console.log('✅ NFC scan started successfully! Place your tag near the device...');
+          
+          // Only set up error handler after scan starts successfully
+          this.reader.onreadingerror = (error: any) => {
+            if (resolved) return;
+            resolved = true;
+            console.warn('❌ NFC reading error after scan started:', error);
+            clearTimeout(timeoutId);
+            resolve({
+              tagId: '',
+              success: false,
+              error: 'Cannot read data from the NFC tag. Try another one?'
+            });
+          };
+          
+        } catch (scanError: any) {
           if (resolved) return;
           resolved = true;
-          console.warn('Failed to start NFC scan:', scanError);
+          clearTimeout(timeoutId);
+          console.error('❌ Failed to start NFC scan:', scanError);
+          console.error('Scan error name:', scanError?.name);
+          console.error('Scan error message:', scanError?.message);
           
           let errorMessage = 'Failed to start NFC scanning. ';
           if (scanError?.name === 'NotAllowedError') {
             errorMessage += 'NFC permission denied. Please enable NFC and try again.';
           } else if (scanError?.name === 'NotSupportedError') {
             errorMessage += 'NFC not supported on this device.';
+          } else if (scanError?.name === 'InvalidState') {
+            errorMessage += 'NFC is not available. Please check your device settings.';
           } else {
-            errorMessage += 'Please ensure NFC is enabled and try again.';
+            errorMessage += `Error: ${scanError?.message || 'Unknown error'}`;
           }
           
           resolve({
@@ -101,22 +134,14 @@ export class NFCManager {
             success: false,
             error: errorMessage
           });
-        });
-
-        // Timeout after 30 seconds
-        setTimeout(() => {
-          if (resolved) return;
-          resolved = true;
-          resolve({
-            tagId: '',
-            success: false,
-            error: 'NFC scan timeout. Please try again.'
-          });
-        }, 30000);
+        }
       });
       
     } catch (error: any) {
-      console.warn('NFC scan error:', error);
+      console.error('❌ NFC scan error in try/catch:', error);
+      console.error('Error name:', error?.name);
+      console.error('Error message:', error?.message);
+      console.error('Error stack:', error?.stack);
       
       // Handle different error types
       let errorMessage = 'NFC scanning failed. ';
@@ -136,6 +161,8 @@ export class NFCManager {
         success: false,
         error: errorMessage
       };
+    } finally {
+      console.log('=== NFC SCAN DEBUG END ===');
     }
   }
 
