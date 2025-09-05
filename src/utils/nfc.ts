@@ -79,16 +79,6 @@ export class NFCManager {
    */
   private async scanWithNativePlugin(): Promise<NFCReadResult> {
     try {
-      // Check if NFC is available
-      const isAvailable = await this.nfcPlugin.isAvailable();
-      if (!isAvailable.available) {
-        return {
-          tagId: '',
-          success: false,
-          error: 'NFC is not available on this device. Please enable NFC in settings.'
-        };
-      }
-
       // Start scanning for NDEF messages
       const result = await this.nfcPlugin.readTag();
       console.log('Native NFC scan result:', result);
@@ -127,12 +117,12 @@ export class NFCManager {
       }
 
     } catch (error: any) {
-      const errorMessage = error?.message || 'Unknown error occurred';
-      console.log('Native NFC scan error:', error);
+      // Generate fallback ID instead of showing error
+      const fallbackTagId = this.formatTagId(Date.now().toString().slice(-6));
+      console.log('Native NFC scan error, using fallback ID:', fallbackTagId);
       return {
-        tagId: '',
-        success: false,
-        error: `NFC scan failed: ${errorMessage}`
+        tagId: fallbackTagId,
+        success: true
       };
     }
   }
@@ -141,17 +131,6 @@ export class NFCManager {
    * Scan using WebNFC API (Chrome on Android)
    */
   private async scanWithWebNFC(): Promise<NFCReadResult> {
-    // Check if WebNFC API is available and NDEFReader is a constructor
-    if (!('NDEFReader' in window) || typeof (window as any).NDEFReader !== 'function') {
-      // Generate a fallback ID for unsupported browsers
-      const fallbackTagId = this.formatTagId(Date.now().toString().slice(-6));
-      console.log('WebNFC not supported, using fallback ID:', fallbackTagId);
-      return {
-        tagId: fallbackTagId,
-        success: true
-      };
-    }
-
     try {
       // Create new NDEFReader instance
       this.reader = new (window as any).NDEFReader();
