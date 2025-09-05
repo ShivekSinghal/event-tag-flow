@@ -47,18 +47,19 @@ export class NFCManager {
         };
       }
 
-      console.log('Starting NFC scan...');
+      console.log('Creating NDEFReader instance...');
       
       // Create new NDEFReader instance using proper Chrome pattern
       this.reader = new (window as any).NDEFReader();
-      
-      // Start scanning - this returns a promise that resolves when scan starts
-      await this.reader.scan();
-      console.log('Scan started successfully - waiting for NFC tag...');
+      console.log('NDEFReader created successfully');
       
       return new Promise((resolve) => {
-        // Use proper Chrome pattern for event listeners
+        let resolved = false;
+        
+        // Set up event handlers BEFORE starting scan
         this.reader.onreading = (event: any) => {
+          if (resolved) return;
+          resolved = true;
           console.log('NFC tag detected!', event);
           const tagId = this.extractTagId(event);
           resolve({
@@ -68,6 +69,8 @@ export class NFCManager {
         };
 
         this.reader.onreadingerror = (error: any) => {
+          if (resolved) return;
+          resolved = true;
           console.warn('NFC reading error:', error);
           resolve({
             tagId: '',
@@ -76,8 +79,34 @@ export class NFCManager {
           });
         };
 
+        // Start scanning after setting up handlers
+        this.reader.scan().then(() => {
+          console.log('Scan started successfully - waiting for NFC tag...');
+        }).catch((scanError: any) => {
+          if (resolved) return;
+          resolved = true;
+          console.warn('Failed to start NFC scan:', scanError);
+          
+          let errorMessage = 'Failed to start NFC scanning. ';
+          if (scanError?.name === 'NotAllowedError') {
+            errorMessage += 'NFC permission denied. Please enable NFC and try again.';
+          } else if (scanError?.name === 'NotSupportedError') {
+            errorMessage += 'NFC not supported on this device.';
+          } else {
+            errorMessage += 'Please ensure NFC is enabled and try again.';
+          }
+          
+          resolve({
+            tagId: '',
+            success: false,
+            error: errorMessage
+          });
+        });
+
         // Timeout after 30 seconds
         setTimeout(() => {
+          if (resolved) return;
+          resolved = true;
           resolve({
             tagId: '',
             success: false,
