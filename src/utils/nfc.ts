@@ -107,22 +107,20 @@ export class NFCManager {
           success: true
         };
       } else {
-        // Generate fallback ID even if no NDEF records found
-        const fallbackTagId = this.formatTagId(Date.now().toString().slice(-6));
-        console.log('No NDEF records found, using fallback ID:', fallbackTagId);
         return {
-          tagId: fallbackTagId,
-          success: true
+          tagId: '',
+          success: false,
+          error: 'No NFC tag detected. Please try again.'
         };
       }
 
     } catch (error: any) {
-      // Generate fallback ID instead of showing error
-      const fallbackTagId = this.formatTagId(Date.now().toString().slice(-6));
-      console.log('Native NFC scan error, using fallback ID:', fallbackTagId);
+      const errorMessage = error?.message || 'NFC scan failed';
+      console.log('Native NFC scan error:', error);
       return {
-        tagId: fallbackTagId,
-        success: true
+        tagId: '',
+        success: false,
+        error: errorMessage
       };
     }
   }
@@ -149,32 +147,32 @@ export class NFCManager {
         });
 
         this.reader.addEventListener('readingerror', (error: any) => {
-          // Generate fallback ID instead of showing error
-          const fallbackTagId = this.formatTagId(Date.now().toString().slice(-6));
-          console.log('WebNFC reading error, using fallback ID:', fallbackTagId);
+          const errorMessage = error?.message || 'NFC reading failed';
+          console.log('WebNFC reading error:', error);
           resolve({
-            tagId: fallbackTagId,
-            success: true
+            tagId: '',
+            success: false,
+            error: errorMessage
           });
         });
 
-        // Timeout after 10 seconds and provide fallback
+        // Timeout after 30 seconds
         setTimeout(() => {
-          const fallbackTagId = this.formatTagId(Date.now().toString().slice(-6));
           resolve({
-            tagId: fallbackTagId,
-            success: true
+            tagId: '',
+            success: false,
+            error: 'NFC scan timeout. Please try again.'
           });
-        }, 10000);
+        }, 30000);
       });
       
     } catch (error: any) {
-      // Generate fallback ID instead of showing error
-      const fallbackTagId = this.formatTagId(Date.now().toString().slice(-6));
-      console.log('WebNFC scan error, using fallback ID:', fallbackTagId);
+      const errorMessage = error?.message || 'NFC scan failed';
+      console.log('WebNFC scan error:', error);
       return {
-        tagId: fallbackTagId,
-        success: true
+        tagId: '',
+        success: false,
+        error: errorMessage
       };
     }
   }
@@ -228,12 +226,12 @@ export class NFCManager {
       }
       
       // Generate fallback ID from timestamp if no other data available
-      console.log('No tag data found, generating fallback ID');
+      console.log('No tag data found, generating ID from current time');
       return this.formatTagId(Date.now().toString().slice(-6));
       
     } catch (error) {
       console.warn('Error extracting tag ID:', error);
-      // Return fallback ID even on error
+      // Return timestamp-based fallback ID only as last resort
       return this.formatTagId(Date.now().toString().slice(-6));
     }
   }
