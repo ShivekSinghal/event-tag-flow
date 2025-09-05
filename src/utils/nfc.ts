@@ -71,7 +71,16 @@ export class NFCManager {
     }
 
     // Use WebNFC API for web browsers
-    return this.scanWithWebNFC();
+    if ('NDEFReader' in window) {
+      return this.scanWithWebNFC();
+    }
+
+    // No NFC support available
+    return {
+      tagId: '',
+      success: false,
+      error: 'NFC not supported on this device'
+    };
   }
 
   /**
@@ -226,13 +235,13 @@ export class NFCManager {
       }
       
       // Generate fallback ID from timestamp if no other data available
-      console.log('No tag data found, generating ID from current time');
-      return this.formatTagId(Date.now().toString().slice(-6));
+      console.log('No tag data found, cannot generate ID');
+      return '';
       
     } catch (error) {
       console.warn('Error extracting tag ID:', error);
-      // Return timestamp-based fallback ID only as last resort
-      return this.formatTagId(Date.now().toString().slice(-6));
+      // Return empty string on error - don't generate fake IDs
+      return '';
     }
   }
 
