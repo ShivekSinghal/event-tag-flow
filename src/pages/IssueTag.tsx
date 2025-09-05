@@ -30,17 +30,6 @@ export default function IssueTag() {
   const handleScanNFC = async () => {
     setIsScanning(true);
     
-    // Check NFC support first
-    if (!nfcManager.isNFCSupported()) {
-      toast({
-        title: "NFC Not Supported",
-        description: "This device/browser doesn't support NFC. Use Chrome on Android with NFC enabled.",
-        variant: "destructive",
-      });
-      setIsScanning(false);
-      return;
-    }
-    
     try {
       // Use real NFC scanning if supported, otherwise simulate
       const result = await nfcManager.startScanning();
@@ -154,7 +143,7 @@ export default function IssueTag() {
           <div className="text-center">
             <Button
               onClick={handleScanNFC}
-              disabled={isScanning || !nfcManager.isNFCSupported()}
+              disabled={isScanning}
               size="lg"
               className="w-full max-w-xs bg-gradient-primary hover:shadow-hover transition-smooth"
             >
@@ -162,11 +151,6 @@ export default function IssueTag() {
                 <div className="flex items-center space-x-2">
                   <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
                   <span>Scanning...</span>
-                </div>
-              ) : !nfcManager.isNFCSupported() ? (
-                <div className="flex items-center space-x-2">
-                  <AlertCircle className="w-5 h-5" />
-                  <span>NFC Not Supported</span>
                 </div>
               ) : (
                 <div className="flex items-center space-x-2">
