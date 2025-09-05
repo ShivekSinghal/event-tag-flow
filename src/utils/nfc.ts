@@ -80,9 +80,6 @@ export class NFCManager {
           success: false,
           error: 'NFC not available. Please enable NFC in device settings.'
         };
-      } else if (this.isIOSWeb()) {
-        // Show manual input for iOS Safari users
-        return this.showManualInput();
       } else {
         return {
           tagId: '',
