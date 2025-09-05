@@ -38,7 +38,7 @@ export default function IssueTag() {
     };
   }, []);
 
-  const handleScanNFC = async () => {
+  const handleNFCScan = async () => {
     // If already scanned, reset and start new scan
     if (scannedTag && !scanState.isScanning) {
       setScannedTag(null);
@@ -85,16 +85,6 @@ export default function IssueTag() {
       setIsScanning(false);
     }
   };
-
-  const handleStopScanning = () => {
-    nfcManager.stopScanning();
-    setIsScanning(false);
-    toast({
-      title: "Scanning Stopped",
-      description: "NFC scanning has been stopped.",
-    });
-  };
-
 
   const handleIssueWallet = async () => {
     if (!scannedTag || !attendeeName || !attendeePhone || !selectedStudio) {
@@ -181,20 +171,15 @@ export default function IssueTag() {
           <div className="text-center space-y-4">
             <div className={`relative ${scanState.isScanning ? 'animate-pulse' : ''}`}>
               <Button
-                onClick={scanState.isScanning ? handleStopScanning : handleScanNFC}
+                onClick={handleNFCScan}
+                disabled={isScanning}
                 size="lg"
-                className={`w-full max-w-xs transition-smooth ${
-                  scanState.isScanning 
-                    ? "bg-destructive hover:bg-destructive/90" 
-                    : scannedTag 
-                      ? "bg-secondary hover:bg-secondary/80"
-                      : "bg-gradient-primary hover:shadow-hover"
-                }`}
+                className="w-full max-w-xs bg-gradient-primary hover:shadow-hover transition-smooth"
               >
-                {scanState.isScanning ? (
+                {isScanning ? (
                   <div className="flex items-center space-x-2">
                     <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
-                    <span>Stop Scanning</span>
+                    <span>Scanning...</span>
                   </div>
                 ) : scannedTag ? (
                   <div className="flex items-center space-x-2">

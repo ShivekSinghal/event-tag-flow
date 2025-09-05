@@ -64,7 +64,7 @@ export class NFCManager {
     // Always stop any existing scan before starting a new one
     this.stopScanning();
     
-    // Add vibration feedback when starting scan
+    // Add vibration feedback when starting scan (every time)
     this.vibrate([100]);
     
     return this.scanWithWebNFC();
