@@ -136,10 +136,12 @@ export class NFCManager {
       }
 
     } catch (error: any) {
+      const errorMessage = error?.message || 'Unknown error occurred';
+      console.log('Native NFC scan error:', error);
       return {
         tagId: '',
         success: false,
-        error: `NFC scan failed: ${error.message || 'Unknown error'}`
+        error: `NFC scan failed: ${errorMessage}`
       };
     }
   }
@@ -166,10 +168,12 @@ export class NFCManager {
         });
 
         this.reader.addEventListener('readingerror', (error: any) => {
+          const errorMessage = error?.message || 'Unknown NFC error';
+          console.log('WebNFC reading error:', error);
           resolve({
             tagId: '',
             success: false,
-            error: `NFC reading failed: ${error.message}`
+            error: `NFC reading failed: ${errorMessage}`
           });
         });
 
@@ -184,10 +188,12 @@ export class NFCManager {
       });
       
     } catch (error: any) {
+      const errorMessage = error?.message || 'Unknown error occurred';
+      console.log('WebNFC scan error:', error);
       return {
         tagId: '',
         success: false,
-        error: `NFC scan failed: ${error.message}`
+        error: `NFC scan failed: ${errorMessage}`
       };
     }
   }
