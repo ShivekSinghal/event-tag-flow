@@ -28,6 +28,10 @@ export class NFCManager {
    * Start scanning for NFC tags
    */
   async startScanning(): Promise<NFCReadResult> {
+    console.log('🔍 startScanning() called - this should show up in console');
+    console.log('Current URL:', window.location.href);
+    console.log('User agent:', navigator.userAgent);
+    
     return this.scanWithWebNFC();
   }
 
