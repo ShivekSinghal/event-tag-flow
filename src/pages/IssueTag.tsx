@@ -28,10 +28,18 @@ export default function IssueTag() {
   const [selectedStudio, setSelectedStudio] = useState<string>("");
 
   const handleScanNFC = async () => {
+    if (isScanning) {
+      console.log('Scan already in progress, ignoring request');
+      return;
+    }
+    
     setIsScanning(true);
     
     try {
-      // Use real NFC scanning if supported, otherwise simulate
+      // Always stop any existing scan first to prevent conflicts
+      nfcManager.stopScanning();
+      
+      console.log('Starting new NFC scan...');
       const result = await nfcManager.startScanning();
       
       if (result.success) {
@@ -48,6 +56,7 @@ export default function IssueTag() {
         });
       }
     } catch (error) {
+      console.error('NFC scan error in component:', error);
       toast({
         title: "Scanning Failed",
         description: "Could not scan NFC tag. Please try again.",
@@ -56,6 +65,16 @@ export default function IssueTag() {
     } finally {
       setIsScanning(false);
     }
+  };
+
+  const handleResetScanner = () => {
+    nfcManager.forceReset();
+    setIsScanning(false);
+    setScannedTag(null);
+    toast({
+      title: "Scanner Reset",
+      description: "NFC scanner has been reset. You can try scanning again.",
+    });
   };
 
   const handleIssueWallet = async () => {
@@ -140,7 +159,7 @@ export default function IssueTag() {
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Scan Button */}
-          <div className="text-center">
+          <div className="text-center space-y-3">
             <Button
               onClick={handleScanNFC}
               disabled={isScanning}
@@ -159,6 +178,18 @@ export default function IssueTag() {
                 </div>
               )}
             </Button>
+            
+            {/* Reset Scanner Button - shown when there's an issue or tag already scanned */}
+            {(scannedTag || isScanning) && (
+              <Button
+                onClick={handleResetScanner}
+                variant="outline"
+                size="sm"
+                className="w-full max-w-xs"
+              >
+                Reset Scanner
+              </Button>
+            )}
           </div>
 
           {/* Scanned Tag Display */}
