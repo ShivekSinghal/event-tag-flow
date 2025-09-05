@@ -52,8 +52,9 @@ export function useFlyingCards() {
   const DonationDots = useCallback(() => (
     <>
       {dots.map(dot => {
-        // Calculate dot size based on amount - minimum 6px, max 20px
-        const size = Math.min(20, Math.max(6, (dot.amount / 100) * 4));
+        // Calculate dot size based on percentage of amount (0-10,000) - minimum 4px, max 24px
+        const percentage = (dot.amount / 10000) * 100;
+        const size = Math.min(24, Math.max(4, (percentage / 100) * 20 + 4));
         return (
           <div
             key={dot.id}
