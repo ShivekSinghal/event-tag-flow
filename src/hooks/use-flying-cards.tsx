@@ -9,16 +9,28 @@ interface FlyingCardData {
   type: "topup" | "sale";
 }
 
+interface DotPosition {
+  x: number;
+  y: number;
+  id: string;
+}
+
 export function useFlyingCards() {
   const [cards, setCards] = useState<FlyingCardData[]>([]);
+  const [dots, setDots] = useState<DotPosition[]>([]);
 
   const addCard = useCallback((cardData: Omit<FlyingCardData, "id">) => {
     const id = Date.now().toString();
     setCards(prev => [...prev, { ...cardData, id }]);
   }, []);
 
-  const removeCard = useCallback((id: string) => {
+  const removeCard = useCallback((id: string, dotPosition?: { x: number; y: number }) => {
     setCards(prev => prev.filter(card => card.id !== id));
+    
+    // Add a dot at the specified position
+    if (dotPosition) {
+      setDots(prev => [...prev, { ...dotPosition, id: `dot-${Date.now()}` }]);
+    }
   }, []);
 
   const FlyingCards = useCallback(() => (
@@ -30,14 +42,31 @@ export function useFlyingCards() {
           name={card.name}
           studio={card.studio}
           type={card.type}
-          onComplete={() => removeCard(card.id)}
+          onComplete={(dotPosition) => removeCard(card.id, dotPosition)}
         />
       ))}
     </>
   ), [cards, removeCard]);
 
+  const DonationDots = useCallback(() => (
+    <>
+      {dots.map(dot => (
+        <div
+          key={dot.id}
+          className="fixed w-2 h-2 bg-primary rounded-full donation-dot pointer-events-none z-30"
+          style={{
+            left: dot.x,
+            top: dot.y,
+          }}
+        />
+      ))}
+    </>
+  ), [dots]);
+
   return {
     addCard,
-    FlyingCards
+    FlyingCards,
+    DonationDots,
+    dotsCount: dots.length
   };
 }

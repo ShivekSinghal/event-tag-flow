@@ -14,7 +14,7 @@ interface DonationStats {
 }
 
 const DonationProgress = () => {
-  const { addCard } = useFlyingCards();
+  const { addCard, FlyingCards, DonationDots, dotsCount } = useFlyingCards();
   const [stats, setStats] = useState<DonationStats>({
     totalRaised: 0,
     goal: 100000, // ₹1,00,000 goal
@@ -165,6 +165,10 @@ const DonationProgress = () => {
 
   return (
     <div className={`${isFullscreen ? 'fixed inset-0 z-50 bg-background overflow-auto' : 'container mx-auto'} p-6 space-y-8 relative overflow-hidden`}>
+      {/* Flying Cards and Donation Dots */}
+      <FlyingCards />
+      <DonationDots />
+      
       {/* Header with Fullscreen Toggle */}
       <div className="text-center mb-12 relative">
         <Button
