@@ -88,7 +88,9 @@ export class NFCManager {
    */
   private async scanWithNativePlugin(): Promise<NFCReadResult> {
     try {
-      // Start scanning for NDEF messages
+      console.log('Starting native NFC scan...');
+      
+      // Start scanning for NDEF messages - this will wait for user to tap NFC tag
       const result = await this.nfcPlugin.readTag();
       console.log('Native NFC scan result:', result);
 
@@ -105,7 +107,7 @@ export class NFCManager {
           const text = decoder.decode(new Uint8Array(record.payload));
           tagId = this.formatTagId(text.substring(0, 6));
         } else {
-          // Generate a timestamp-based ID
+          // Generate a timestamp-based ID only if we have a real tag but no readable data
           tagId = this.formatTagId(Date.now().toString().slice(-6));
         }
         
@@ -113,6 +115,14 @@ export class NFCManager {
 
         return {
           tagId,
+          success: true
+        };
+      } else if (result) {
+        // We got a result but no NDEF records - still a real tag scan
+        const fallbackTagId = this.formatTagId(Date.now().toString().slice(-6));
+        console.log('Empty NFC tag detected, using fallback ID:', fallbackTagId);
+        return {
+          tagId: fallbackTagId,
           success: true
         };
       } else {
@@ -124,12 +134,11 @@ export class NFCManager {
       }
 
     } catch (error: any) {
-      const errorMessage = error?.message || 'NFC scan failed';
       console.log('Native NFC scan error:', error);
       return {
         tagId: '',
         success: false,
-        error: errorMessage
+        error: 'Failed to scan NFC tag. Please try again.'
       };
     }
   }
@@ -138,35 +147,63 @@ export class NFCManager {
    * Scan using WebNFC API (Chrome on Android)
    */
   private async scanWithWebNFC(): Promise<NFCReadResult> {
+    // Check if WebNFC API is available
+    if (!('NDEFReader' in window)) {
+      return {
+        tagId: '',
+        success: false,
+        error: 'WebNFC not supported in this browser. Please use Chrome on Android.'
+      };
+    }
+
     try {
       // Create new NDEFReader instance
       this.reader = new (window as any).NDEFReader();
       
-      // Start scanning
+      // Start scanning - this will wait for user to tap an NFC tag
       await this.reader.scan();
+      console.log('WebNFC scanning started, waiting for tag...');
       
       return new Promise((resolve) => {
+        let isResolved = false;
+        
         // Set up event listeners
         this.reader.addEventListener('reading', (event: any) => {
+          if (isResolved) return;
+          isResolved = true;
+          
           const tagId = this.extractTagId(event);
-          resolve({
-            tagId,
-            success: true
-          });
+          if (tagId) {
+            resolve({
+              tagId,
+              success: true
+            });
+          } else {
+            resolve({
+              tagId: '',
+              success: false,
+              error: 'Could not read NFC tag data. Please try again.'
+            });
+          }
         });
 
         this.reader.addEventListener('readingerror', (error: any) => {
-          const errorMessage = error?.message || 'NFC reading failed';
+          if (isResolved) return;
+          isResolved = true;
+          
           console.log('WebNFC reading error:', error);
           resolve({
             tagId: '',
             success: false,
-            error: errorMessage
+            error: 'Failed to read NFC tag. Please try again.'
           });
         });
 
         // Timeout after 30 seconds
         setTimeout(() => {
+          if (isResolved) return;
+          isResolved = true;
+          
           resolve({
             tagId: '',
             success: false,
@@ -176,12 +213,11 @@ export class NFCManager {
       });
       
     } catch (error: any) {
-      const errorMessage = error?.message || 'NFC scan failed';
       console.log('WebNFC scan error:', error);
       return {
         tagId: '',
         success: false,
-        error: errorMessage
+        error: 'Failed to start NFC scanning. Please try again.'
       };
     }
   }
