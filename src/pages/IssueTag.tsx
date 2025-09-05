@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { nfcManager } from "@/utils/nfc";
+import { nfcManager, NFCScanState } from "@/utils/nfc";
 import { supabase } from "@/integrations/supabase/client";
 import { 
   NfcIcon as Nfc, 
@@ -22,10 +22,21 @@ import {
 export default function IssueTag() {
   const { toast } = useToast();
   const [isScanning, setIsScanning] = useState(false);
+  const [scanState, setScanState] = useState<NFCScanState>({ isScanning: false, duration: 0 });
   const [scannedTag, setScannedTag] = useState<string | null>(null);
   const [attendeeName, setAttendeeName] = useState("");
   const [attendeePhone, setAttendeePhone] = useState("");
   const [selectedStudio, setSelectedStudio] = useState<string>("");
+
+  useEffect(() => {
+    // Set up scan state callback
+    nfcManager.setScanStateCallback(setScanState);
+    
+    return () => {
+      // Cleanup on unmount
+      nfcManager.stopScanning();
+    };
+  }, []);
 
   const handleScanNFC = async () => {
     if (isScanning) {
@@ -65,6 +76,15 @@ export default function IssueTag() {
     } finally {
       setIsScanning(false);
     }
+  };
+
+  const handleStopScanning = () => {
+    nfcManager.stopScanning();
+    setIsScanning(false);
+    toast({
+      title: "Scanning Stopped",
+      description: "NFC scanning has been stopped.",
+    });
   };
 
   const handleResetScanner = () => {
@@ -161,15 +181,18 @@ export default function IssueTag() {
           {/* Scan Button */}
           <div className="text-center space-y-3">
             <Button
-              onClick={handleScanNFC}
-              disabled={isScanning}
+              onClick={scanState.isScanning ? handleStopScanning : handleScanNFC}
               size="lg"
-              className="w-full max-w-xs bg-gradient-primary hover:shadow-hover transition-smooth"
+              className={`w-full max-w-xs transition-smooth ${
+                scanState.isScanning 
+                  ? "bg-destructive hover:bg-destructive/90" 
+                  : "bg-gradient-primary hover:shadow-hover"
+              }`}
             >
-              {isScanning ? (
+              {scanState.isScanning ? (
                 <div className="flex items-center space-x-2">
                   <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
-                  <span>Scanning...</span>
+                  <span>Stop Scanning</span>
                 </div>
               ) : (
                 <div className="flex items-center space-x-2">
@@ -179,8 +202,25 @@ export default function IssueTag() {
               )}
             </Button>
             
-            {/* Reset Scanner Button - shown when there's an issue or tag already scanned */}
-            {(scannedTag || isScanning) && (
+            {/* Scanning Progress */}
+            {scanState.isScanning && (
+              <div className="space-y-2">
+                <div className="text-sm text-muted-foreground">
+                  Scanning for {Math.floor(scanState.duration / 1000)}s... 
+                  <span className="block text-xs mt-1">
+                    Place NFC tag near your device
+                  </span>
+                </div>
+                {scanState.lastError && (
+                  <div className="text-xs text-orange-500">
+                    {scanState.lastError}
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {/* Reset Scanner Button - shown when tag already scanned */}
+            {scannedTag && !scanState.isScanning && (
               <Button
                 onClick={handleResetScanner}
                 variant="outline"

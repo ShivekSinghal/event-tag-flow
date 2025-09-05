@@ -9,11 +9,20 @@ export interface NFCReadResult {
   error?: string;
 }
 
+export interface NFCScanState {
+  isScanning: boolean;
+  duration: number;
+  lastError?: string;
+}
+
 export class NFCManager {
   private static instance: NFCManager;
   private reader: any = null;
   private isScanning: boolean = false;
   private scanTimeout: NodeJS.Timeout | null = null;
+  private scanStartTime: number = 0;
+  private progressInterval: NodeJS.Timeout | null = null;
+  private onScanStateChange?: (state: NFCScanState) => void;
 
   static getInstance(): NFCManager {
     if (!NFCManager.instance) {
@@ -24,6 +33,23 @@ export class NFCManager {
 
   constructor() {
     // WebNFC only implementation
+  }
+
+  /**
+   * Set callback for scan state changes
+   */
+  setScanStateCallback(callback: (state: NFCScanState) => void): void {
+    this.onScanStateChange = callback;
+  }
+
+  /**
+   * Get current scan state
+   */
+  getScanState(): NFCScanState {
+    return {
+      isScanning: this.isScanning,
+      duration: this.isScanning ? Date.now() - this.scanStartTime : 0,
+    };
   }
 
   /**
@@ -90,7 +116,12 @@ export class NFCManager {
             clearTimeout(this.scanTimeout);
             this.scanTimeout = null;
           }
+          if (this.progressInterval) {
+            clearInterval(this.progressInterval);
+            this.progressInterval = null;
+          }
           this.isScanning = false;
+          this.updateScanState();
         };
 
         const resolveOnce = (result: NFCReadResult) => {
@@ -114,15 +145,9 @@ export class NFCManager {
         };
 
         this.reader.onreadingerror = (error: any) => {
-          console.warn('❌ NFC reading error:', error);
-          // Give user 3 seconds to reposition the tag before showing error
-          setTimeout(() => {
-            resolveOnce({
-              tagId: '',
-              success: false,
-              error: 'Cannot read data from the NFC tag. Try repositioning it or use another one?'
-            });
-          }, 3000);
+          console.warn('❌ NFC reading error (continuing scan):', error);
+          // Don't stop scanning on read errors - just update state with error info
+          this.updateScanState('NFC read error - keep trying...');
         };
 
         // Setup timeout
@@ -139,6 +164,11 @@ export class NFCManager {
           console.log('Attempting to start NFC scan...');
           await this.reader.scan();
           console.log('✅ NFC scan started successfully! Place your tag near the device...');
+          
+          // Start scan state tracking
+          this.scanStartTime = Date.now();
+          this.startProgressTracking();
+          this.updateScanState();
           
         } catch (scanError: any) {
           console.error('❌ Failed to start NFC scan:', scanError);
@@ -195,15 +225,46 @@ export class NFCManager {
   }
 
   /**
+   * Start progress tracking during scan
+   */
+  private startProgressTracking(): void {
+    if (this.progressInterval) {
+      clearInterval(this.progressInterval);
+    }
+    
+    this.progressInterval = setInterval(() => {
+      this.updateScanState();
+    }, 1000); // Update every second
+  }
+
+  /**
+   * Update scan state and notify callback
+   */
+  private updateScanState(lastError?: string): void {
+    if (this.onScanStateChange) {
+      this.onScanStateChange({
+        isScanning: this.isScanning,
+        duration: this.isScanning ? Date.now() - this.scanStartTime : 0,
+        lastError
+      });
+    }
+  }
+
+  /**
    * Stop NFC scanning
    */
   stopScanning(): void {
     console.log('🛑 Stopping NFC scan...');
     
-    // Clear timeout
+    // Clear timeout and progress tracking
     if (this.scanTimeout) {
       clearTimeout(this.scanTimeout);
       this.scanTimeout = null;
+    }
+    
+    if (this.progressInterval) {
+      clearInterval(this.progressInterval);
+      this.progressInterval = null;
     }
     
     // Stop WebNFC scanning using proper Chrome pattern
@@ -221,6 +282,7 @@ export class NFCManager {
     
     // Reset scanning state
     this.isScanning = false;
+    this.updateScanState();
     console.log('✅ NFC scanning stopped');
   }
 
@@ -234,6 +296,9 @@ export class NFCManager {
     this.reader = null;
     this.isScanning = false;
     this.scanTimeout = null;
+    this.progressInterval = null;
+    this.scanStartTime = 0;
+    this.updateScanState();
     console.log('✅ NFC manager force reset complete');
   }
 
