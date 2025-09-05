@@ -13,6 +13,7 @@ interface DotPosition {
   x: number;
   y: number;
   id: string;
+  amount: number;
 }
 
 export function useFlyingCards() {
@@ -24,12 +25,12 @@ export function useFlyingCards() {
     setCards(prev => [...prev, { ...cardData, id }]);
   }, []);
 
-  const removeCard = useCallback((id: string, dotPosition?: { x: number; y: number }) => {
+  const removeCard = useCallback((id: string, dotPosition?: { x: number; y: number }, amount?: number) => {
     setCards(prev => prev.filter(card => card.id !== id));
     
-    // Add a dot at the specified position
-    if (dotPosition) {
-      setDots(prev => [...prev, { ...dotPosition, id: `dot-${Date.now()}` }]);
+    // Add a dot at the specified position with amount for sizing
+    if (dotPosition && amount) {
+      setDots(prev => [...prev, { ...dotPosition, id: `dot-${Date.now()}`, amount }]);
     }
   }, []);
 
@@ -42,7 +43,7 @@ export function useFlyingCards() {
           name={card.name}
           studio={card.studio}
           type={card.type}
-          onComplete={(dotPosition) => removeCard(card.id, dotPosition)}
+          onComplete={(dotPosition) => removeCard(card.id, dotPosition, card.amount)}
         />
       ))}
     </>
@@ -50,17 +51,23 @@ export function useFlyingCards() {
 
   const DonationDots = useCallback(() => (
     <>
-      {dots.map(dot => (
-        <div
-          key={dot.id}
-          className="fixed w-2 h-2 rounded-full donation-dot pointer-events-none z-30"
-          style={{
-            left: dot.x,
-            top: dot.y,
-            backgroundColor: '#ff007f'
-          }}
-        />
-      ))}
+      {dots.map(dot => {
+        // Calculate dot size based on amount - minimum 6px, max 20px
+        const size = Math.min(20, Math.max(6, (dot.amount / 100) * 4));
+        return (
+          <div
+            key={dot.id}
+            className="fixed rounded-full donation-dot pointer-events-none z-30"
+            style={{
+              left: dot.x,
+              top: dot.y,
+              width: `${size}px`,
+              height: `${size}px`,
+              backgroundColor: '#ff007f'
+            }}
+          />
+        );
+      })}
     </>
   ), [dots]);
 
