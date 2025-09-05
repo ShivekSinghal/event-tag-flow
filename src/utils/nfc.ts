@@ -37,42 +37,44 @@ export class NFCManager {
    */
   private async scanWithWebNFC(): Promise<NFCReadResult> {
     try {
-      // Check if NDEFReader is available before trying to use it
-      if (!('NDEFReader' in window) || typeof (window as any).NDEFReader !== 'function') {
-        console.log('NDEFReader not available in this browser/environment');
+      // Proper feature detection as per Chrome docs
+      if (!('NDEFReader' in window)) {
+        console.log('NDEFReader not available - use Chrome on Android');
         return {
           tagId: '',
           success: false,
-          error: 'NFC not supported. Please use Chrome on Android with NFC enabled.'
+          error: 'NFC not supported. Use Chrome on Android with NFC enabled.'
         };
       }
 
       console.log('Starting NFC scan...');
       
-      // Create new NDEFReader instance
+      // Create new NDEFReader instance using proper Chrome pattern
       this.reader = new (window as any).NDEFReader();
       
-      // Start scanning
+      // Start scanning - this returns a promise that resolves when scan starts
       await this.reader.scan();
+      console.log('Scan started successfully - waiting for NFC tag...');
       
       return new Promise((resolve) => {
-        // Set up event listeners
-        this.reader.addEventListener('reading', (event: any) => {
+        // Use proper Chrome pattern for event listeners
+        this.reader.onreading = (event: any) => {
+          console.log('NFC tag detected!', event);
           const tagId = this.extractTagId(event);
           resolve({
             tagId,
             success: true
           });
-        });
+        };
 
-        this.reader.addEventListener('readingerror', (error: any) => {
+        this.reader.onreadingerror = (error: any) => {
           console.warn('NFC reading error:', error);
           resolve({
             tagId: '',
             success: false,
-            error: 'NFC reading failed. Please try scanning again.'
+            error: 'Cannot read data from the NFC tag. Try another one?'
           });
-        });
+        };
 
         // Timeout after 30 seconds
         setTimeout(() => {
@@ -112,11 +114,14 @@ export class NFCManager {
    * Stop NFC scanning
    */
   stopScanning(): void {
-    // Stop WebNFC scanning
+    // Stop WebNFC scanning using proper Chrome pattern
     if (this.reader) {
       try {
-        this.reader.removeAllListeners?.();
+        // Clear event handlers
+        this.reader.onreading = null;
+        this.reader.onreadingerror = null;
         this.reader = null;
+        console.log('NFC scanning stopped');
       } catch (error) {
         console.warn('Error stopping WebNFC scan:', error);
       }
