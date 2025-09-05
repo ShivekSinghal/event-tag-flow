@@ -17,7 +17,7 @@ const DonationProgress = () => {
   const { addCard, FlyingCards, DonationDots, dotsCount } = useFlyingCards();
   const [stats, setStats] = useState<DonationStats>({
     totalRaised: 0,
-    goal: 100000, // ₹1,00,000 goal
+    goal: 500000, // ₹5,00,000 goal
     percentage: 0
   });
   const [isLoading, setIsLoading] = useState(true);
@@ -193,7 +193,7 @@ const DonationProgress = () => {
         <div className="flex-1 flex flex-col justify-center items-center p-8 space-y-8">
           {/* Heading */}
           <div className="text-center">
-            <h1 className="text-6xl font-bold mb-6 text-primary">
+            <h1 className="text-6xl font-bold mb-6 text-white">
               I Danced, I Played, I Gave Back
             </h1>
           </div>
