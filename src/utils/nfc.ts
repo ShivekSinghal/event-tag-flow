@@ -28,8 +28,12 @@ export class NFCManager {
    * Check if NFC is supported on this device
    */
   isNFCSupported(): boolean {
-    // Check WebNFC API support (Chrome on Android)
-    return 'NDEFReader' in window;
+    // Check if NDEFReader is actually constructable
+    try {
+      return 'NDEFReader' in window && typeof (window as any).NDEFReader === 'function';
+    } catch {
+      return false;
+    }
   }
 
   /**
@@ -51,7 +55,20 @@ export class NFCManager {
    * Start scanning for NFC tags
    */
   async startScanning(): Promise<NFCReadResult> {
-    // Let WebNFC API attempt determine support and handle errors
+    // Check if WebNFC is actually supported first
+    if (!this.isNFCSupported()) {
+      // For development/testing, simulate a successful scan
+      if (process.env.NODE_ENV === 'development') {
+        return this.simulateTagScan();
+      }
+      
+      return {
+        tagId: '',
+        success: false,
+        error: 'NFC not supported. Use Chrome on Android with NFC enabled.'
+      };
+    }
+    
     return this.scanWithWebNFC();
   }
 
@@ -180,6 +197,23 @@ export class NFCManager {
     } else {
       return `NFC${cleanId.substring(0, 6)}`;
     }
+  }
+
+  /**
+   * Simulate tag scan for development/testing
+   */
+  private async simulateTagScan(): Promise<NFCReadResult> {
+    // Simulate scanning delay
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    // Generate a random tag ID for testing
+    const randomId = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const tagId = `NFC${randomId}`;
+    
+    return {
+      tagId,
+      success: true
+    };
   }
 }
 
