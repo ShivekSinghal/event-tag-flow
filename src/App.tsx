@@ -49,7 +49,11 @@ const App = () => (
                   <Balance />
                 </ProtectedRoute>
               } />
-              <Route path="donation-progress" element={<DonationProgress />} />
+              <Route path="donation-progress" element={
+                <ProtectedRoute requiredRole="admin">
+                  <DonationProgress />
+                </ProtectedRoute>
+              } />
             </Route>
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
