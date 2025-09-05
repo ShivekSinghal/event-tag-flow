@@ -38,20 +38,12 @@ export class NFCManager {
    * Check if NFC is supported on this device
    */
   isNFCSupported(): boolean {
-    // For native platforms (iOS/Android), assume NFC is available
+    // For native platforms (iOS/Android), check if NFC plugin is available
     if (Capacitor.isNativePlatform()) {
-      return true; // Will be checked properly when scanning
+      return this.nfcPlugin !== null;
     }
-    // For web, check WebNFC API (Chrome on Android)
+    // For web, check WebNFC API
     return 'NDEFReader' in window;
-  }
-
-  /**
-   * Check if device is iOS in web browser
-   */
-  isIOSWeb(): boolean {
-    return !Capacitor.isNativePlatform() && 
-           /iPad|iPhone|iPod/.test(navigator.userAgent);
   }
 
   /**
@@ -74,19 +66,12 @@ export class NFCManager {
    */
   async startScanning(): Promise<NFCReadResult> {
     if (!this.isNFCSupported()) {
-      if (Capacitor.isNativePlatform()) {
-        return {
-          tagId: '',
-          success: false,
-          error: 'NFC not available. Please enable NFC in device settings.'
-        };
-      } else {
-        return {
-          tagId: '',
-          success: false,
-          error: 'NFC not supported in this browser. Please use Chrome on Android or install the mobile app for iPhone/Android NFC support.'
-        };
-      }
+      const platform = Capacitor.isNativePlatform() ? 'mobile device' : 'browser';
+      return {
+        tagId: '',
+        success: false,
+        error: `NFC not supported on this ${platform}. For iPhone/Android use the native app, for web use Chrome on Android.`
+      };
     }
 
     // Use native NFC plugin for iOS/Android
@@ -253,32 +238,6 @@ export class NFCManager {
       console.warn('Error extracting tag ID:', error);
       return '';
     }
-  }
-
-  /**
-   * Show manual input dialog for iOS users (fallback)
-   */
-  private async showManualInput(): Promise<NFCReadResult> {
-    return new Promise((resolve) => {
-      const tagId = prompt(
-        "iOS Safari doesn't support NFC scanning.\n\n" +
-        "Please enter the NFC tag ID manually\n" +
-        "(or use the native iOS app for proper NFC scanning):"
-      );
-
-      if (tagId && tagId.trim()) {
-        resolve({
-          tagId: this.formatTagId(tagId.trim()),
-          success: true
-        });
-      } else {
-        resolve({
-          tagId: '',
-          success: false,
-          error: 'Manual input cancelled. For full NFC support, please use the native iOS app.'
-        });
-      }
-    });
   }
 
   /**
