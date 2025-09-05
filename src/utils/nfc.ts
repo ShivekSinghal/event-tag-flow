@@ -83,7 +83,12 @@ export class NFCManager {
       return this.scanWithWebNFC();
     }
 
-    // Fallback for unsupported browsers
+    // For iOS web users, show manual input fallback
+    if (this.isIOSWeb()) {
+      return this.showManualInput();
+    }
+
+    // Fallback for other unsupported browsers
     return {
       tagId: '',
       success: false,
