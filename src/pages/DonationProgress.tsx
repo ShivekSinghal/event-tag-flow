@@ -191,6 +191,13 @@ const DonationProgress = () => {
 
         {/* Content Container - Full Height */}
         <div className="flex-1 flex flex-col justify-center items-center p-8 space-y-8">
+          {/* Heading */}
+          <div className="text-center">
+            <h1 className="text-6xl font-bold mb-6 text-primary">
+              I Danced, I Played, I Gave Back
+            </h1>
+          </div>
+
           {/* Progress Circle */}
           <div className="flex justify-center">
             <div className="relative">
