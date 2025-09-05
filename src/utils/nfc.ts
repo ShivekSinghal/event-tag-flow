@@ -51,15 +51,7 @@ export class NFCManager {
    * Start scanning for NFC tags
    */
   async startScanning(): Promise<NFCReadResult> {
-    if (!this.isNFCSupported()) {
-      return {
-        tagId: '',
-        success: false,
-        error: 'NFC not supported on this device. Please use Chrome on Android with NFC enabled.'
-      };
-    }
-
-    // Use WebNFC API
+    // Let WebNFC API attempt determine support and handle errors
     return this.scanWithWebNFC();
   }
 
@@ -86,10 +78,11 @@ export class NFCManager {
         });
 
         this.reader.addEventListener('readingerror', (error: any) => {
+          console.warn('NFC reading error:', error);
           resolve({
             tagId: '',
             success: false,
-            error: `NFC reading failed: ${error.message}`
+            error: 'NFC reading failed. Please try scanning again.'
           });
         });
 
@@ -104,10 +97,25 @@ export class NFCManager {
       });
       
     } catch (error: any) {
+      console.warn('NFC scan error:', error);
+      
+      // Handle different error types
+      let errorMessage = 'NFC scanning failed. ';
+      
+      if (error?.name === 'NotAllowedError') {
+        errorMessage += 'NFC permission denied or not available.';
+      } else if (error?.name === 'NotSupportedError') {
+        errorMessage += 'NFC not supported on this device. Use Chrome on Android with NFC enabled.';
+      } else if (error?.message) {
+        errorMessage += error.message;
+      } else {
+        errorMessage += 'Please try again or check if NFC is enabled.';
+      }
+      
       return {
         tagId: '',
         success: false,
-        error: `NFC scan failed: ${error.message}`
+        error: errorMessage
       };
     }
   }
