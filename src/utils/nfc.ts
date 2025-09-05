@@ -1,9 +1,7 @@
 /**
- * NFC Utility functions for cross-platform NFC scanning
- * Uses Capacitor NFC plugin for iOS/Android and WebNFC API as fallback
+ * NFC Utility functions using WebNFC API
+ * Works in Chrome on Android devices with NFC support
  */
-
-import { Capacitor } from '@capacitor/core';
 
 export interface NFCReadResult {
   tagId: string;
@@ -14,7 +12,6 @@ export interface NFCReadResult {
 export class NFCManager {
   private static instance: NFCManager;
   private reader: any = null;
-  private nfcPlugin: any = null;
 
   static getInstance(): NFCManager {
     if (!NFCManager.instance) {
@@ -24,25 +21,14 @@ export class NFCManager {
   }
 
   constructor() {
-    // Import NFC plugin dynamically for mobile platforms
-    if (Capacitor.isNativePlatform()) {
-      import('capacitor-nfc').then((module) => {
-        this.nfcPlugin = module.NFC;
-      }).catch(() => {
-        console.warn('NFC plugin not available');
-      });
-    }
+    // WebNFC only implementation
   }
 
   /**
    * Check if NFC is supported on this device
    */
   isNFCSupported(): boolean {
-    // For native platforms (iOS/Android), check if NFC plugin is available
-    if (Capacitor.isNativePlatform()) {
-      return this.nfcPlugin !== null;
-    }
-    // For web, check WebNFC API
+    // Check WebNFC API support (Chrome on Android)
     return 'NDEFReader' in window;
   }
 
@@ -66,65 +52,17 @@ export class NFCManager {
    */
   async startScanning(): Promise<NFCReadResult> {
     if (!this.isNFCSupported()) {
-      const platform = Capacitor.isNativePlatform() ? 'mobile device' : 'browser';
       return {
         tagId: '',
         success: false,
-        error: `NFC not supported on this ${platform}. For iPhone/Android use the native app, for web use Chrome on Android.`
+        error: 'NFC not supported on this device. Please use Chrome on Android with NFC enabled.'
       };
     }
 
-    // Use native NFC plugin for iOS/Android
-    if (Capacitor.isNativePlatform() && this.nfcPlugin) {
-      return this.scanWithNativePlugin();
-    }
-
-    // Use WebNFC API for web browsers
+    // Use WebNFC API
     return this.scanWithWebNFC();
   }
 
-  /**
-   * Scan using Capacitor NFC plugin (iOS/Android)
-   */
-  private async scanWithNativePlugin(): Promise<NFCReadResult> {
-    try {
-      // Check if NFC is available
-      const isAvailable = await this.nfcPlugin.isAvailable();
-      if (!isAvailable.available) {
-        return {
-          tagId: '',
-          success: false,
-          error: 'NFC is not available on this device. Please enable NFC in settings.'
-        };
-      }
-
-      // Start scanning
-      const result = await this.nfcPlugin.startScan({
-        techTypes: ['Ndef', 'NfcA', 'NfcB', 'NfcF', 'NfcV'],
-        alertMessage: 'Hold your device near an NFC tag'
-      });
-
-      if (result && result.id) {
-        return {
-          tagId: this.formatTagId(result.id),
-          success: true
-        };
-      } else {
-        return {
-          tagId: '',
-          success: false,
-          error: 'Failed to read NFC tag. Please try again.'
-        };
-      }
-
-    } catch (error: any) {
-      return {
-        tagId: '',
-        success: false,
-        error: `NFC scan failed: ${error.message || 'Unknown error'}`
-      };
-    }
-  }
 
   /**
    * Scan using WebNFC API (Chrome on Android)
@@ -178,15 +116,6 @@ export class NFCManager {
    * Stop NFC scanning
    */
   stopScanning(): void {
-    // Stop native NFC scanning
-    if (Capacitor.isNativePlatform() && this.nfcPlugin) {
-      try {
-        this.nfcPlugin.stopScan();
-      } catch (error) {
-        console.warn('Error stopping native NFC scan:', error);
-      }
-    }
-
     // Stop WebNFC scanning
     if (this.reader) {
       try {
