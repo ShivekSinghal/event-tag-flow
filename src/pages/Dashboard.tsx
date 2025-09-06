@@ -30,7 +30,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { nfcManager } from "@/utils/nfc";
 import StaffManagement from "@/components/admin/StaffManagement";
-import { NFCTestPanel } from "@/components/NFCTestPanel";
 
 interface DashboardStats {
   totalWallets: number;
@@ -1317,9 +1316,6 @@ export default function Dashboard() {
           </div>
         </CardContent>
       </Card>
-
-      {/* NFC Diagnostic Panel */}
-      <NFCTestPanel />
     </div>
   );
 }
