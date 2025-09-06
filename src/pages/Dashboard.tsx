@@ -1033,9 +1033,20 @@ export default function Dashboard() {
         {/* Recent Bookings */}
         <Card className="shadow-card">
           <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Users className="w-5 h-5 text-primary" />
-              <span>Recent Bookings</span>
+            <CardTitle className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Users className="w-5 h-5 text-primary" />
+                <span>Recent Bookings</span>
+              </div>
+              <div className="text-right">
+                <div className="text-sm text-muted-foreground">Total Collected</div>
+                <div className="text-lg font-bold text-success">
+                  ₹{bookings.reduce((total, booking) => {
+                    const amount = typeof booking.amount === 'string' ? parseFloat(booking.amount) : booking.amount;
+                    return total + amount;
+                  }, 0).toFixed(2)}
+                </div>
+              </div>
             </CardTitle>
           </CardHeader>
           <CardContent>
