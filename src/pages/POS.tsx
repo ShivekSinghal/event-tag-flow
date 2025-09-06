@@ -101,7 +101,9 @@ export default function POS() {
     setIsScanning(true);
     
     try {
+      console.log('Starting NFC scan for payment...');
       const result = await nfcManager.startScanning();
+      console.log('NFC scan result:', result);
       
       if (result.success) {
         // Fetch wallet data from Supabase based on tag ID

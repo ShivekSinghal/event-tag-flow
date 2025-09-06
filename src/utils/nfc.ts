@@ -61,6 +61,17 @@ export class NFCManager {
     console.log('User agent:', navigator.userAgent);
     console.log('Current scanning state:', this.isScanning);
     
+    // Check device and browser compatibility first
+    const compatibilityCheck = this.checkDeviceCompatibility();
+    if (!compatibilityCheck.isSupported) {
+      console.log('❌ Device not compatible:', compatibilityCheck.reason);
+      return {
+        tagId: '',
+        success: false,
+        error: compatibilityCheck.reason
+      };
+    }
+    
     // Always stop any existing scan before starting a new one
     this.stopScanning();
     
@@ -68,6 +79,42 @@ export class NFCManager {
     this.vibrate([100]);
     
     return this.scanWithWebNFC();
+  }
+
+  /**
+   * Check if current device/browser supports NFC scanning
+   */
+  private checkDeviceCompatibility(): { isSupported: boolean; reason?: string } {
+    const userAgent = navigator.userAgent.toLowerCase();
+    const isAndroid = /android/.test(userAgent);
+    const isChrome = /chrome/.test(userAgent) && !/edg/.test(userAgent);
+    const hasNDEFReader = 'NDEFReader' in window;
+    
+    console.log('Device compatibility check:');
+    console.log('- Is Android:', isAndroid);
+    console.log('- Is Chrome:', isChrome);
+    console.log('- Has NDEFReader:', hasNDEFReader);
+    
+    if (!hasNDEFReader) {
+      if (!isAndroid) {
+        return {
+          isSupported: false,
+          reason: 'NFC scanning requires an Android device with Chrome browser. iOS and desktop are not supported.'
+        };
+      }
+      if (!isChrome) {
+        return {
+          isSupported: false,
+          reason: 'NFC scanning requires Chrome browser on Android. Please open this app in Chrome.'
+        };
+      }
+      return {
+        isSupported: false,
+        reason: 'NFC not available. Please enable NFC in your device settings and ensure Chrome has NFC permissions.'
+      };
+    }
+    
+    return { isSupported: true };
   }
 
 
