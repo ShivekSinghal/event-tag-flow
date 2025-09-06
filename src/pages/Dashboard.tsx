@@ -17,9 +17,11 @@ import {
   Utensils,
   Shield,
   ShieldOff,
-  Scan,
+  Search,
   XCircle,
-  CheckCircle
+  CheckCircle,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -107,9 +109,14 @@ export default function Dashboard() {
   
   // Block Tag functionality state
   const [isBlockTagOpen, setIsBlockTagOpen] = useState(false);
-  const [isScanning, setIsScanning] = useState(false);
-  const [scannedWallet, setScannedWallet] = useState<any>(null);
+  const [phoneSearchQuery, setPhoneSearchQuery] = useState('');
+  const [foundWallet, setFoundWallet] = useState<any>(null);
   const [blockedWallets, setBlockedWallets] = useState<any[]>([]);
+  
+  // Bookings search and expand state
+  const [bookingSearchQuery, setBookingSearchQuery] = useState('');
+  const [allBookings, setAllBookings] = useState<Booking[]>([]);
+  const [showAllBookings, setShowAllBookings] = useState(false);
   
   const { toast } = useToast();
 
@@ -441,11 +448,11 @@ export default function Dashboard() {
       const { data: bookingsData, error } = await supabase
         .from('bookings')
         .select('*')
-        .order('booking_date', { ascending: false })
-        .limit(10);
+        .order('booking_date', { ascending: false });
 
       if (error) throw error;
-      setBookings(bookingsData || []);
+      setAllBookings(bookingsData || []);
+      setBookings(bookingsData?.slice(0, 10) || []);
     } catch (error) {
       console.error('Error fetching bookings:', error);
       toast({
@@ -456,59 +463,53 @@ export default function Dashboard() {
     }
   };
 
-  const handleScanForBlock = async () => {
-    setIsScanning(true);
-    
-    try {
-      const result = await nfcManager.startScanning();
-      
-      if (result.success) {
-        // Fetch wallet data from Supabase based on tag ID
-        const { data: wallet, error } = await supabase
-          .from('wallets')
-          .select('*')
-          .eq('tag_id', result.tagId)
-          .single();
-
-        if (error || !wallet) {
-          toast({
-            title: "No Wallet Found",
-            description: `NFC tag ${result.tagId} scanned but no wallet is linked to this tag.`,
-            variant: "destructive",
-          });
-          setScannedWallet(null);
-          return;
-        }
-
-        setScannedWallet(wallet);
-        
-        toast({
-          title: "Wallet Scanned",
-          description: `Found wallet for ${wallet.attendee_name}`,
-        });
-      } else {
-        toast({
-          title: "Scanning Failed",
-          description: result.error || "Could not scan NFC tag. Please try again.",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
+  const handleSearchWallet = async () => {
+    if (!phoneSearchQuery.trim()) {
       toast({
-        title: "Scanning Failed",
-        description: "Could not scan NFC tag. Please try again.",
+        title: "Enter Phone Number",
+        description: "Please enter a phone number to search.",
         variant: "destructive",
       });
-    } finally {
-      setIsScanning(false);
+      return;
+    }
+
+    try {
+      const { data: wallet, error } = await supabase
+        .from('wallets')
+        .select('*')
+        .eq('attendee_phone', phoneSearchQuery.trim())
+        .single();
+
+      if (error || !wallet) {
+        toast({
+          title: "No Wallet Found",
+          description: `No wallet found with phone number ${phoneSearchQuery}.`,
+          variant: "destructive",
+        });
+        setFoundWallet(null);
+        return;
+      }
+
+      setFoundWallet(wallet);
+      
+      toast({
+        title: "Wallet Found",
+        description: `Found wallet for ${wallet.attendee_name}`,
+      });
+    } catch (error) {
+      toast({
+        title: "Search Failed",
+        description: "Could not search for wallet. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
   const handleToggleBlockStatus = async () => {
-    if (!scannedWallet) return;
+    if (!foundWallet) return;
 
     try {
-      const newStatus = scannedWallet.status === 'blocked' ? 'active' : 'blocked';
+      const newStatus = foundWallet.status === 'blocked' ? 'active' : 'blocked';
       
       const { error } = await supabase
         .from('wallets')
@@ -516,12 +517,12 @@ export default function Dashboard() {
           status: newStatus,
           updated_at: new Date().toISOString()
         })
-        .eq('id', scannedWallet.id);
+        .eq('id', foundWallet.id);
 
       if (error) throw error;
 
       // Update local state
-      setScannedWallet({ ...scannedWallet, status: newStatus });
+      setFoundWallet({ ...foundWallet, status: newStatus });
       
       // Refresh blocked wallets list and dashboard stats
       await fetchBlockedWallets();
@@ -529,13 +530,14 @@ export default function Dashboard() {
 
       toast({
         title: newStatus === 'blocked' ? "Tag Blocked" : "Tag Unblocked",
-        description: `${scannedWallet.attendee_name}'s wallet has been ${newStatus}.`,
+        description: `${foundWallet.attendee_name}'s wallet has been ${newStatus}.`,
         variant: newStatus === 'blocked' ? "destructive" : "default",
       });
 
       // Close dialog after successful action
       setIsBlockTagOpen(false);
-      setScannedWallet(null);
+      setFoundWallet(null);
+      setPhoneSearchQuery('');
     } catch (error) {
       toast({
         title: "Error",
@@ -543,6 +545,19 @@ export default function Dashboard() {
         variant: "destructive",
       });
     }
+  };
+
+  // Filter bookings based on search query
+  const filteredBookings = showAllBookings ? allBookings : bookings;
+  const displayBookings = filteredBookings.filter(booking => 
+    bookingSearchQuery === '' || 
+    booking.user_name.toLowerCase().includes(bookingSearchQuery.toLowerCase()) ||
+    booking.user_phone.includes(bookingSearchQuery) ||
+    booking.user_email.toLowerCase().includes(bookingSearchQuery.toLowerCase())
+  );
+
+  const handleToggleShowAllBookings = () => {
+    setShowAllBookings(!showAllBookings);
   };
 
   const handleToggleGameAvailability = async (gameId: string, currentStatus: boolean) => {
@@ -1030,18 +1045,18 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Recent Bookings */}
+        {/* All Bookings */}
         <Card className="shadow-card">
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
                 <Users className="w-5 h-5 text-primary" />
-                <span>Recent Bookings</span>
+                <span>All Bookings</span>
               </div>
               <div className="text-right">
                 <div className="text-sm text-muted-foreground">Total Collected</div>
                 <div className="text-lg font-bold text-success">
-                  ₹{bookings.reduce((total, booking) => {
+                  ₹{allBookings.reduce((total, booking) => {
                     const amount = typeof booking.amount === 'string' ? parseFloat(booking.amount) : booking.amount;
                     return total + amount;
                   }, 0).toFixed(2)}
@@ -1051,6 +1066,36 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
+              {/* Search Input */}
+              <div className="flex items-center space-x-2">
+                <div className="relative flex-1">
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Search by name, phone, or email..."
+                    value={bookingSearchQuery}
+                    onChange={(e) => setBookingSearchQuery(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={handleToggleShowAllBookings}
+                  className="flex items-center space-x-2"
+                >
+                  {showAllBookings ? (
+                    <>
+                      <ChevronUp className="w-4 h-4" />
+                      <span>Show Less</span>
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="w-4 h-4" />
+                      <span>Show All ({allBookings.length})</span>
+                    </>
+                  )}
+                </Button>
+              </div>
+
               {isLoading ? (
                 <div className="space-y-3">
                   {[...Array(3)].map((_, i) => (
@@ -1066,14 +1111,14 @@ export default function Dashboard() {
                     </div>
                   ))}
                 </div>
-              ) : bookings.length === 0 ? (
+              ) : displayBookings.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <Users className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                  <p>No bookings yet</p>
-                  <p className="text-sm">Bookings will appear here once customers start booking</p>
+                  <p>{bookingSearchQuery ? 'No matching bookings found' : 'No bookings yet'}</p>
+                  <p className="text-sm">{bookingSearchQuery ? 'Try a different search term' : 'Bookings will appear here once customers start booking'}</p>
                 </div>
               ) : (
-                bookings.map((booking) => {
+                displayBookings.map((booking) => {
                   const amount = typeof booking.amount === 'string' ? parseFloat(booking.amount) : booking.amount;
                   
                   return (
@@ -1134,75 +1179,77 @@ export default function Dashboard() {
               </DialogTrigger>
               <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
-                  <DialogTitle>Block/Unblock NFC Tag</DialogTitle>
+                  <DialogTitle>Block/Unblock Tag by Phone</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                   <div className="text-sm text-muted-foreground">
-                    Scan an NFC tag to block or unblock it. Blocked tags cannot be used for transactions.
+                    Enter a phone number to find and block or unblock the associated tag. Blocked tags cannot be used for transactions.
                   </div>
                   
-                  <Button 
-                    onClick={handleScanForBlock}
-                    disabled={isScanning}
-                    className="w-full"
-                    variant="outline"
-                  >
-                    {isScanning ? (
-                      <div className="flex items-center space-x-2">
-                        <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                        <span>Scanning...</span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center space-x-2">
-                        <Scan className="w-4 h-4" />
-                        <span>Scan NFC Tag</span>
-                      </div>
-                    )}
-                  </Button>
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">Phone Number</Label>
+                    <div className="flex space-x-2">
+                      <Input
+                        id="phone"
+                        placeholder="Enter phone number"
+                        value={phoneSearchQuery}
+                        onChange={(e) => setPhoneSearchQuery(e.target.value)}
+                        className="flex-1"
+                      />
+                      <Button 
+                        onClick={handleSearchWallet}
+                        variant="outline"
+                        className="flex items-center space-x-2"
+                      >
+                        <Search className="w-4 h-4" />
+                        <span>Search</span>
+                      </Button>
+                    </div>
+                  </div>
 
-                  {scannedWallet && (
+                  {foundWallet && (
                     <div className={cn(
                       "border rounded-lg p-4",
-                      scannedWallet.status === 'blocked' 
+                      foundWallet.status === 'blocked' 
                         ? "bg-destructive/10 border-destructive/20" 
                         : "bg-success/10 border-success/20"
                     )}>
                       <div className="flex items-center space-x-3 mb-3">
-                        {scannedWallet.status === 'blocked' ? (
+                        {foundWallet.status === 'blocked' ? (
                           <ShieldOff className="w-5 h-5 text-destructive" />
                         ) : (
                           <Shield className="w-5 h-5 text-success" />
                         )}
                         <div>
-                          <div className="font-medium text-foreground">{scannedWallet.attendee_name}</div>
-                          <div className="text-sm text-muted-foreground">{scannedWallet.tag_id}</div>
+                          <div className="font-medium text-foreground">{foundWallet.attendee_name}</div>
+                          <div className="text-sm text-muted-foreground">{foundWallet.attendee_phone} • {foundWallet.tag_id}</div>
                         </div>
                       </div>
                       <div className="flex items-center justify-between pt-3 border-t">
                         <div>
                           <div className="text-sm font-medium text-muted-foreground">Status</div>
                           <Badge 
-                            variant={scannedWallet.status === 'blocked' ? "destructive" : "default"}
+                            variant={foundWallet.status === 'blocked' ? "destructive" : "default"}
                           >
-                            {scannedWallet.status === 'blocked' ? 'Blocked' : 'Active'}
+                            {foundWallet.status === 'blocked' ? 'Blocked' : 'Active'}
                           </Badge>
                         </div>
                         <div className="text-right">
                           <div className="text-sm font-medium text-muted-foreground">Balance</div>
-                          <div className="font-bold">₹{typeof scannedWallet.balance === 'string' ? parseFloat(scannedWallet.balance).toFixed(2) : scannedWallet.balance.toFixed(2)}</div>
+                          <div className="font-bold">₹{typeof foundWallet.balance === 'string' ? parseFloat(foundWallet.balance).toFixed(2) : foundWallet.balance.toFixed(2)}</div>
                         </div>
                       </div>
                     </div>
                   )}
 
-                  {scannedWallet && (
+                  {foundWallet && (
                     <div className="flex space-x-2 pt-4">
                       <Button 
                         onClick={handleToggleBlockStatus}
-                        variant={scannedWallet.status === 'blocked' ? "default" : "destructive"}
+                        variant={foundWallet.status === 'blocked' ? "default" : "destructive"}
                         className="flex-1"
                       >
-                        {scannedWallet.status === 'blocked' ? (
+                        {foundWallet.status === 'blocked' ? (
                           <div className="flex items-center space-x-2">
                             <Shield className="w-4 h-4" />
                             <span>Unblock Tag</span>
@@ -1218,7 +1265,8 @@ export default function Dashboard() {
                         variant="outline" 
                         onClick={() => {
                           setIsBlockTagOpen(false);
-                          setScannedWallet(null);
+                          setFoundWallet(null);
+                          setPhoneSearchQuery('');
                         }}
                         className="flex-1"
                       >
@@ -1251,7 +1299,7 @@ export default function Dashboard() {
                         <ShieldOff className="w-4 h-4 text-destructive" />
                         <div>
                           <div className="font-medium text-foreground">{wallet.attendee_name}</div>
-                          <div className="text-sm text-muted-foreground">{wallet.tag_id}</div>
+                          <div className="text-sm text-muted-foreground">{wallet.attendee_phone} • {wallet.tag_id}</div>
                         </div>
                       </div>
                       <div className="text-right">
