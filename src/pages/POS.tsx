@@ -589,17 +589,35 @@ export default function POS() {
               {activeSection === 'food' && (
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {customItems
-                    .filter(item => {
-                      // Show food items if user has food permission
-                      if (item.type === 'food') return hasFoodPermission();
-                      // Show game items only if user has specific permission for that game
-                      if (item.type === 'game') {
-                        const gamePermissions = getGamePermissions();
-                        return gamePermissions.some(game => game.name === item.name);
-                      }
-                      return false;
-                    })
+                    {(() => {
+                      const gamePermissions = getGamePermissions();
+                      console.log('DEBUG - Game permissions:', gamePermissions);
+                      console.log('DEBUG - Custom items:', customItems);
+                      console.log('DEBUG - hasFoodPermission:', hasFoodPermission());
+                      
+                      const filteredItems = customItems.filter(item => {
+                        console.log(`DEBUG - Checking item: ${item.name}, type: ${item.type}`);
+                        // Show food items if user has food permission
+                        if (item.type === 'food') {
+                          const hasFood = hasFoodPermission();
+                          console.log(`DEBUG - Food item ${item.name}, has food permission: ${hasFood}`);
+                          return hasFood;
+                        }
+                        // Show game items only if user has specific permission for that game
+                        if (item.type === 'game') {
+                          const hasGamePermission = gamePermissions.some(game => {
+                            console.log(`DEBUG - Comparing game permission '${game.name}' with custom item '${item.name}'`);
+                            return game.name === item.name;
+                          });
+                          console.log(`DEBUG - Game item ${item.name}, has permission: ${hasGamePermission}`);
+                          return hasGamePermission;
+                        }
+                        return false;
+                      });
+                      
+                      console.log('DEBUG - Filtered custom items:', filteredItems);
+                      return filteredItems;
+                    })()
                       .map(item => (
                       <div 
                         key={item.id}
