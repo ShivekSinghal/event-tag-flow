@@ -405,8 +405,14 @@ export default function POS() {
     <div className="max-w-7xl mx-auto space-y-4 px-4 sm:px-6 lg:px-8">
       {/* Header */}
       <div className="text-center py-4">
-        <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Point of Sale</h1>
-        <p className="text-sm sm:text-base text-muted-foreground mt-2">Select items, scan NFC tag, and process payment instantly</p>
+        <div className="flex items-center justify-center space-x-3 mb-2">
+          <span className="text-2xl">📱</span>
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Point of Sale</h1>
+          <span className="text-2xl">📶</span>
+        </div>
+        <p className="text-sm sm:text-base text-muted-foreground mt-2 flex items-center justify-center space-x-2">
+          <span>👆 Tap items, scan NFC tag, process payment instantly ⚡</span>
+        </p>
       </div>
 
       {/* Check if user has any permissions */}
@@ -436,6 +442,7 @@ export default function POS() {
               >
                 <Package className="w-3 h-3 sm:w-4 sm:h-4" />
                 <span className="hidden xs:inline">Games</span>
+                <span className="xs:hidden">🎮</span>
               </Button>
             )}
             {hasDrinksPermission() && (
@@ -447,6 +454,7 @@ export default function POS() {
               >
                 <CreditCard className="w-3 h-3 sm:w-4 sm:h-4" />
                 <span className="hidden xs:inline">Drinks</span>
+                <span className="xs:hidden">🥤</span>
               </Button>
             )}
             {(getGamePermissions().some(game => ['Dunk a Company Member', 'Karaoke'].includes(game.name))) && (
@@ -458,6 +466,7 @@ export default function POS() {
               >
                 <DollarSign className="w-3 h-3 sm:w-4 sm:h-4" />
                 <span className="hidden xs:inline">Custom Games</span>
+                <span className="xs:hidden">🎯</span>
               </Button>
             )}
             {hasFoodPermission() && (
@@ -469,6 +478,7 @@ export default function POS() {
               >
                 <DollarSign className="w-3 h-3 sm:w-4 sm:h-4" />
                 <span className="hidden xs:inline">Food & Custom</span>
+                <span className="xs:hidden">🍽️</span>
               </Button>
             )}
           </div>
@@ -548,22 +558,23 @@ export default function POS() {
                         >
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center space-x-2">
+                              <span className="text-lg">🎮</span>
                               <span className="font-medium text-foreground text-sm sm:text-base truncate">{game.name}</span>
                               {selectedGame?.id === game.id && (
                                 <Badge variant="default" className="text-xs shrink-0">
-                                  Selected
+                                  ✓ Selected
                                 </Badge>
                               )}
                               {!game.available && (
                                 <Badge variant="destructive" className="text-xs shrink-0">
-                                  Sold Out
+                                  ❌ Sold Out
                                 </Badge>
                               )}
                             </div>
                             <p className="text-xs sm:text-sm text-muted-foreground mt-1">{game.description}</p>
                           </div>
                           <div className="text-right shrink-0 ml-2">
-                            <span className="font-bold text-sm sm:text-lg text-success">₹{game.price.toFixed(2)}</span>
+                            <span className="font-bold text-sm sm:text-lg text-success">💰 ₹{game.price.toFixed(2)}</span>
                           </div>
                         </div>
                       ))}
@@ -587,17 +598,18 @@ export default function POS() {
                     >
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center space-x-2">
+                          <span className="text-lg">🥤</span>
                           <span className="font-medium text-foreground text-sm sm:text-base truncate">{drink.name}</span>
                           {selectedDrink?.id === drink.id && (
                             <Badge variant="default" className="text-xs shrink-0">
-                              Selected
+                              ✓ Selected
                             </Badge>
                           )}
                         </div>
                         <div className="text-xs sm:text-sm text-muted-foreground mt-1">{drink.category}</div>
                       </div>
                       <div className="text-right shrink-0 ml-2">
-                        <span className="font-bold text-sm sm:text-lg text-success">₹{drink.price.toFixed(2)}</span>
+                        <span className="font-bold text-sm sm:text-lg text-success">💰 ₹{drink.price.toFixed(2)}</span>
                       </div>
                     </div>
                   ))}
@@ -975,8 +987,9 @@ export default function POS() {
             <Card className="shadow-card">
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center space-x-2 text-sm sm:text-base">
-                  <Scan className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+                  <span className="text-lg animate-pulse">📱</span>
                   <span>Customer Payment</span>
+                  <Scan className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -984,18 +997,23 @@ export default function POS() {
                   <div className="text-center py-4">
                     {isProcessing ? (
                       <div className="flex flex-col sm:flex-row items-center justify-center space-y-2 sm:space-y-0 sm:space-x-2 text-primary">
+                        <span className="text-lg animate-bounce">📳</span>
                         <div className="w-5 h-5 sm:w-6 sm:h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                        <span className="font-medium text-xs sm:text-sm">Processing Payment...</span>
+                        <span className="font-medium text-xs sm:text-sm">💳 Processing Payment...</span>
                       </div>
                     ) : isScanning ? (
                       <div className="flex flex-col sm:flex-row items-center justify-center space-y-2 sm:space-y-0 sm:space-x-2 text-primary">
+                        <span className="text-lg animate-pulse">📡</span>
                         <div className="w-5 h-5 sm:w-6 sm:h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                        <span className="font-medium text-xs sm:text-sm">Scanning for NFC Tag...</span>
+                        <span className="font-medium text-xs sm:text-sm">📡 Scanning for NFC Tag...</span>
                       </div>
                     ) : (
                       <div className="flex flex-col sm:flex-row items-center justify-center space-y-2 sm:space-y-0 sm:space-x-2 text-muted-foreground">
-                        <Scan className="w-5 h-5 sm:w-6 sm:h-6" />
-                        <span className="font-medium text-xs sm:text-sm">Please scan customer's NFC tag</span>
+                        <div className="relative">
+                          <Scan className="w-5 h-5 sm:w-6 sm:h-6" />
+                          <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full animate-ping"></div>
+                        </div>
+                        <span className="font-medium text-xs sm:text-sm">📱 Please scan customer's NFC tag</span>
                       </div>
                     )}
                   </div>
@@ -1003,7 +1021,7 @@ export default function POS() {
                   <div className="bg-warning/10 border border-warning/20 rounded-lg p-3 flex items-start space-x-2">
                     <AlertCircle className="w-4 h-4 text-warning shrink-0 mt-0.5" />
                     <span className="text-xs sm:text-sm text-warning">
-                      {showCustomAmountInput ? 'Enter amount to continue' : 'Select an item to start payment process'}
+                      ⚠️ {showCustomAmountInput ? 'Enter amount to continue' : 'Select an item to start payment process'}
                     </span>
                   </div>
                 )}
