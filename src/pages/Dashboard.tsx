@@ -235,6 +235,9 @@ export default function Dashboard() {
       // Fetch food sales data
       await fetchFoodSalesData();
 
+      // Fetch drinks sales data
+      await fetchDrinksSalesData();
+
       // Fetch blocked wallets
       await fetchBlockedWallets();
 
