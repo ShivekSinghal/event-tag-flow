@@ -565,7 +565,15 @@ export default function POS() {
               {activeSection === 'food' && (
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {customItems.map(item => (
+                    {customItems
+                      .filter(item => {
+                        // Only show food items if user only has food permission
+                        if (item.type === 'food') return hasFoodPermission();
+                        // Only show game items if user has game permissions
+                        if (item.type === 'game') return getGamePermissions().length > 0;
+                        return false;
+                      })
+                      .map(item => (
                       <div 
                         key={item.id}
                         className={`flex items-center justify-between p-4 border rounded-lg transition-smooth cursor-pointer ${
