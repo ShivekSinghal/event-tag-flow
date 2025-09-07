@@ -78,48 +78,56 @@ export function useFlyingCards() {
     </>
   ), [cards, removeCard]);
 
-  const DonationDots = useCallback(() => (
-    <>
-      {dots.map(dot => {
-        // Calculate dot size proportional to amount with better scaling
-        // Size range: 8px (min) to 50px (max) based on amount
-        const maxAmount = 5000; // Adjust this based on typical payment amounts
-        const normalizedAmount = Math.min(dot.amount / maxAmount, 1);
-        
-        // Use logarithmic scaling for better visual distribution
-        const logScale = Math.log(1 + normalizedAmount * 9) / Math.log(10);
-        const size = Math.round(8 + logScale * 42); // 8px to 50px range
-        
-        return (
-          <div
-            key={dot.id}
-            className="fixed pointer-events-none z-30 animate-scale-in"
-            style={{
-              left: dot.x - size/2, // Center the dot horizontally
-              top: dot.y - size/2,  // Center the dot vertically
-            }}
-          >
-            {/* Simple pink circle */}
+  const DonationDots = useCallback(() => {
+    console.log('DonationDots rendered, dots count:', dots.length);
+    return (
+      <>
+        {dots.map(dot => {
+          console.log('Rendering dot:', dot);
+          // Calculate dot size proportional to amount with better scaling
+          // Size range: 8px (min) to 50px (max) based on amount
+          const maxAmount = 5000; // Adjust this based on typical payment amounts
+          const normalizedAmount = Math.min(dot.amount / maxAmount, 1);
+          
+          // Use logarithmic scaling for better visual distribution
+          const logScale = Math.log(1 + normalizedAmount * 9) / Math.log(10);
+          const size = Math.round(8 + logScale * 42); // 8px to 50px range
+          
+          console.log('Dot size:', size, 'at position:', dot.x, dot.y);
+          
+          return (
             <div
-              className="rounded-full donation-dot mb-1 transition-all duration-300"
+              key={dot.id}
+              className="fixed pointer-events-none z-50 animate-scale-in"
               style={{
-                width: `${size}px`,
-                height: `${size}px`,
-                backgroundColor: '#ff007f',
-                margin: '0 auto'
+                left: dot.x - size/2, // Center the dot horizontally
+                top: dot.y - size/2,  // Center the dot vertically
               }}
-            />
-            
-            {/* Name and Studio underneath - no amount */}
-            <div className="text-center text-xs text-white bg-black/70 rounded px-2 py-1 backdrop-blur-sm whitespace-nowrap">
-              <div className="font-semibold">{dot.name}</div>
-              <div className="text-xs opacity-80">{dot.studio}</div>
+            >
+              {/* Simple pink circle with forced color */}
+              <div
+                className="rounded-full mb-1 transition-all duration-300"
+                style={{
+                  width: `${size}px`,
+                  height: `${size}px`,
+                  backgroundColor: '#ff007f !important',
+                  background: '#ff007f',
+                  border: '2px solid #ff007f',
+                  margin: '0 auto'
+                }}
+              />
+              
+              {/* Name and Studio underneath - no amount */}
+              <div className="text-center text-xs text-white bg-black/70 rounded px-2 py-1 backdrop-blur-sm whitespace-nowrap">
+                <div className="font-semibold">{dot.name}</div>
+                <div className="text-xs opacity-80">{dot.studio}</div>
+              </div>
             </div>
-          </div>
-        );
-      })}
-    </>
-  ), [dots]);
+          );
+        })}
+      </>
+    );
+  }, [dots]);
 
   return {
     addCard,
