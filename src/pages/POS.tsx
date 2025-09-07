@@ -567,9 +567,9 @@ export default function POS() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {customItems
                       .filter(item => {
-                        // Only show food items if user only has food permission
+                        // Show food items if user has food permission
                         if (item.type === 'food') return hasFoodPermission();
-                        // Only show game items if user has game permissions
+                        // Show game items if user has game permissions
                         if (item.type === 'game') return getGamePermissions().length > 0;
                         return false;
                       })
