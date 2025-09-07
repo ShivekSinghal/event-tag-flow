@@ -328,6 +328,7 @@ export default function POS() {
         .eq('id', wallet.id);
 
       if (updateError) {
+        console.error("Wallet update error:", updateError);
         throw updateError;
       }
 
@@ -346,6 +347,7 @@ export default function POS() {
         .single();
 
       if (transactionError) {
+        console.error("Transaction creation error:", transactionError);
         throw transactionError;
       }
 
@@ -361,7 +363,9 @@ export default function POS() {
           });
 
         if (salesError) {
-          throw salesError;
+          console.error("Game sales creation error:", salesError);
+          // Don't throw for game sales errors - log but continue
+          console.warn("Game sales record creation failed, but payment succeeded");
         }
       }
       
@@ -382,9 +386,17 @@ export default function POS() {
       setScannedWallet({ ...wallet, currentBalance: newBalance });
       resetTransaction();
     } catch (error) {
+      console.error("Payment processing error:", error);
+      console.error("Error details:", {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint
+      });
+      
       toast({
         title: "Payment Failed",
-        description: "There was an error processing the payment. Please try again.",
+        description: `Error: ${error.message || "There was an error processing the payment. Please try again."}`,
         variant: "destructive",
       });
     } finally {
