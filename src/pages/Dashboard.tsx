@@ -1055,10 +1055,22 @@ export default function Dashboard() {
 
             {/* Food Section */}
             <div className="space-y-4 border-t pt-4">
-              <h3 className="text-lg font-medium text-foreground flex items-center space-x-2">
-                <Utensils className="w-4 h-4 text-primary" />
-                <span>Food & Menu Items</span>
-              </h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-medium text-foreground flex items-center space-x-2">
+                  <Utensils className="w-4 h-4 text-primary" />
+                  <span>Food & Menu Items</span>
+                </h3>
+                {foodSales.length > 0 && (
+                  <div className="text-right">
+                    <div className="font-bold text-lg text-success">
+                      ₹{foodSales.reduce((total, sale) => total + sale.amount, 0).toFixed(2)}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {foodSales.length} items sold
+                    </div>
+                  </div>
+                )}
+              </div>
               {foodSales.length === 0 ? (
                 <div className="text-center py-4 bg-secondary/20 rounded-lg">
                   <Utensils className="w-8 h-8 mx-auto mb-2 opacity-50" />
@@ -1092,10 +1104,22 @@ export default function Dashboard() {
 
             {/* Drinks Section */}
             <div className="space-y-4 border-t pt-4">
-              <h3 className="text-lg font-medium text-foreground flex items-center space-x-2">
-                <DollarSign className="w-4 h-4 text-primary" />
-                <span>Drinks</span>
-              </h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-medium text-foreground flex items-center space-x-2">
+                  <DollarSign className="w-4 h-4 text-primary" />
+                  <span>Drinks</span>
+                </h3>
+                {drinksSales.length > 0 && (
+                  <div className="text-right">
+                    <div className="font-bold text-lg text-success">
+                      ₹{drinksSales.reduce((total, sale) => total + sale.amount, 0).toFixed(2)}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {drinksSales.length} items sold
+                    </div>
+                  </div>
+                )}
+              </div>
               {drinksSales.length === 0 ? (
                 <div className="text-center py-4 bg-secondary/20 rounded-lg">
                   <DollarSign className="w-8 h-8 mx-auto mb-2 opacity-50" />
