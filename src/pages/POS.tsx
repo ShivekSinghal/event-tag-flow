@@ -330,14 +330,14 @@ export default function POS() {
         throw updateError;
       }
 
-      // Create transaction record
+      // Create transaction record for food sale
       const { data: transactionData, error: transactionError } = await supabase
         .from('transactions')
         .insert({
           wallet_id: wallet.id,
-          type: 'spend',
+          type: 'food',
           amount: -price,
-          description: `POS Purchase: ${itemName}`,
+          description: `Food Purchase: ${itemName}`,
           reference: `POS_${Date.now()}`,
           game_id: gameId
         })
