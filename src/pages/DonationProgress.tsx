@@ -68,12 +68,12 @@ const DonationProgress = () => {
           // Show different messages for top-ups vs payments
           if (latestTransaction.type === 'load') {
             toast.success(
-              `🙏 Thank you ${walletData?.attendee_name || 'Anonymous'} for your generous contribution of ₹${Number(latestTransaction.amount).toFixed(2)}! Your support helps aspiring dancers achieve their dreams.`,
+              `🙏 Thank you ${walletData?.attendee_name || 'Anonymous'} from ${walletData?.studio || 'Unknown'} for your generous contribution of ₹${Number(latestTransaction.amount).toFixed(2)}! Your support helps aspiring dancers achieve their dreams.`,
               { duration: 6000 }
             );
           } else {
             toast.success(
-              `💃 ${walletData?.attendee_name || 'Anonymous'} made a purchase of ₹${Number(latestTransaction.amount).toFixed(2)}!`,
+              `💃 ${walletData?.attendee_name || 'Anonymous'} from ${walletData?.studio || 'Unknown'} made a purchase of ₹${Math.abs(Number(latestTransaction.amount)).toFixed(2)}!`,
               { duration: 4000 }
             );
           }
@@ -309,6 +309,15 @@ const DonationProgress = () => {
               />
             </div>
           </CircularProgress>
+          
+          {/* Show latest donor info if available */}
+          {dotsCount > 0 && (
+            <div className="absolute -bottom-16 left-1/2 transform -translate-x-1/2 text-center">
+              <div className="text-white text-sm bg-black/20 rounded-lg px-3 py-1 backdrop-blur-sm">
+                Latest donation received!
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

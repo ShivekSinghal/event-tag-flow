@@ -5,9 +5,10 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Users, UserCheck, Settings, Crown, Shield } from "lucide-react";
+import { Users, UserCheck, Settings, Crown, Shield, Gamepad2, Coffee, Utensils } from "lucide-react";
 
 interface StaffMember {
   id: string;
@@ -15,7 +16,15 @@ interface StaffMember {
   full_name: string | null;
   role: 'staff' | 'admin' | 'studio_manager';
   assigned_game_id: string | null;
-  assigned_game?: {
+  permissions?: StaffPermission[];
+}
+
+interface StaffPermission {
+  id: string;
+  permission_type: 'game' | 'food' | 'drinks';
+  game_id: string | null;
+  game?: {
+    id: string;
     name: string;
     studio: string;
   } | null;
@@ -32,6 +41,7 @@ export default function StaffManagement() {
   const [games, setGames] = useState<Game[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [editingUser, setEditingUser] = useState<StaffMember | null>(null);
+  const [editingPermissions, setEditingPermissions] = useState<StaffPermission[]>([]);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const { toast } = useToast();
 
@@ -42,20 +52,39 @@ export default function StaffManagement() {
 
   const fetchStaffMembers = async () => {
     try {
-      const { data, error } = await supabase
+      const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
         .select(`
           id,
           email,
           full_name,
           role,
-          assigned_game_id,
-          assigned_game:games(name, studio)
+          assigned_game_id
         `)
         .order('created_at', { ascending: true });
 
-      if (error) throw error;
-      setStaffMembers((data || []) as StaffMember[]);
+      if (profilesError) throw profilesError;
+
+      // Fetch permissions for each staff member
+      const { data: permissions, error: permissionsError } = await supabase
+        .from('staff_permissions')
+        .select(`
+          id,
+          user_id,
+          permission_type,
+          game_id,
+          game:games(id, name, studio)
+        `);
+
+      if (permissionsError) throw permissionsError;
+
+      // Combine profiles with their permissions
+      const staffWithPermissions = (profiles || []).map(profile => ({
+        ...profile,
+        permissions: permissions?.filter(p => p.user_id === profile.id) || []
+      }));
+
+      setStaffMembers(staffWithPermissions as StaffMember[]);
     } catch (error) {
       console.error('Error fetching staff members:', error);
       toast({
@@ -84,12 +113,16 @@ export default function StaffManagement() {
 
   const handleUpdateUser = async (userId: string, updates: { role?: 'staff' | 'admin' | 'studio_manager'; assigned_game_id?: string | null }) => {
     try {
-      const { error } = await supabase
+      // Update profile
+      const { error: profileError } = await supabase
         .from('profiles')
         .update(updates)
         .eq('id', userId);
 
-      if (error) throw error;
+      if (profileError) throw profileError;
+
+      // Update permissions
+      await handleUpdatePermissions(userId, editingPermissions);
 
       // Refresh staff members list
       await fetchStaffMembers();
@@ -101,6 +134,7 @@ export default function StaffManagement() {
       
       setIsEditDialogOpen(false);
       setEditingUser(null);
+      setEditingPermissions([]);
     } catch (error) {
       console.error('Error updating user:', error);
       toast({
@@ -111,9 +145,64 @@ export default function StaffManagement() {
     }
   };
 
+  const handleUpdatePermissions = async (userId: string, newPermissions: StaffPermission[]) => {
+    // First, delete all existing permissions for this user
+    const { error: deleteError } = await supabase
+      .from('staff_permissions')
+      .delete()
+      .eq('user_id', userId);
+
+    if (deleteError) throw deleteError;
+
+    // Then, insert new permissions
+    if (newPermissions.length > 0) {
+      const permissionsToInsert = newPermissions.map(p => ({
+        user_id: userId,
+        permission_type: p.permission_type,
+        game_id: p.game_id
+      }));
+
+      const { error: insertError } = await supabase
+        .from('staff_permissions')
+        .insert(permissionsToInsert);
+
+      if (insertError) throw insertError;
+    }
+  };
+
   const openEditDialog = (user: StaffMember) => {
     setEditingUser(user);
+    setEditingPermissions(user.permissions || []);
     setIsEditDialogOpen(true);
+  };
+
+  const togglePermission = (type: 'food' | 'drinks' | 'game', gameId?: string) => {
+    setEditingPermissions(prev => {
+      const existingIndex = prev.findIndex(p => 
+        p.permission_type === type && 
+        (type === 'food' || type === 'drinks' ? true : p.game_id === gameId)
+      );
+
+      if (existingIndex >= 0) {
+        // Remove permission
+        return prev.filter((_, index) => index !== existingIndex);
+      } else {
+        // Add permission
+        return [...prev, {
+          id: `temp-${Date.now()}`,
+          permission_type: type,
+          game_id: gameId || null,
+          game: gameId ? games.find(g => g.id === gameId) : null
+        }];
+      }
+    });
+  };
+
+  const hasPermission = (type: 'food' | 'drinks' | 'game', gameId?: string) => {
+    return editingPermissions.some(p => 
+      p.permission_type === type && 
+      (type === 'food' || type === 'drinks' ? true : p.game_id === gameId)
+    );
   };
 
   if (isLoading) {
@@ -167,15 +256,34 @@ export default function StaffManagement() {
                     <div className="flex-1">
                       <div className="font-medium">{member.full_name || member.email}</div>
                       <div className="text-sm text-muted-foreground">{member.email}</div>
-                      {member.assigned_game ? (
-                        <div className="flex items-center mt-1">
-                          <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800">
-                            🎮 {member.assigned_game.name} ({member.assigned_game.studio})
-                          </Badge>
+                      {member.permissions && member.permissions.length > 0 ? (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {member.permissions.map((permission, index) => (
+                            <Badge key={index} variant="outline" className="text-xs">
+                              {permission.permission_type === 'game' && permission.game && (
+                                <>
+                                  <Gamepad2 className="w-3 h-3 mr-1" />
+                                  {permission.game.name}
+                                </>
+                              )}
+                              {permission.permission_type === 'food' && (
+                                <>
+                                  <Utensils className="w-3 h-3 mr-1" />
+                                  Food Menu
+                                </>
+                              )}
+                              {permission.permission_type === 'drinks' && (
+                                <>
+                                  <Coffee className="w-3 h-3 mr-1" />
+                                  Drinks
+                                </>
+                              )}
+                            </Badge>
+                          ))}
                         </div>
                       ) : member.role === 'staff' ? (
                         <div className="text-xs text-muted-foreground mt-1">
-                          No game assigned
+                          No permissions assigned
                         </div>
                       ) : null}
                     </div>
@@ -240,29 +348,52 @@ export default function StaffManagement() {
               </div>
 
               {editingUser.role === 'staff' && (
-                <div className="space-y-2">
-                  <Label htmlFor="assigned_game">Assigned Game</Label>
-                  <Select
-                    value={editingUser.assigned_game_id || 'none'}
-                    onValueChange={(value) => 
-                      setEditingUser({ 
-                        ...editingUser, 
-                        assigned_game_id: value === 'none' ? null : value 
-                      })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                     <SelectContent className="bg-background border shadow-lg z-50">
-                       <SelectItem value="none">No game assigned</SelectItem>
-                        {games.map((game) => (
-                          <SelectItem key={game.id} value={game.id}>
-                            {game.name} ({game.studio})
-                          </SelectItem>
-                        ))}
-                     </SelectContent>
-                  </Select>
+                <div className="space-y-4">
+                  <Label className="text-base font-medium">Permissions</Label>
+                  
+                  {/* Food Permission */}
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="food-permission"
+                      checked={hasPermission('food')}
+                      onCheckedChange={() => togglePermission('food')}
+                    />
+                    <Label htmlFor="food-permission" className="flex items-center space-x-2">
+                      <Utensils className="w-4 h-4" />
+                      <span>Food Menu</span>
+                    </Label>
+                  </div>
+
+                  {/* Drinks Permission */}
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="drinks-permission"
+                      checked={hasPermission('drinks')}
+                      onCheckedChange={() => togglePermission('drinks')}
+                    />
+                    <Label htmlFor="drinks-permission" className="flex items-center space-x-2">
+                      <Coffee className="w-4 h-4" />
+                      <span>Drinks</span>
+                    </Label>
+                  </div>
+
+                  {/* Games Permissions */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Games</Label>
+                    {games.map((game) => (
+                      <div key={game.id} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`game-${game.id}`}
+                          checked={hasPermission('game', game.id)}
+                          onCheckedChange={() => togglePermission('game', game.id)}
+                        />
+                        <Label htmlFor={`game-${game.id}`} className="flex items-center space-x-2">
+                          <Gamepad2 className="w-4 h-4" />
+                          <span>{game.name} ({game.studio})</span>
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -281,9 +412,7 @@ export default function StaffManagement() {
                     if (editingUser) {
                       handleUpdateUser(editingUser.id, {
                         role: editingUser.role,
-                        ...(editingUser.role === 'staff' && {
-                          assigned_game_id: editingUser.assigned_game_id
-                        })
+                        assigned_game_id: editingUser.assigned_game_id
                       });
                     }
                   }}

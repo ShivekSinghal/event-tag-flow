@@ -8,6 +8,7 @@ import { nfcManager } from "@/utils/nfc";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useFlyingCards } from "@/hooks/use-flying-cards";
+import { useStaffPermissions } from "@/hooks/use-staff-permissions";
 import { 
   Scan, 
   CheckCircle, 
@@ -45,6 +46,12 @@ export default function POS() {
   const { toast } = useToast();
   const { profile, isStaff } = useAuth();
   const { addCard } = useFlyingCards();
+  const { 
+    getGamePermissions, 
+    hasFoodPermission, 
+    hasDrinksPermission, 
+    isLoading: permissionsLoading 
+  } = useStaffPermissions();
   const [isScanning, setIsScanning] = useState(false);
   const [scannedWallet, setScannedWallet] = useState<any>(null);
   const [selectedGame, setSelectedGame] = useState<Game | null>(null);
@@ -72,41 +79,40 @@ export default function POS() {
     { id: 'karaoke', name: 'Karaoke', type: 'game', requiresCustomAmount: true },
   ];
 
-  // Remove automatic game fetching - games will be loaded manually
-
-  const fetchGames = async () => {
-    try {
-      setIsLoadingGames(true);
+  // Handle section switching based on permissions
+  useEffect(() => {
+    if (!permissionsLoading) {
+      const hasGames = getGamePermissions().length > 0;
+      const hasFood = hasFoodPermission();
+      const hasDrinks = hasDrinksPermission();
       
-      // Only show games if user has been assigned a game by admin
-      if (!profile?.assigned_game_id) {
-        setGames([]);
-        toast({
-          title: "Cannot access games",
-          description: "Ask admin to access games",
-          variant: "destructive",
-        });
-        return;
+      // Auto-select first available section
+      if (activeSection === 'games' && !hasGames) {
+        if (hasDrinks) setActiveSection('drinks');
+        else if (hasFood) setActiveSection('food');
+      } else if (activeSection === 'drinks' && !hasDrinks) {
+        if (hasGames) setActiveSection('games');
+        else if (hasFood) setActiveSection('food');
+      } else if (activeSection === 'food' && !hasFood) {
+        if (hasGames) setActiveSection('games');
+        else if (hasDrinks) setActiveSection('drinks');
       }
+    }
+  }, [permissionsLoading, getGamePermissions, hasFoodPermission, hasDrinksPermission, activeSection]);
 
-      const { data: gamesData, error } = await supabase
-        .from('games')
-        .select('*')
-        .eq('id', profile.assigned_game_id)
-        .eq('available', true);
-
-      if (error) throw error;
-      setGames(gamesData || []);
-    } catch (error) {
-      toast({
-        title: "Error Loading Games",
-        description: "Failed to load games. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
+  // Load games based on staff permissions
+  useEffect(() => {
+    if (!permissionsLoading) {
+      const permittedGames = getGamePermissions();
+      setGames(permittedGames.map(g => ({ 
+        ...g, 
+        available: true, 
+        description: '', 
+        price: 0 
+      })));
       setIsLoadingGames(false);
     }
-  };
+  }, [getGamePermissions, permissionsLoading]);
 
   const handleGameSelect = async (game: Game) => {
     if (!game.available) {
@@ -371,33 +377,55 @@ export default function POS() {
         <p className="text-muted-foreground mt-2">Select items, scan NFC tag, and process payment instantly</p>
       </div>
 
-      {/* Section Tabs */}
-      <div className="flex justify-center space-x-4">
-        <Button 
-          variant={activeSection === 'games' ? 'default' : 'outline'}
-          onClick={() => setActiveSection('games')}
-          className="flex items-center space-x-2"
-        >
-          <Package className="w-4 h-4" />
-          <span>Games</span>
-        </Button>
-        <Button 
-          variant={activeSection === 'drinks' ? 'default' : 'outline'}
-          onClick={() => setActiveSection('drinks')}
-          className="flex items-center space-x-2"
-        >
-          <CreditCard className="w-4 h-4" />
-          <span>Drinks</span>
-        </Button>
-        <Button 
-          variant={activeSection === 'food' ? 'default' : 'outline'}
-          onClick={() => setActiveSection('food')}
-          className="flex items-center space-x-2"
-        >
-          <DollarSign className="w-4 h-4" />
-          <span>Food & Custom</span>
-        </Button>
-      </div>
+      {/* Check if user has any permissions */}
+      {!permissionsLoading && getGamePermissions().length === 0 && !hasFoodPermission() && !hasDrinksPermission() && (
+        <Card className="shadow-card">
+          <CardContent className="text-center py-8">
+            <AlertCircle className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+            <h3 className="text-lg font-semibold mb-2">No Access Permissions</h3>
+            <p className="text-muted-foreground">
+              You don't have access to any POS sections. Please contact an admin to assign you permissions for games, food, or drinks.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Show sections only if user has permissions */}
+      {!permissionsLoading && (getGamePermissions().length > 0 || hasFoodPermission() || hasDrinksPermission()) && (
+        <>
+          {/* Section Tabs */}
+          <div className="flex justify-center space-x-4">
+            {(getGamePermissions().length > 0) && (
+              <Button 
+                variant={activeSection === 'games' ? 'default' : 'outline'}
+                onClick={() => setActiveSection('games')}
+                className="flex items-center space-x-2"
+              >
+                <Package className="w-4 h-4" />
+                <span>Games</span>
+              </Button>
+            )}
+            {hasDrinksPermission() && (
+              <Button 
+                variant={activeSection === 'drinks' ? 'default' : 'outline'}
+                onClick={() => setActiveSection('drinks')}
+                className="flex items-center space-x-2"
+              >
+                <CreditCard className="w-4 h-4" />
+                <span>Drinks</span>
+              </Button>
+            )}
+            {hasFoodPermission() && (
+              <Button 
+                variant={activeSection === 'food' ? 'default' : 'outline'}
+                onClick={() => setActiveSection('food')}
+                className="flex items-center space-x-2"
+              >
+                <DollarSign className="w-4 h-4" />
+                <span>Food & Custom</span>
+              </Button>
+            )}
+          </div>
 
       {/* Transaction Flow */}
       <div className="flex items-center justify-center space-x-4 text-sm text-muted-foreground">
@@ -434,11 +462,6 @@ export default function POS() {
                   </span>
                 </div>
                 <div className="flex items-center space-x-2">
-                  {activeSection === 'games' && games.length === 0 && !isLoadingGames && (
-                    <Button variant="default" size="sm" onClick={fetchGames}>
-                      Load Games
-                    </Button>
-                  )}
                   {(selectedGame || selectedDrink || selectedCustomItem) && (
                     <Button variant="outline" size="sm" onClick={resetTransaction}>
                       Reset
@@ -695,6 +718,8 @@ export default function POS() {
           </Card>
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 }
