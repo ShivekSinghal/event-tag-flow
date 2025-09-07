@@ -589,14 +589,17 @@ export default function POS() {
               {activeSection === 'food' && (
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {customItems
-                      .filter(item => {
-                        // Show food items if user has food permission
-                        if (item.type === 'food') return hasFoodPermission();
-                        // Show game items if user has game permissions
-                        if (item.type === 'game') return getGamePermissions().length > 0;
-                        return false;
-                      })
+                  {customItems
+                    .filter(item => {
+                      // Show food items if user has food permission
+                      if (item.type === 'food') return hasFoodPermission();
+                      // Show game items only if user has specific permission for that game
+                      if (item.type === 'game') {
+                        const gamePermissions = getGamePermissions();
+                        return gamePermissions.some(game => game.name === item.name);
+                      }
+                      return false;
+                    })
                       .map(item => (
                       <div 
                         key={item.id}
