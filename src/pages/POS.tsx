@@ -62,7 +62,7 @@ export default function POS() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [games, setGames] = useState<Game[]>([]);
   const [isLoadingGames, setIsLoadingGames] = useState(false);
-  const [activeSection, setActiveSection] = useState<'games' | 'drinks' | 'food'>('games');
+  const [activeSection, setActiveSection] = useState<'games' | 'drinks' | 'food' | 'custom-games'>('games');
 
   // Drinks data
   const drinkItems: DrinkItem[] = [
@@ -85,17 +85,19 @@ export default function POS() {
       const hasGames = getGamePermissions().length > 0;
       const hasFood = hasFoodPermission();
       const hasDrinks = hasDrinksPermission();
+      const hasCustomGames = getGamePermissions().some(game => 
+        ['Dunk a Company Member', 'Karaoke'].includes(game.name)
+      );
       
-      // Auto-select first available section
-      if (activeSection === 'games' && !hasGames) {
-        if (hasDrinks) setActiveSection('drinks');
-        else if (hasFood) setActiveSection('food');
-      } else if (activeSection === 'drinks' && !hasDrinks) {
-        if (hasGames) setActiveSection('games');
-        else if (hasFood) setActiveSection('food');
-      } else if (activeSection === 'food' && !hasFood) {
-        if (hasGames) setActiveSection('games');
-        else if (hasDrinks) setActiveSection('drinks');
+      // If no active section is set or current section is not available, set default
+      const availableSections = [];
+      if (hasGames) availableSections.push('games');
+      if (hasCustomGames) availableSections.push('custom-games');
+      if (hasDrinks) availableSections.push('drinks');
+      if (hasFood) availableSections.push('food');
+      
+      if (availableSections.length > 0 && !availableSections.includes(activeSection)) {
+        setActiveSection(availableSections[0] as any);
       }
     }
   }, [permissionsLoading, getGamePermissions, hasFoodPermission, hasDrinksPermission, activeSection]);
@@ -415,7 +417,7 @@ export default function POS() {
       )}
 
       {/* Show sections only if user has permissions */}
-      {!permissionsLoading && (getGamePermissions().length > 0 || hasFoodPermission() || hasDrinksPermission()) && (
+      {!permissionsLoading && (getGamePermissions().length > 0 || hasFoodPermission() || hasDrinksPermission() || getGamePermissions().some(game => ['Dunk a Company Member', 'Karaoke'].includes(game.name))) && (
         <>
           {/* Section Tabs */}
           <div className="flex justify-center space-x-4">
@@ -437,6 +439,16 @@ export default function POS() {
               >
                 <CreditCard className="w-4 h-4" />
                 <span>Drinks</span>
+              </Button>
+            )}
+            {(getGamePermissions().some(game => ['Dunk a Company Member', 'Karaoke'].includes(game.name))) && (
+              <Button 
+                variant={activeSection === 'custom-games' ? 'default' : 'outline'}
+                onClick={() => setActiveSection('custom-games')}
+                className="flex items-center space-x-2"
+              >
+                <DollarSign className="w-4 h-4" />
+                <span>Custom Games</span>
               </Button>
             )}
             {hasFoodPermission() && (
@@ -479,10 +491,12 @@ export default function POS() {
                   {activeSection === 'games' && <Package className="w-5 h-5 text-primary" />}
                   {activeSection === 'drinks' && <CreditCard className="w-5 h-5 text-primary" />}
                   {activeSection === 'food' && <DollarSign className="w-5 h-5 text-primary" />}
+                  {activeSection === 'custom-games' && <DollarSign className="w-5 h-5 text-primary" />}
                   <span>
                     {activeSection === 'games' && 'Available Games'}
                     {activeSection === 'drinks' && 'Drinks Menu'}
                     {activeSection === 'food' && 'Food & Custom Items'}
+                    {activeSection === 'custom-games' && 'Custom Amount Games'}
                   </span>
                 </div>
                 <div className="flex items-center space-x-2">
@@ -589,35 +603,108 @@ export default function POS() {
               {activeSection === 'food' && (
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {(() => {
-                      const gamePermissions = getGamePermissions();
-                      console.log('DEBUG - Game permissions:', gamePermissions);
-                      console.log('DEBUG - Custom items:', customItems);
-                      console.log('DEBUG - hasFoodPermission:', hasFoodPermission());
-                      
-                      const filteredItems = customItems.filter(item => {
-                        console.log(`DEBUG - Checking item: ${item.name}, type: ${item.type}`);
+                    {customItems
+                      .filter(item => {
                         // Show food items if user has food permission
-                        if (item.type === 'food') {
-                          const hasFood = hasFoodPermission();
-                          console.log(`DEBUG - Food item ${item.name}, has food permission: ${hasFood}`);
-                          return hasFood;
-                        }
-                        // Show game items only if user has specific permission for that game
+                        if (item.type === 'food') return hasFoodPermission();
+                        // Don't show game items here - they are in Custom Games section
+                        return false;
+                      })
+                      .map(item => (
+                      <div 
+                        key={item.id}
+                        className={`flex items-center justify-between p-4 border rounded-lg transition-smooth cursor-pointer ${
+                          selectedCustomItem?.id === item.id 
+                            ? "bg-primary/10 border-primary" 
+                            : "hover:bg-secondary/50"
+                        }`}
+                        onClick={() => handleCustomItemSelect(item)}
+                      >
+                        <div>
+                          <div className="flex items-center space-x-2">
+                            <span className="font-medium text-foreground">{item.name}</span>
+                            {selectedCustomItem?.id === item.id && (
+                              <Badge variant="default" className="text-xs">
+                                Selected
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="text-sm text-muted-foreground capitalize">{item.type}</div>
+                        </div>
+                        <div className="text-sm font-medium text-muted-foreground">
+                          Custom Amount
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Custom Amount Input */}
+                  {showCustomAmountInput && selectedCustomItem && (
+                    <Card className="border-primary/20">
+                      <CardHeader>
+                        <CardTitle className="text-lg">Enter Amount for {selectedCustomItem.name}</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        {/* Predefined Amount Buttons for Games */}
+                        {selectedCustomItem.type === 'game' && (
+                          <div>
+                            <p className="text-sm text-muted-foreground mb-3">Quick Select Amount:</p>
+                            <div className="grid grid-cols-4 gap-2 mb-4">
+                              {[1, 50, 100, 200, 500, 1000, 2000].map(amount => (
+                                <Button
+                                  key={amount}
+                                  variant={customAmount === amount.toString() ? 'default' : 'outline'}
+                                  size="sm"
+                                  onClick={() => setCustomAmount(amount.toString())}
+                                  className="h-12"
+                                >
+                                  ₹{amount}
+                                </Button>
+                              ))}
+                            </div>
+                            <div className="text-center text-sm text-muted-foreground mb-3">
+                              Or enter custom amount:
+                            </div>
+                          </div>
+                        )}
+                        
+                        <div className="flex items-center space-x-4">
+                          <div className="flex-1">
+                            <Input
+                              type="number"
+                              placeholder="Enter amount (₹)"
+                              value={customAmount}
+                              onChange={(e) => setCustomAmount(e.target.value)}
+                              min="0"
+                              step="0.01"
+                            />
+                          </div>
+                          <Button 
+                            onClick={handleCustomAmountConfirm}
+                            disabled={!customAmount || parseFloat(customAmount) <= 0}
+                          >
+                            Confirm & Scan
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+              )}
+
+              {/* Custom Games Section */}
+              {activeSection === 'custom-games' && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {customItems
+                      .filter(item => {
+                        // Only show game-type custom items that the user has specific permission for
                         if (item.type === 'game') {
-                          const hasGamePermission = gamePermissions.some(game => {
-                            console.log(`DEBUG - Comparing game permission '${game.name}' with custom item '${item.name}'`);
-                            return game.name === item.name;
-                          });
-                          console.log(`DEBUG - Game item ${item.name}, has permission: ${hasGamePermission}`);
-                          return hasGamePermission;
+                          const gamePermissions = getGamePermissions();
+                          return gamePermissions.some(game => game.name === item.name);
                         }
                         return false;
-                      });
-                      
-                      console.log('DEBUG - Filtered custom items:', filteredItems);
-                      return filteredItems;
-                    })()
+                      })
                       .map(item => (
                       <div 
                         key={item.id}
