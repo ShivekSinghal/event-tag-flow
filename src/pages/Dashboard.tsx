@@ -164,11 +164,11 @@ export default function Dashboard() {
       }, 0) || 0;
       const activeTags = wallets?.filter(wallet => wallet.status === 'active').length || 0;
 
-      // Fetch all sales transactions
+      // Fetch all sales transactions including legacy 'spend' type
       const { data: allSalesTransactions, error: transactionsError } = await supabase
         .from('transactions')
         .select('amount')
-        .eq('type', 'spend');
+        .in('type', ['spend', 'food', 'drinks', 'games']);
 
       if (transactionsError) throw transactionsError;
 
@@ -255,14 +255,15 @@ export default function Dashboard() {
 
   const fetchStudioSalesData = async () => {
     try {
-      // Fetch sales transactions with wallet studio information
+      // Fetch studio sales data which now includes all transaction types
       const { data: salesData, error } = await supabase
         .from('transactions')
         .select(`
           amount,
+          type,
           wallets!inner(studio)
         `)
-        .eq('type', 'spend');
+        .in('type', ['spend', 'food', 'drinks', 'games']);
 
       if (error) throw error;
 
@@ -308,11 +309,11 @@ export default function Dashboard() {
 
   const fetchFoodSalesData = async () => {
     try {
-      // Fetch food transactions
+      // Fetch food transactions (new type) and legacy spend transactions that are food items
       const { data: foodTransactions, error } = await supabase
         .from('transactions')
         .select('*')
-        .eq('type', 'food')
+        .or('type.eq.food,and(type.eq.spend,description.ilike.%Food%,description.not.ilike.%Hashtag%,description.not.ilike.%Cocktail%,description.not.ilike.%Mocktail%)')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -320,7 +321,7 @@ export default function Dashboard() {
       // Transform to FoodSales format
       const foodSalesData: FoodSales[] = foodTransactions?.map((tx: any) => ({
         id: tx.id,
-        itemName: tx.description.replace('Food Purchase: ', ''),
+        itemName: tx.description.replace(/^(Food Purchase: |POS Purchase: )/, ''),
         amount: Math.abs(typeof tx.amount === 'string' ? parseFloat(tx.amount) : tx.amount),
         quantity: 1,
         created_at: tx.created_at
@@ -338,11 +339,11 @@ export default function Dashboard() {
 
   const fetchDrinksSalesData = async () => {
     try {
-      // Fetch drinks transactions
+      // Fetch drinks transactions (new type) and legacy spend transactions that are drinks
       const { data: drinksTransactions, error } = await supabase
         .from('transactions')
         .select('*')
-        .eq('type', 'drinks')
+        .or('type.eq.drinks,and(type.eq.spend,or(description.ilike.%Hashtag%,description.ilike.%Cocktail%,description.ilike.%Mocktail%,description.ilike.%OG%))')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -350,7 +351,7 @@ export default function Dashboard() {
       // Transform to DrinksSales format
       const drinksSalesData: DrinksSales[] = drinksTransactions?.map((tx: any) => ({
         id: tx.id,
-        itemName: tx.description.replace('Drinks Purchase: ', ''),
+        itemName: tx.description.replace(/^(Drinks Purchase: |POS Purchase: )/, ''),
         amount: Math.abs(typeof tx.amount === 'string' ? parseFloat(tx.amount) : tx.amount),
         quantity: 1,
         created_at: tx.created_at

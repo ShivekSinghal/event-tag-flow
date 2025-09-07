@@ -233,7 +233,8 @@ export default function POS() {
     });
     
     // Automatically start NFC scanning
-    await handleScanForPayment(amount, selectedCustomItem.name, null);
+    const itemType = selectedCustomItem.type === 'game' ? 'games' : 'food';
+    await handleScanForPayment(amount, selectedCustomItem.name, null, itemType);
   };
 
   const handleScanForPayment = async (price: number, itemName: string, gameId: string | null, transactionType: string = 'food') => {
