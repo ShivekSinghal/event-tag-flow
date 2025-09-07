@@ -79,21 +79,20 @@ export function useFlyingCards() {
   ), [cards, removeCard]);
 
   const DonationDots = useCallback(({ showLabels = true }: { showLabels?: boolean } = {}) => {
-    console.log('DonationDots rendered, dots count:', dots.length);
     return (
       <>
         {dots.map(dot => {
-          console.log('Rendering dot:', dot);
+          // Use absolute value of amount for dot sizing
+          const amount = Math.abs(dot.amount);
+          
           // Calculate dot size proportional to amount with better scaling
           // Size range: 8px (min) to 50px (max) based on amount
           const maxAmount = 5000; // Adjust this based on typical payment amounts
-          const normalizedAmount = Math.min(dot.amount / maxAmount, 1);
+          const normalizedAmount = Math.min(amount / maxAmount, 1);
           
           // Use logarithmic scaling for better visual distribution
           const logScale = Math.log(1 + normalizedAmount * 9) / Math.log(10);
           const size = Math.round(8 + logScale * 42); // 8px to 50px range
-          
-          console.log('Dot size:', size, 'at position:', dot.x, dot.y);
           
           return (
             <div
