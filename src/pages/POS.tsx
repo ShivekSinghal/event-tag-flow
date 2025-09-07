@@ -402,11 +402,11 @@ export default function POS() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8">
+    <div className="max-w-7xl mx-auto space-y-4 px-4 sm:px-6 lg:px-8">
       {/* Header */}
-      <div className="text-center">
-        <h1 className="text-3xl font-bold text-foreground">Point of Sale</h1>
-        <p className="text-muted-foreground mt-2">Select items, scan NFC tag, and process payment instantly</p>
+      <div className="text-center py-4">
+        <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Point of Sale</h1>
+        <p className="text-sm sm:text-base text-muted-foreground mt-2">Select items, scan NFC tag, and process payment instantly</p>
       </div>
 
       {/* Check if user has any permissions */}
@@ -426,79 +426,83 @@ export default function POS() {
       {!permissionsLoading && (getGamePermissions().length > 0 || hasFoodPermission() || hasDrinksPermission() || getGamePermissions().some(game => ['Dunk a Company Member', 'Karaoke'].includes(game.name))) && (
         <>
           {/* Section Tabs */}
-          <div className="flex justify-center space-x-4">
+          <div className="flex flex-wrap justify-center gap-2 px-4">
             {(getGamePermissions().length > 0) && (
               <Button 
                 variant={activeSection === 'games' ? 'default' : 'outline'}
                 onClick={() => setActiveSection('games')}
-                className="flex items-center space-x-2"
+                className="flex items-center space-x-2 text-xs sm:text-sm"
+                size="sm"
               >
-                <Package className="w-4 h-4" />
-                <span>Games</span>
+                <Package className="w-3 h-3 sm:w-4 sm:h-4" />
+                <span className="hidden xs:inline">Games</span>
               </Button>
             )}
             {hasDrinksPermission() && (
               <Button 
                 variant={activeSection === 'drinks' ? 'default' : 'outline'}
                 onClick={() => setActiveSection('drinks')}
-                className="flex items-center space-x-2"
+                className="flex items-center space-x-2 text-xs sm:text-sm"
+                size="sm"
               >
-                <CreditCard className="w-4 h-4" />
-                <span>Drinks</span>
+                <CreditCard className="w-3 h-3 sm:w-4 sm:h-4" />
+                <span className="hidden xs:inline">Drinks</span>
               </Button>
             )}
             {(getGamePermissions().some(game => ['Dunk a Company Member', 'Karaoke'].includes(game.name))) && (
               <Button 
                 variant={activeSection === 'custom-games' ? 'default' : 'outline'}
                 onClick={() => setActiveSection('custom-games')}
-                className="flex items-center space-x-2"
+                className="flex items-center space-x-2 text-xs sm:text-sm"
+                size="sm"
               >
-                <DollarSign className="w-4 h-4" />
-                <span>Custom Games</span>
+                <DollarSign className="w-3 h-3 sm:w-4 sm:h-4" />
+                <span className="hidden xs:inline">Custom Games</span>
               </Button>
             )}
             {hasFoodPermission() && (
               <Button 
                 variant={activeSection === 'food' ? 'default' : 'outline'}
                 onClick={() => setActiveSection('food')}
-                className="flex items-center space-x-2"
+                className="flex items-center space-x-2 text-xs sm:text-sm"
+                size="sm"
               >
-                <DollarSign className="w-4 h-4" />
-                <span>Food & Custom</span>
+                <DollarSign className="w-3 h-3 sm:w-4 sm:h-4" />
+                <span className="hidden xs:inline">Food & Custom</span>
               </Button>
             )}
           </div>
 
       {/* Transaction Flow */}
-      <div className="flex items-center justify-center space-x-4 text-sm text-muted-foreground">
+      <div className="flex flex-col sm:flex-row items-center justify-center space-y-2 sm:space-y-0 sm:space-x-4 text-xs sm:text-sm text-muted-foreground px-4">
         <div className={`flex items-center space-x-2 ${(selectedGame || selectedDrink || selectedCustomItem) ? 'text-success' : 'text-muted-foreground'}`}>
-          <div className={`w-3 h-3 rounded-full ${(selectedGame || selectedDrink || selectedCustomItem) ? 'bg-success' : 'bg-muted'}`} />
+          <div className={`w-2 h-2 sm:w-3 sm:h-3 rounded-full ${(selectedGame || selectedDrink || selectedCustomItem) ? 'bg-success' : 'bg-muted'}`} />
           <span>Select Item</span>
         </div>
-        <ArrowRight className="w-4 h-4" />
+        <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4 rotate-90 sm:rotate-0" />
         <div className={`flex items-center space-x-2 ${scannedWallet ? 'text-success' : (selectedGame || selectedDrink || selectedCustomItem) ? 'text-foreground' : 'text-muted-foreground'}`}>
-          <div className={`w-3 h-3 rounded-full ${scannedWallet ? 'bg-success' : (selectedGame || selectedDrink || selectedCustomItem) ? 'bg-primary' : 'bg-muted'}`} />
+          <div className={`w-2 h-2 sm:w-3 sm:h-3 rounded-full ${scannedWallet ? 'bg-success' : (selectedGame || selectedDrink || selectedCustomItem) ? 'bg-primary' : 'bg-muted'}`} />
           <span>Scan NFC Tag</span>
         </div>
-        <ArrowRight className="w-4 h-4" />
+        <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4 rotate-90 sm:rotate-0" />
         <div className={`flex items-center space-x-2 ${scannedWallet && !isProcessing ? 'text-success' : 'text-muted-foreground'}`}>
-          <div className={`w-3 h-3 rounded-full ${scannedWallet && !isProcessing ? 'bg-success' : 'bg-muted'}`} />
+          <div className={`w-2 h-2 sm:w-3 sm:h-3 rounded-full ${scannedWallet && !isProcessing ? 'bg-success' : 'bg-muted'}`} />
           <span>Payment Complete</span>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="flex flex-col lg:grid lg:grid-cols-3 gap-4 lg:gap-8">
         {/* Main Content Area */}
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 order-2 lg:order-1">
           <Card className="shadow-card">
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between">
+            <CardHeader className="pb-4">
+              <CardTitle className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                 <div className="flex items-center space-x-2">
-                  {activeSection === 'games' && <Package className="w-5 h-5 text-primary" />}
-                  {activeSection === 'drinks' && <CreditCard className="w-5 h-5 text-primary" />}
-                  {activeSection === 'food' && <DollarSign className="w-5 h-5 text-primary" />}
-                  {activeSection === 'custom-games' && <DollarSign className="w-5 h-5 text-primary" />}
-                  <span>
+                  {activeSection === 'games' && <Package className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />}
+                  {activeSection === 'drinks' && <CreditCard className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />}
+                  {activeSection === 'food' && <DollarSign className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />}
+                  {activeSection === 'custom-games' && <DollarSign className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />}
+                  <span className="text-sm sm:text-base">
                     {activeSection === 'games' && 'Available Games'}
                     {activeSection === 'drinks' && 'Drinks Menu'}
                     {activeSection === 'food' && 'Food & Custom Items'}
@@ -507,7 +511,7 @@ export default function POS() {
                 </div>
                 <div className="flex items-center space-x-2">
                   {(selectedGame || selectedDrink || selectedCustomItem) && (
-                    <Button variant="outline" size="sm" onClick={resetTransaction}>
+                    <Button variant="outline" size="sm" onClick={resetTransaction} className="text-xs">
                       Reset
                     </Button>
                   )}
@@ -529,40 +533,37 @@ export default function POS() {
                       <p>No games available</p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-3">
                       {games.map(game => (
                         <div 
                           key={game.id}
-                          className={`flex items-center justify-between p-4 border rounded-lg transition-smooth ${
+                          className={`flex items-center justify-between p-3 sm:p-4 border rounded-lg transition-smooth ${
                             selectedGame?.id === game.id 
                               ? "bg-primary/10 border-primary" 
                               : game.available 
-                                ? "hover:bg-secondary/50 cursor-pointer" 
+                                ? "hover:bg-secondary/50 cursor-pointer active:bg-secondary/70" 
                                 : "bg-destructive/5 border-destructive/20 cursor-not-allowed opacity-60"
                           }`}
                           onClick={() => game.available && handleGameSelect(game)}
                         >
-                          <div>
+                          <div className="flex-1 min-w-0">
                             <div className="flex items-center space-x-2">
-                              <span className="font-medium text-foreground">{game.name}</span>
+                              <span className="font-medium text-foreground text-sm sm:text-base truncate">{game.name}</span>
                               {selectedGame?.id === game.id && (
-                                <Badge variant="default" className="text-xs">
+                                <Badge variant="default" className="text-xs shrink-0">
                                   Selected
                                 </Badge>
                               )}
                               {!game.available && (
-                                <Badge variant="destructive" className="text-xs">
+                                <Badge variant="destructive" className="text-xs shrink-0">
                                   Sold Out
                                 </Badge>
                               )}
                             </div>
-                            <div className="text-sm text-muted-foreground">{game.description}</div>
+                            <p className="text-xs sm:text-sm text-muted-foreground mt-1">{game.description}</p>
                           </div>
-                          <div className={`text-lg font-bold ${
-                            selectedGame?.id === game.id ? "text-primary" : 
-                            game.available ? "text-primary" : "text-muted-foreground"
-                          }`}>
-                            ₹{typeof game.price === 'string' ? parseFloat(game.price).toFixed(2) : game.price.toFixed(2)}
+                          <div className="text-right shrink-0 ml-2">
+                            <span className="font-bold text-sm sm:text-lg text-success">₹{game.price.toFixed(2)}</span>
                           </div>
                         </div>
                       ))}
@@ -573,32 +574,30 @@ export default function POS() {
 
               {/* Drinks Section */}
               {activeSection === 'drinks' && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-3">
                   {drinkItems.map(drink => (
                     <div 
                       key={drink.id}
-                      className={`flex items-center justify-between p-4 border rounded-lg transition-smooth cursor-pointer ${
+                      className={`flex items-center justify-between p-3 sm:p-4 border rounded-lg transition-smooth cursor-pointer active:bg-secondary/70 ${
                         selectedDrink?.id === drink.id 
                           ? "bg-primary/10 border-primary" 
                           : "hover:bg-secondary/50"
                       }`}
                       onClick={() => handleDrinkSelect(drink)}
                     >
-                      <div>
+                      <div className="flex-1 min-w-0">
                         <div className="flex items-center space-x-2">
-                          <span className="font-medium text-foreground">{drink.name}</span>
+                          <span className="font-medium text-foreground text-sm sm:text-base truncate">{drink.name}</span>
                           {selectedDrink?.id === drink.id && (
-                            <Badge variant="default" className="text-xs">
+                            <Badge variant="default" className="text-xs shrink-0">
                               Selected
                             </Badge>
                           )}
                         </div>
-                        <div className="text-sm text-muted-foreground">{drink.category}</div>
+                        <div className="text-xs sm:text-sm text-muted-foreground mt-1">{drink.category}</div>
                       </div>
-                      <div className={`text-lg font-bold ${
-                        selectedDrink?.id === drink.id ? "text-primary" : "text-primary"
-                      }`}>
-                        ₹{drink.price.toFixed(2)}
+                      <div className="text-right shrink-0 ml-2">
+                        <span className="font-bold text-sm sm:text-lg text-success">₹{drink.price.toFixed(2)}</span>
                       </div>
                     </div>
                   ))}
@@ -609,14 +608,15 @@ export default function POS() {
               {activeSection === 'food' && (
                 <div className="space-y-4">
                   {/* Food Calculator Toggle */}
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-lg font-medium">Food Items</h3>
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                    <h3 className="text-base sm:text-lg font-medium">Food Items</h3>
                     <Button
                       variant="outline"
                       onClick={() => setShowCalculator(!showCalculator)}
-                      className="flex items-center space-x-2"
+                      className="flex items-center space-x-2 w-full sm:w-auto text-xs sm:text-sm"
+                      size="sm"
                     >
-                      <Calculator className="w-4 h-4" />
+                      <Calculator className="w-3 h-3 sm:w-4 sm:h-4" />
                       <span>{showCalculator ? 'Hide Calculator' : 'Show Calculator'}</span>
                     </Button>
                   </div>
@@ -624,14 +624,14 @@ export default function POS() {
                   {/* Food Calculator */}
                   {showCalculator && (
                     <Card className="border-primary/20">
-                      <CardHeader>
-                        <CardTitle className="text-lg">Food Calculator</CardTitle>
-                        <p className="text-sm text-muted-foreground">Add multiple dishes to calculate total before payment</p>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-base sm:text-lg">Food Calculator</CardTitle>
+                        <p className="text-xs sm:text-sm text-muted-foreground">Add multiple dishes to calculate total before payment</p>
                       </CardHeader>
                       <CardContent className="space-y-4">
                         {/* Dish Dropdown */}
                         <div className="space-y-2">
-                          <Label htmlFor="dish-select">Select Dish</Label>
+                          <Label htmlFor="dish-select" className="text-xs sm:text-sm">Select Dish</Label>
                           <Select 
                             onValueChange={(value) => {
                               const [name, price] = value.split('|');
@@ -661,14 +661,14 @@ export default function POS() {
                         {/* Calculator Items List */}
                         {calculatorItems.length > 0 && (
                           <div className="space-y-2">
-                            <h4 className="font-medium">Added Items:</h4>
+                            <h4 className="font-medium text-sm sm:text-base">Added Items:</h4>
                             {calculatorItems.map((item, index) => (
-                              <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
-                                <div className="flex-1">
-                                  <div className="font-medium">{item.name}</div>
-                                  <div className="text-sm text-muted-foreground">₹{item.price.toFixed(2)} each</div>
+                              <div key={index} className="flex items-center justify-between p-2 sm:p-3 border rounded-lg">
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-medium text-sm sm:text-base truncate">{item.name}</div>
+                                  <div className="text-xs sm:text-sm text-muted-foreground">₹{item.price.toFixed(2)} each</div>
                                 </div>
-                                <div className="flex items-center space-x-2">
+                                <div className="flex items-center space-x-1 sm:space-x-2 shrink-0">
                                   <Button
                                     variant="outline"
                                     size="sm"
@@ -679,10 +679,11 @@ export default function POS() {
                                         setCalculatorItems(newItems);
                                       }
                                     }}
+                                    className="w-6 h-6 sm:w-8 sm:h-8 p-0 text-xs"
                                   >
                                     -
                                   </Button>
-                                  <span className="w-8 text-center">{item.quantity}</span>
+                                  <span className="w-6 sm:w-8 text-center text-xs sm:text-sm">{item.quantity}</span>
                                   <Button
                                     variant="outline"
                                     size="sm"
@@ -691,6 +692,7 @@ export default function POS() {
                                       newItems[index].quantity += 1;
                                       setCalculatorItems(newItems);
                                     }}
+                                    className="w-6 h-6 sm:w-8 sm:h-8 p-0 text-xs"
                                   >
                                     +
                                   </Button>
@@ -700,6 +702,7 @@ export default function POS() {
                                     onClick={() => {
                                       setCalculatorItems(calculatorItems.filter((_, i) => i !== index));
                                     }}
+                                    className="w-6 h-6 sm:w-8 sm:h-8 p-0 text-xs"
                                   >
                                     ×
                                   </Button>
@@ -710,16 +713,17 @@ export default function POS() {
                             {/* Total and Pay */}
                             <div className="border-t pt-4">
                               <div className="flex justify-between items-center mb-4">
-                                <span className="text-lg font-bold">Total:</span>
-                                <span className="text-2xl font-bold text-primary">
+                                <span className="text-base sm:text-lg font-bold">Total:</span>
+                                <span className="text-lg sm:text-2xl font-bold text-primary">
                                   ₹{calculatorItems.reduce((total, item) => total + (item.price * item.quantity), 0).toFixed(2)}
                                 </span>
                               </div>
-                              <div className="flex space-x-2">
+                              <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
                                 <Button
                                   variant="outline"
                                   onClick={() => setCalculatorItems([])}
-                                  className="flex-1"
+                                  className="flex-1 text-xs sm:text-sm"
+                                  size="sm"
                                 >
                                   Clear All
                                 </Button>
@@ -730,7 +734,8 @@ export default function POS() {
                                     handleScanForPayment(total, itemNames, null);
                                   }}
                                   disabled={calculatorItems.length === 0}
-                                  className="flex-1"
+                                  className="flex-1 text-xs sm:text-sm"
+                                  size="sm"
                                 >
                                   Scan & Pay
                                 </Button>
@@ -835,7 +840,7 @@ export default function POS() {
               {/* Custom Games Section */}
               {activeSection === 'custom-games' && (
                 <div className="space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-3">
                     {customItems
                       .filter(item => {
                         // Only show game-type custom items that the user has specific permission for
@@ -848,25 +853,25 @@ export default function POS() {
                       .map(item => (
                       <div 
                         key={item.id}
-                        className={`flex items-center justify-between p-4 border rounded-lg transition-smooth cursor-pointer ${
+                        className={`flex items-center justify-between p-3 sm:p-4 border rounded-lg transition-smooth cursor-pointer active:bg-secondary/70 ${
                           selectedCustomItem?.id === item.id 
                             ? "bg-primary/10 border-primary" 
                             : "hover:bg-secondary/50"
                         }`}
                         onClick={() => handleCustomItemSelect(item)}
                       >
-                        <div>
+                        <div className="flex-1 min-w-0">
                           <div className="flex items-center space-x-2">
-                            <span className="font-medium text-foreground">{item.name}</span>
+                            <span className="font-medium text-foreground text-sm sm:text-base truncate">{item.name}</span>
                             {selectedCustomItem?.id === item.id && (
-                              <Badge variant="default" className="text-xs">
+                              <Badge variant="default" className="text-xs shrink-0">
                                 Selected
                               </Badge>
                             )}
                           </div>
-                          <div className="text-sm text-muted-foreground capitalize">{item.type}</div>
+                          <div className="text-xs sm:text-sm text-muted-foreground mt-1 capitalize">{item.type}</div>
                         </div>
-                        <div className="text-sm font-medium text-muted-foreground">
+                        <div className="text-xs sm:text-sm font-medium text-muted-foreground shrink-0">
                           Custom Amount
                         </div>
                       </div>
@@ -931,96 +936,109 @@ export default function POS() {
         </div>
 
         {/* Transaction Panel */}
-        <div className="space-y-6">
-          {/* Selected Item */}
-          {(selectedGame || selectedDrink || selectedCustomItem) && (
-            <Card className="shadow-card border-primary/20">
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <CreditCard className="w-5 h-5 text-primary" />
-                  <span>Selected Item</span>
+        <div className="order-1 lg:order-2">
+          <div className="sticky top-4 space-y-4">
+            {/* Selected Item */}
+            {(selectedGame || selectedDrink || selectedCustomItem) && (
+              <Card className="shadow-card border-primary/20">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center space-x-2 text-sm sm:text-base">
+                    <CreditCard className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+                    <span>Selected Item</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="bg-primary/10 border border-primary/20 rounded-lg p-3 sm:p-4">
+                    <div className="font-medium text-foreground text-sm sm:text-base">
+                      {selectedGame?.name || selectedDrink?.name || selectedCustomItem?.name}
+                    </div>
+                    <div className="text-xs sm:text-sm text-muted-foreground mb-3">
+                      {selectedGame?.description || selectedDrink?.category || `${selectedCustomItem?.type} - Custom Amount`}
+                    </div>
+                    <div className="flex items-center justify-between pt-3 border-t border-primary/20">
+                      <span className="text-xs sm:text-sm font-medium text-muted-foreground">Price</span>
+                      <span className="text-base sm:text-lg font-bold text-primary">
+                        {selectedGame && `₹${selectedGame.price.toFixed(2)}`}
+                        {selectedDrink && `₹${selectedDrink.price.toFixed(2)}`}
+                        {selectedCustomItem && customAmount && `₹${parseFloat(customAmount).toFixed(2)}`}
+                        {selectedCustomItem && !customAmount && (
+                          <span className="text-muted-foreground text-xs">Enter amount below</span>
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* NFC Scanner */}
+            <Card className="shadow-card">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center space-x-2 text-sm sm:text-base">
+                  <Scan className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+                  <span>Customer Payment</span>
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="bg-primary/10 border border-primary/20 rounded-lg p-4">
-                  <div className="font-medium text-foreground">
-                    {selectedGame?.name || selectedDrink?.name || selectedCustomItem?.name}
+              <CardContent className="space-y-4">
+                {(selectedGame || selectedDrink || (selectedCustomItem && customAmount)) ? (
+                  <div className="text-center py-4">
+                    {isProcessing ? (
+                      <div className="flex flex-col sm:flex-row items-center justify-center space-y-2 sm:space-y-0 sm:space-x-2 text-primary">
+                        <div className="w-5 h-5 sm:w-6 sm:h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                        <span className="font-medium text-xs sm:text-sm">Processing Payment...</span>
+                      </div>
+                    ) : isScanning ? (
+                      <div className="flex flex-col sm:flex-row items-center justify-center space-y-2 sm:space-y-0 sm:space-x-2 text-primary">
+                        <div className="w-5 h-5 sm:w-6 sm:h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                        <span className="font-medium text-xs sm:text-sm">Scanning for NFC Tag...</span>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col sm:flex-row items-center justify-center space-y-2 sm:space-y-0 sm:space-x-2 text-muted-foreground">
+                        <Scan className="w-5 h-5 sm:w-6 sm:h-6" />
+                        <span className="font-medium text-xs sm:text-sm">Please scan customer's NFC tag</span>
+                      </div>
+                    )}
                   </div>
-                  <div className="text-sm text-muted-foreground mb-3">
-                    {selectedGame?.description || selectedDrink?.category || `${selectedCustomItem?.type} - Custom Amount`}
-                  </div>
-                  <div className="flex items-center justify-between pt-3 border-t border-primary/20">
-                    <span className="text-sm font-medium text-muted-foreground">Price</span>
-                    <span className="text-lg font-bold text-primary">
-                      {selectedGame && `₹${selectedGame.price.toFixed(2)}`}
-                      {selectedDrink && `₹${selectedDrink.price.toFixed(2)}`}
-                      {selectedCustomItem && customAmount && `₹${parseFloat(customAmount).toFixed(2)}`}
-                      {selectedCustomItem && !customAmount && (
-                        <span className="text-muted-foreground">Enter amount below</span>
-                      )}
+                ) : (
+                  <div className="bg-warning/10 border border-warning/20 rounded-lg p-3 flex items-start space-x-2">
+                    <AlertCircle className="w-4 h-4 text-warning shrink-0 mt-0.5" />
+                    <span className="text-xs sm:text-sm text-warning">
+                      {showCustomAmountInput ? 'Enter amount to continue' : 'Select an item to start payment process'}
                     </span>
                   </div>
-                </div>
+                )}
               </CardContent>
             </Card>
-          )}
 
-          {/* NFC Scanner */}
-          <Card className="shadow-card">
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Scan className="w-5 h-5 text-primary" />
-                <span>Customer Payment</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {(selectedGame || selectedDrink || (selectedCustomItem && customAmount)) ? (
-                <div className="text-center py-4">
-                  {isProcessing ? (
-                    <div className="flex items-center justify-center space-x-2 text-primary">
-                      <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                      <span className="font-medium">Processing Payment...</span>
+            {/* Scanned Wallet Display */}
+            {scannedWallet && (
+              <Card className="shadow-card border-success/20">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center space-x-2 text-sm sm:text-base">
+                    <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-success" />
+                    <span>Customer Wallet</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="bg-success/10 border border-success/20 rounded-lg p-3 sm:p-4">
+                    <div className="flex items-center space-x-3 mb-3">
+                      <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-success shrink-0" />
+                      <div className="min-w-0">
+                        <div className="font-medium text-foreground text-sm sm:text-base truncate">{scannedWallet.attendeeName}</div>
+                        <div className="text-xs sm:text-sm text-muted-foreground">{scannedWallet.tagId}</div>
+                      </div>
                     </div>
-                  ) : isScanning ? (
-                    <div className="flex items-center justify-center space-x-2 text-primary">
-                      <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                      <span className="font-medium">Scanning for NFC Tag...</span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-center space-x-2 text-muted-foreground">
-                      <Scan className="w-6 h-6" />
-                      <span className="font-medium">Please scan customer's NFC tag</span>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="bg-warning/10 border border-warning/20 rounded-lg p-3 flex items-center space-x-2">
-                  <AlertCircle className="w-4 h-4 text-warning" />
-                  <span className="text-sm text-warning">
-                    {showCustomAmountInput ? 'Enter amount to continue' : 'Select an item to start payment process'}
-                  </span>
-                </div>
-              )}
-
-              {scannedWallet && (
-                <div className="bg-success/10 border border-success/20 rounded-lg p-4">
-                  <div className="flex items-center space-x-3 mb-3">
-                    <CheckCircle className="w-5 h-5 text-success" />
-                    <div>
-                      <div className="font-medium text-foreground">{scannedWallet.attendeeName}</div>
-                      <div className="text-sm text-muted-foreground">{scannedWallet.tagId}</div>
+                    <div className="flex items-center justify-between pt-3 border-t border-success/20">
+                      <span className="text-xs sm:text-sm font-medium text-muted-foreground">Balance</span>
+                      <span className="text-base sm:text-lg font-bold text-success">
+                        ₹{scannedWallet.currentBalance.toFixed(2)}
+                      </span>
                     </div>
                   </div>
-                  <div className="flex items-center justify-between pt-3 border-t border-success/20">
-                    <span className="text-sm font-medium text-muted-foreground">Balance</span>
-                    <span className="text-lg font-bold text-success">
-                      ₹{scannedWallet.currentBalance.toFixed(2)}
-                    </span>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                </CardContent>
+              </Card>
+            )}
+          </div>
         </div>
       </div>
         </>
