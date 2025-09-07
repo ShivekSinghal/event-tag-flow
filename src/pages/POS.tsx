@@ -169,7 +169,7 @@ export default function POS() {
     });
     
     // Automatically start NFC scanning
-    await handleScanForPayment(game.price, `${game.name}`, game.id);
+    await handleScanForPayment(game.price, `${game.name}`, game.id, 'games');
   };
 
   const handleDrinkSelect = async (drink: DrinkItem) => {
@@ -187,7 +187,7 @@ export default function POS() {
     });
     
     // Automatically start NFC scanning
-    await handleScanForPayment(drink.price, `${drink.name}`, null);
+    await handleScanForPayment(drink.price, `${drink.name}`, null, 'drinks');
   };
 
   const handleCustomItemSelect = (item: CustomItem) => {
@@ -236,7 +236,7 @@ export default function POS() {
     await handleScanForPayment(amount, selectedCustomItem.name, null);
   };
 
-  const handleScanForPayment = async (price: number, itemName: string, gameId: string | null) => {
+  const handleScanForPayment = async (price: number, itemName: string, gameId: string | null, transactionType: string = 'food') => {
     setIsScanning(true);
     
     try {
@@ -284,7 +284,7 @@ export default function POS() {
         setScannedWallet(formattedWallet);
         
         // Immediately process the payment
-        await processPayment(formattedWallet, price, itemName, gameId);
+        await processPayment(formattedWallet, price, itemName, gameId, transactionType);
       } else {
         toast({
           title: "Scanning Failed",
@@ -305,7 +305,7 @@ export default function POS() {
     }
   };
 
-  const processPayment = async (wallet: any, price: number, itemName: string, gameId: string | null) => {
+  const processPayment = async (wallet: any, price: number, itemName: string, gameId: string | null, transactionType: string = 'food') => {
     if (price > wallet.currentBalance) {
       toast({
         title: "Insufficient Balance",
@@ -330,14 +330,14 @@ export default function POS() {
         throw updateError;
       }
 
-      // Create transaction record for food sale
+      // Create transaction record
       const { data: transactionData, error: transactionError } = await supabase
         .from('transactions')
         .insert({
           wallet_id: wallet.id,
-          type: 'food',
+          type: transactionType,
           amount: -price,
-          description: `Food Purchase: ${itemName}`,
+          description: `${transactionType === 'drinks' ? 'Drinks' : transactionType === 'games' ? 'Game' : 'Food'} Purchase: ${itemName}`,
           reference: `POS_${Date.now()}`,
           game_id: gameId
         })

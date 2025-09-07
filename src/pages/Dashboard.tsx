@@ -96,6 +96,14 @@ interface FoodSales {
   created_at: string;
 }
 
+interface DrinksSales {
+  id: string;
+  itemName: string;
+  amount: number;
+  quantity: number;
+  created_at: string;
+}
+
 export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats>({
     totalWallets: 0,
@@ -110,6 +118,7 @@ export default function Dashboard() {
   const [studioSales, setStudioSales] = useState<StudioSales[]>([]);
   const [gameSales, setGameSales] = useState<GameSales[]>([]);
   const [foodSales, setFoodSales] = useState<FoodSales[]>([]);
+  const [drinksSales, setDrinksSales] = useState<DrinksSales[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [isAddItemOpen, setIsAddItemOpen] = useState(false);
   const [itemForm, setItemForm] = useState({
@@ -322,6 +331,36 @@ export default function Dashboard() {
       toast({
         title: "Error Loading Food Sales",
         description: "Failed to load food sales data. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const fetchDrinksSalesData = async () => {
+    try {
+      // Fetch drinks transactions
+      const { data: drinksTransactions, error } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('type', 'drinks')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      // Transform to DrinksSales format
+      const drinksSalesData: DrinksSales[] = drinksTransactions?.map((tx: any) => ({
+        id: tx.id,
+        itemName: tx.description.replace('Drinks Purchase: ', ''),
+        amount: Math.abs(typeof tx.amount === 'string' ? parseFloat(tx.amount) : tx.amount),
+        quantity: 1,
+        created_at: tx.created_at
+      })) || [];
+
+      setDrinksSales(drinksSalesData);
+    } catch (error) {
+      toast({
+        title: "Error Loading Drinks Sales",
+        description: "Failed to load drinks sales data. Please try again.",
         variant: "destructive",
       });
     }
@@ -1044,6 +1083,43 @@ export default function Dashboard() {
                   {foodSales.length > 10 && (
                     <p className="text-xs text-muted-foreground text-center">
                       ... and {foodSales.length - 10} more sales
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Drinks Section */}
+            <div className="space-y-4 border-t pt-4">
+              <h3 className="text-lg font-medium text-foreground flex items-center space-x-2">
+                <DollarSign className="w-4 h-4 text-primary" />
+                <span>Drinks</span>
+              </h3>
+              {drinksSales.length === 0 ? (
+                <div className="text-center py-4 bg-secondary/20 rounded-lg">
+                  <DollarSign className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm text-muted-foreground">No drinks sales yet</p>
+                  <p className="text-xs text-muted-foreground mt-1">Sales will appear here once drinks are sold</p>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {drinksSales.slice(0, 10).map((sale, index) => (
+                    <div key={index} className="flex justify-between items-center p-3 bg-secondary/30 rounded-lg">
+                      <div>
+                        <p className="font-medium text-sm">{sale.itemName}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {format(new Date(sale.created_at), 'MMM dd, HH:mm')}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-medium text-sm">₹{sale.amount}</p>
+                        <p className="text-xs text-muted-foreground">Qty: {sale.quantity}</p>
+                      </div>
+                    </div>
+                  ))}
+                  {drinksSales.length > 10 && (
+                    <p className="text-xs text-muted-foreground text-center">
+                      ... and {drinksSales.length - 10} more sales
                     </p>
                   )}
                 </div>
