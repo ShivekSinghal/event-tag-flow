@@ -100,22 +100,42 @@ export default function POS() {
     }
   }, [permissionsLoading, getGamePermissions, hasFoodPermission, hasDrinksPermission, activeSection]);
 
-  // Load games based on staff permissions
+  // Load games from database with actual prices
   useEffect(() => {
-    if (!permissionsLoading) {
-      const permittedGames = getGamePermissions();
-      // Filter out games that should only appear as custom amount items
-      const regularGames = permittedGames.filter(g => 
-        !['Dunk a Company Member', 'Karaoke'].includes(g.name)
-      );
-      setGames(regularGames.map(g => ({ 
-        ...g, 
-        available: true, 
-        description: '', 
-        price: 0
-      })));
-      setIsLoadingGames(false);
-    }
+    const fetchGames = async () => {
+      if (!permissionsLoading) {
+        const permittedGameIds = getGamePermissions().map(g => g.id);
+        
+        if (permittedGameIds.length > 0) {
+          const { data: gamesData, error } = await supabase
+            .from('games')
+            .select('*')
+            .in('id', permittedGameIds)
+            .eq('available', true);
+          
+          if (!error && gamesData) {
+            // Filter out games that should only appear as custom amount items
+            const regularGames = gamesData.filter(g => 
+              !['Dunk a Company Member', 'Karaoke'].includes(g.name)
+            );
+            
+            setGames(regularGames.map(g => ({
+              id: g.id,
+              name: g.name,
+              description: g.description || '',
+              price: typeof g.price === 'string' ? parseFloat(g.price) : g.price,
+              studio: g.studio,
+              available: g.available
+            })));
+          }
+        } else {
+          setGames([]);
+        }
+        setIsLoadingGames(false);
+      }
+    };
+    
+    fetchGames();
   }, [getGamePermissions, permissionsLoading]);
 
   const handleGameSelect = async (game: Game) => {
