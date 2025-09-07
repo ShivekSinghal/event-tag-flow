@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { nfcManager } from "@/utils/nfc";
 import { supabase } from "@/integrations/supabase/client";
@@ -627,55 +628,34 @@ export default function POS() {
                         <p className="text-sm text-muted-foreground">Add multiple dishes to calculate total before payment</p>
                       </CardHeader>
                       <CardContent className="space-y-4">
-                        {/* Quick Add Food Items */}
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className="space-y-2">
-                            <Label htmlFor="dish-name">Dish Name</Label>
-                            <Input
-                              id="dish-name"
-                              placeholder="Enter dish name"
-                              onKeyPress={(e) => {
-                                if (e.key === 'Enter') {
-                                  const dishName = (e.target as HTMLInputElement).value;
-                                  const priceInput = document.getElementById('dish-price') as HTMLInputElement;
-                                  const price = parseFloat(priceInput.value);
-                                  if (dishName && price > 0) {
-                                    setCalculatorItems([...calculatorItems, {name: dishName, price, quantity: 1}]);
-                                    (e.target as HTMLInputElement).value = '';
-                                    priceInput.value = '';
-                                  }
-                                }
-                              }}
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="dish-price">Price (₹)</Label>
-                            <Input
-                              id="dish-price"
-                              type="number"
-                              placeholder="Enter price"
-                              min="0"
-                              step="0.01"
-                            />
-                          </div>
+                        {/* Dish Dropdown */}
+                        <div className="space-y-2">
+                          <Label htmlFor="dish-select">Select Dish</Label>
+                          <Select 
+                            onValueChange={(value) => {
+                              const [name, price] = value.split('|');
+                              setCalculatorItems([...calculatorItems, {name, price: parseFloat(price), quantity: 1}]);
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Choose a dish to add" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Butter Chicken|250">Butter Chicken - ₹250</SelectItem>
+                              <SelectItem value="Dal Makhani|180">Dal Makhani - ₹180</SelectItem>
+                              <SelectItem value="Biryani|220">Biryani - ₹220</SelectItem>
+                              <SelectItem value="Naan|60">Naan - ₹60</SelectItem>
+                              <SelectItem value="Paneer Tikka|200">Paneer Tikka - ₹200</SelectItem>
+                              <SelectItem value="Samosa|40">Samosa - ₹40</SelectItem>
+                              <SelectItem value="Chole Bhature|150">Chole Bhature - ₹150</SelectItem>
+                              <SelectItem value="Masala Dosa|120">Masala Dosa - ₹120</SelectItem>
+                              <SelectItem value="Chicken Tikka|240">Chicken Tikka - ₹240</SelectItem>
+                              <SelectItem value="Fried Rice|140">Fried Rice - ₹140</SelectItem>
+                              <SelectItem value="Garlic Bread|80">Garlic Bread - ₹80</SelectItem>
+                              <SelectItem value="Caesar Salad|160">Caesar Salad - ₹160</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </div>
-                        
-                        <Button 
-                          onClick={() => {
-                            const dishNameInput = document.getElementById('dish-name') as HTMLInputElement;
-                            const priceInput = document.getElementById('dish-price') as HTMLInputElement;
-                            const dishName = dishNameInput.value;
-                            const price = parseFloat(priceInput.value);
-                            if (dishName && price > 0) {
-                              setCalculatorItems([...calculatorItems, {name: dishName, price, quantity: 1}]);
-                              dishNameInput.value = '';
-                              priceInput.value = '';
-                            }
-                          }}
-                          className="w-full"
-                        >
-                          Add Item
-                        </Button>
 
                         {/* Calculator Items List */}
                         {calculatorItems.length > 0 && (
