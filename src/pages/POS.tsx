@@ -104,11 +104,15 @@ export default function POS() {
   useEffect(() => {
     if (!permissionsLoading) {
       const permittedGames = getGamePermissions();
-      setGames(permittedGames.map(g => ({ 
+      // Filter out games that should only appear as custom amount items
+      const regularGames = permittedGames.filter(g => 
+        !['Dunk a Company Member', 'Karaoke'].includes(g.name)
+      );
+      setGames(regularGames.map(g => ({ 
         ...g, 
         available: true, 
         description: '', 
-        price: 0 
+        price: 0
       })));
       setIsLoadingGames(false);
     }
