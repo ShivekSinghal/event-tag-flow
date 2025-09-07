@@ -23,6 +23,7 @@ const DonationProgress = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [lastTransactionId, setLastTransactionId] = useState<string | null>(null);
+  const [showLabels, setShowLabels] = useState(true);
 
   const fetchDonationStats = async (showGratitude = false) => {
     try {
@@ -176,18 +177,26 @@ const DonationProgress = () => {
       <div className="fixed inset-0 z-[99999] bg-background overflow-hidden flex flex-col h-screen">
         {/* Flying Cards and Donation Dots */}
         <FlyingCards />
-        <DonationDots />
+        <DonationDots showLabels={showLabels} />
         
-        {/* Fullscreen Exit Button */}
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={toggleFullscreen}
-          className="absolute top-4 right-4 z-50"
-        >
-          <Minimize className="w-4 h-4" />
-          Exit
-        </Button>
+        {/* Fullscreen Control Buttons */}
+        <div className="absolute top-4 right-4 z-50 flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowLabels(!showLabels)}
+          >
+            {showLabels ? 'Hide Names' : 'Show Names'}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={toggleFullscreen}
+          >
+            <Minimize className="w-4 h-4" />
+            Exit
+          </Button>
+        </div>
 
         {/* Content Container - Full Height */}
         <div className="flex-1 flex flex-col justify-center items-center p-8 space-y-8">
@@ -269,20 +278,28 @@ const DonationProgress = () => {
     <div className="container mx-auto p-6 space-y-8 relative overflow-hidden">
       {/* Flying Cards and Donation Dots */}
       <FlyingCards />
-      <DonationDots />
+      <DonationDots showLabels={showLabels} />
       
-      {/* Header with Fullscreen Toggle */}
+      {/* Header with Controls */}
       {!isFullscreen && (
         <div className="text-center mb-12 relative">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={toggleFullscreen}
-            className="absolute top-0 right-0"
-          >
-            <Maximize className="w-4 h-4" />
-            Fullscreen
-          </Button>
+          <div className="absolute top-0 right-0 flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowLabels(!showLabels)}
+            >
+              {showLabels ? 'Hide Names' : 'Show Names'}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={toggleFullscreen}
+            >
+              <Maximize className="w-4 h-4" />
+              Fullscreen
+            </Button>
+          </div>
           <h1 className="text-4xl font-bold mb-4">
             Donation <span className="text-primary">Progress</span>
           </h1>

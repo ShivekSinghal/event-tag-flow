@@ -78,7 +78,7 @@ export function useFlyingCards() {
     </>
   ), [cards, removeCard]);
 
-  const DonationDots = useCallback(() => {
+  const DonationDots = useCallback(({ showLabels = true }: { showLabels?: boolean } = {}) => {
     console.log('DonationDots rendered, dots count:', dots.length);
     return (
       <>
@@ -104,24 +104,28 @@ export function useFlyingCards() {
                 top: dot.y - size/2,  // Center the dot vertically
               }}
             >
-              {/* Simple pink circle with forced color */}
+              {/* Simple pink circle - ensure it's a perfect circle */}
               <div
-                className="rounded-full mb-1 transition-all duration-300"
+                className="mb-1 transition-all duration-300"
                 style={{
                   width: `${size}px`,
                   height: `${size}px`,
-                  backgroundColor: '#ff007f !important',
-                  background: '#ff007f',
-                  border: '2px solid #ff007f',
-                  margin: '0 auto'
+                  backgroundColor: '#ff007f',
+                  borderRadius: '50%',
+                  border: 'none',
+                  outline: 'none',
+                  margin: '0 auto',
+                  display: 'block'
                 }}
               />
               
-              {/* Name and Studio underneath - no amount */}
-              <div className="text-center text-xs text-white bg-black/70 rounded px-2 py-1 backdrop-blur-sm whitespace-nowrap">
-                <div className="font-semibold">{dot.name}</div>
-                <div className="text-xs opacity-80">{dot.studio}</div>
-              </div>
+              {/* Name and Studio underneath - conditionally shown */}
+              {showLabels && (
+                <div className="text-center text-xs text-white bg-black/70 rounded px-2 py-1 backdrop-blur-sm whitespace-nowrap">
+                  <div className="font-semibold">{dot.name}</div>
+                  <div className="text-xs opacity-80">{dot.studio}</div>
+                </div>
+              )}
             </div>
           );
         })}
