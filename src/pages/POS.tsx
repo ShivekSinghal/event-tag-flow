@@ -608,6 +608,29 @@ export default function POS() {
                         <CardTitle className="text-lg">Enter Amount for {selectedCustomItem.name}</CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-4">
+                        {/* Predefined Amount Buttons for Games */}
+                        {selectedCustomItem.type === 'game' && (
+                          <div>
+                            <p className="text-sm text-muted-foreground mb-3">Quick Select Amount:</p>
+                            <div className="grid grid-cols-4 gap-2 mb-4">
+                              {[1, 50, 100, 200, 500, 1000, 2000].map(amount => (
+                                <Button
+                                  key={amount}
+                                  variant={customAmount === amount.toString() ? 'default' : 'outline'}
+                                  size="sm"
+                                  onClick={() => setCustomAmount(amount.toString())}
+                                  className="h-12"
+                                >
+                                  ₹{amount}
+                                </Button>
+                              ))}
+                            </div>
+                            <div className="text-center text-sm text-muted-foreground mb-3">
+                              Or enter custom amount:
+                            </div>
+                          </div>
+                        )}
+                        
                         <div className="flex items-center space-x-4">
                           <div className="flex-1">
                             <Input
