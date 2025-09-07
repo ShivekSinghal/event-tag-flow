@@ -14,6 +14,8 @@ interface DotPosition {
   y: number;
   id: string;
   amount: number;
+  name: string;
+  studio: string;
 }
 
 export function useFlyingCards() {
@@ -25,12 +27,18 @@ export function useFlyingCards() {
     setCards(prev => [...prev, { ...cardData, id }]);
   }, []);
 
-  const removeCard = useCallback((id: string, dotPosition?: { x: number; y: number }, amount?: number) => {
+  const removeCard = useCallback((id: string, dotPosition?: { x: number; y: number }, amount?: number, name?: string, studio?: string) => {
     setCards(prev => prev.filter(card => card.id !== id));
     
-    // Add a dot at the specified position with amount for sizing
-    if (dotPosition && amount) {
-      setDots(prev => [...prev, { ...dotPosition, id: `dot-${Date.now()}`, amount }]);
+    // Add a dot at the specified position with amount for sizing and name/studio info
+    if (dotPosition && amount && name && studio) {
+      setDots(prev => [...prev, { 
+        ...dotPosition, 
+        id: `dot-${Date.now()}`, 
+        amount,
+        name,
+        studio
+      }]);
     }
   }, []);
 
@@ -43,7 +51,7 @@ export function useFlyingCards() {
           name={card.name}
           studio={card.studio}
           type={card.type}
-          onComplete={(dotPosition) => removeCard(card.id, dotPosition, card.amount)}
+          onComplete={(dotPosition) => removeCard(card.id, dotPosition, card.amount, card.name, card.studio)}
         />
       ))}
     </>
@@ -58,15 +66,29 @@ export function useFlyingCards() {
         return (
           <div
             key={dot.id}
-            className="fixed rounded-full donation-dot pointer-events-none z-30"
+            className="fixed pointer-events-none z-30"
             style={{
-              left: dot.x,
-              top: dot.y,
-              width: `${size}px`,
-              height: `${size}px`,
-              backgroundColor: '#ff007f'
+              left: dot.x - size/2, // Center the dot horizontally
+              top: dot.y - size/2,  // Center the dot vertically
             }}
-          />
+          >
+            {/* The circle */}
+            <div
+              className="rounded-full donation-dot mb-1"
+              style={{
+                width: `${size}px`,
+                height: `${size}px`,
+                backgroundColor: '#ff007f',
+                margin: '0 auto'
+              }}
+            />
+            
+            {/* Name and Studio underneath */}
+            <div className="text-center text-xs text-white bg-black/60 rounded px-2 py-1 backdrop-blur-sm whitespace-nowrap">
+              <div className="font-semibold">{dot.name}</div>
+              <div className="text-xs opacity-80">{dot.studio}</div>
+            </div>
+          </div>
         );
       })}
     </>
