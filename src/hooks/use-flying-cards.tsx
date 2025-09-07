@@ -32,10 +32,10 @@ export function useFlyingCards() {
     
     // Add a dot at the specified position with amount for sizing and name/studio info
     if (dotPosition && amount && name && studio) {
-      // Adjust position to keep dots away from center (assuming center is around viewport center)
+      // Adjust position to keep dots just away from center logo with minimal padding
       const centerX = window.innerWidth / 2;
       const centerY = window.innerHeight / 2;
-      const minDistanceFromCenter = 80; // Minimum distance from center hashtag symbol
+      const minDistanceFromCenter = 25; // Just 1-2px padding from logo
       
       let adjustedX = dotPosition.x;
       let adjustedY = dotPosition.y;
@@ -45,7 +45,7 @@ export function useFlyingCards() {
         Math.pow(adjustedX - centerX, 2) + Math.pow(adjustedY - centerY, 2)
       );
       
-      // If too close to center, push the dot away
+      // If too close to center, push the dot away minimally
       if (distanceFromCenter < minDistanceFromCenter) {
         const angle = Math.atan2(adjustedY - centerY, adjustedX - centerX);
         adjustedX = centerX + Math.cos(angle) * minDistanceFromCenter;
@@ -99,33 +99,21 @@ export function useFlyingCards() {
               top: dot.y - size/2,  // Center the dot vertically
             }}
           >
-            {/* The circle with glow effect for larger amounts */}
+            {/* Simple pink circle */}
             <div
-              className={`rounded-full donation-dot mb-1 transition-all duration-300 ${
-                size > 25 ? 'shadow-lg shadow-pink-500/30' : ''
-              }`}
+              className="rounded-full donation-dot mb-1 transition-all duration-300"
               style={{
                 width: `${size}px`,
                 height: `${size}px`,
-                backgroundColor: `hsl(${320 + (normalizedAmount * 40)}, 100%, ${50 + (normalizedAmount * 20)}%)`,
-                margin: '0 auto',
-                boxShadow: size > 25 ? `0 0 ${size/3}px rgba(255, 0, 127, 0.4)` : 'none'
+                backgroundColor: '#ff007f',
+                margin: '0 auto'
               }}
             />
             
-            {/* Name and Studio underneath - adjust text size based on dot size */}
-            <div 
-              className={`text-center text-white bg-black/70 rounded px-2 py-1 backdrop-blur-sm whitespace-nowrap ${
-                size > 30 ? 'text-sm' : 'text-xs'
-              }`}
-              style={{
-                fontSize: size > 30 ? '14px' : '12px'
-              }}
-            >
+            {/* Name and Studio underneath - no amount */}
+            <div className="text-center text-xs text-white bg-black/70 rounded px-2 py-1 backdrop-blur-sm whitespace-nowrap">
               <div className="font-semibold">{dot.name}</div>
-              <div className="opacity-80" style={{fontSize: size > 30 ? '12px' : '10px'}}>
-                {dot.studio} • ₹{dot.amount}
-              </div>
+              <div className="text-xs opacity-80">{dot.studio}</div>
             </div>
           </div>
         );
