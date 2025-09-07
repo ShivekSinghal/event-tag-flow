@@ -21,8 +21,10 @@ import {
   XCircle,
   CheckCircle,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Download
 } from "lucide-react";
+import * as XLSX from 'xlsx';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -461,6 +463,54 @@ export default function Dashboard() {
         variant: "destructive",
       });
     }
+  };
+
+  const exportBookingsToExcel = () => {
+    // Prepare data for Excel export
+    const exportData = allBookings.map((booking, index) => ({
+      'Sr. No.': index + 1,
+      'Name': booking.user_name,
+      'Email': booking.user_email,
+      'Phone': booking.user_phone,
+      'Package': booking.package_name,
+      'Studio Location': booking.studio_location,
+      'Amount (₹)': typeof booking.amount === 'string' ? parseFloat(booking.amount) : booking.amount,
+      'Payment Status': booking.payment_status,
+      'Booking Date': new Date(booking.booking_date).toLocaleDateString('en-IN')
+    }));
+
+    // Create workbook and worksheet
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+
+    // Set column widths
+    const columnWidths = [
+      { wch: 8 },   // Sr. No.
+      { wch: 20 },  // Name
+      { wch: 25 },  // Email
+      { wch: 15 },  // Phone
+      { wch: 20 },  // Package
+      { wch: 20 },  // Studio Location
+      { wch: 12 },  // Amount
+      { wch: 15 },  // Payment Status
+      { wch: 15 }   // Booking Date
+    ];
+    worksheet['!cols'] = columnWidths;
+
+    // Add worksheet to workbook
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Bookings');
+
+    // Generate file name with current date
+    const currentDate = new Date().toLocaleDateString('en-IN').replace(/\//g, '-');
+    const fileName = `bookings-export-${currentDate}.xlsx`;
+
+    // Write and download the file
+    XLSX.writeFile(workbook, fileName);
+
+    toast({
+      title: "Export Successful",
+      description: `Bookings data exported to ${fileName}`,
+    });
   };
 
   const handleSearchWallet = async () => {
@@ -1066,35 +1116,44 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {/* Search Input */}
-              <div className="flex items-center space-x-2">
-                <div className="relative flex-1">
-                  <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    placeholder="Search by name, phone, or email..."
-                    value={bookingSearchQuery}
-                    onChange={(e) => setBookingSearchQuery(e.target.value)}
-                    className="pl-9"
-                  />
-                </div>
-                <Button
-                  variant="outline"
-                  onClick={handleToggleShowAllBookings}
-                  className="flex items-center space-x-2"
-                >
-                  {showAllBookings ? (
-                    <>
-                      <ChevronUp className="w-4 h-4" />
-                      <span>Show Less</span>
-                    </>
-                  ) : (
-                    <>
-                      <ChevronDown className="w-4 h-4" />
-                      <span>Show All ({allBookings.length})</span>
-                    </>
-                  )}
-                </Button>
-              </div>
+               {/* Search Input and Export Button */}
+               <div className="flex items-center space-x-2">
+                 <div className="relative flex-1">
+                   <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" />
+                   <Input
+                     placeholder="Search by name, phone, or email..."
+                     value={bookingSearchQuery}
+                     onChange={(e) => setBookingSearchQuery(e.target.value)}
+                     className="pl-9"
+                   />
+                 </div>
+                 <Button
+                   variant="outline"
+                   onClick={exportBookingsToExcel}
+                   className="flex items-center space-x-2"
+                   disabled={allBookings.length === 0}
+                 >
+                   <Download className="w-4 h-4" />
+                   <span>Export Excel</span>
+                 </Button>
+                 <Button
+                   variant="outline"
+                   onClick={handleToggleShowAllBookings}
+                   className="flex items-center space-x-2"
+                 >
+                   {showAllBookings ? (
+                     <>
+                       <ChevronUp className="w-4 h-4" />
+                       <span>Show Less</span>
+                     </>
+                   ) : (
+                     <>
+                       <ChevronDown className="w-4 h-4" />
+                       <span>Show All ({allBookings.length})</span>
+                     </>
+                   )}
+                 </Button>
+               </div>
 
               {isLoading ? (
                 <div className="space-y-3">
