@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { nfcManager } from "@/utils/nfc";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,7 +17,8 @@ import {
   DollarSign,
   Package,
   CreditCard,
-  ArrowRight
+  ArrowRight,
+  Calculator
 } from "lucide-react";
 
 interface Game {
@@ -59,6 +61,8 @@ export default function POS() {
   const [selectedCustomItem, setSelectedCustomItem] = useState<CustomItem | null>(null);
   const [customAmount, setCustomAmount] = useState<string>('');
   const [showCustomAmountInput, setShowCustomAmountInput] = useState(false);
+  const [calculatorItems, setCalculatorItems] = useState<{name: string, price: number, quantity: number}[]>([]);
+  const [showCalculator, setShowCalculator] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [games, setGames] = useState<Game[]>([]);
   const [isLoadingGames, setIsLoadingGames] = useState(false);
@@ -602,6 +606,161 @@ export default function POS() {
               {/* Food & Custom Section */}
               {activeSection === 'food' && (
                 <div className="space-y-4">
+                  {/* Food Calculator Toggle */}
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-lg font-medium">Food Items</h3>
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowCalculator(!showCalculator)}
+                      className="flex items-center space-x-2"
+                    >
+                      <Calculator className="w-4 h-4" />
+                      <span>{showCalculator ? 'Hide Calculator' : 'Show Calculator'}</span>
+                    </Button>
+                  </div>
+
+                  {/* Food Calculator */}
+                  {showCalculator && (
+                    <Card className="border-primary/20">
+                      <CardHeader>
+                        <CardTitle className="text-lg">Food Calculator</CardTitle>
+                        <p className="text-sm text-muted-foreground">Add multiple dishes to calculate total before payment</p>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        {/* Quick Add Food Items */}
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-2">
+                            <Label htmlFor="dish-name">Dish Name</Label>
+                            <Input
+                              id="dish-name"
+                              placeholder="Enter dish name"
+                              onKeyPress={(e) => {
+                                if (e.key === 'Enter') {
+                                  const dishName = (e.target as HTMLInputElement).value;
+                                  const priceInput = document.getElementById('dish-price') as HTMLInputElement;
+                                  const price = parseFloat(priceInput.value);
+                                  if (dishName && price > 0) {
+                                    setCalculatorItems([...calculatorItems, {name: dishName, price, quantity: 1}]);
+                                    (e.target as HTMLInputElement).value = '';
+                                    priceInput.value = '';
+                                  }
+                                }
+                              }}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="dish-price">Price (₹)</Label>
+                            <Input
+                              id="dish-price"
+                              type="number"
+                              placeholder="Enter price"
+                              min="0"
+                              step="0.01"
+                            />
+                          </div>
+                        </div>
+                        
+                        <Button 
+                          onClick={() => {
+                            const dishNameInput = document.getElementById('dish-name') as HTMLInputElement;
+                            const priceInput = document.getElementById('dish-price') as HTMLInputElement;
+                            const dishName = dishNameInput.value;
+                            const price = parseFloat(priceInput.value);
+                            if (dishName && price > 0) {
+                              setCalculatorItems([...calculatorItems, {name: dishName, price, quantity: 1}]);
+                              dishNameInput.value = '';
+                              priceInput.value = '';
+                            }
+                          }}
+                          className="w-full"
+                        >
+                          Add Item
+                        </Button>
+
+                        {/* Calculator Items List */}
+                        {calculatorItems.length > 0 && (
+                          <div className="space-y-2">
+                            <h4 className="font-medium">Added Items:</h4>
+                            {calculatorItems.map((item, index) => (
+                              <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
+                                <div className="flex-1">
+                                  <div className="font-medium">{item.name}</div>
+                                  <div className="text-sm text-muted-foreground">₹{item.price.toFixed(2)} each</div>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                      const newItems = [...calculatorItems];
+                                      if (newItems[index].quantity > 1) {
+                                        newItems[index].quantity -= 1;
+                                        setCalculatorItems(newItems);
+                                      }
+                                    }}
+                                  >
+                                    -
+                                  </Button>
+                                  <span className="w-8 text-center">{item.quantity}</span>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                      const newItems = [...calculatorItems];
+                                      newItems[index].quantity += 1;
+                                      setCalculatorItems(newItems);
+                                    }}
+                                  >
+                                    +
+                                  </Button>
+                                  <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    onClick={() => {
+                                      setCalculatorItems(calculatorItems.filter((_, i) => i !== index));
+                                    }}
+                                  >
+                                    ×
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                            
+                            {/* Total and Pay */}
+                            <div className="border-t pt-4">
+                              <div className="flex justify-between items-center mb-4">
+                                <span className="text-lg font-bold">Total:</span>
+                                <span className="text-2xl font-bold text-primary">
+                                  ₹{calculatorItems.reduce((total, item) => total + (item.price * item.quantity), 0).toFixed(2)}
+                                </span>
+                              </div>
+                              <div className="flex space-x-2">
+                                <Button
+                                  variant="outline"
+                                  onClick={() => setCalculatorItems([])}
+                                  className="flex-1"
+                                >
+                                  Clear All
+                                </Button>
+                                <Button
+                                  onClick={() => {
+                                    const total = calculatorItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+                                    const itemNames = calculatorItems.map(item => `${item.name} (${item.quantity}x)`).join(', ');
+                                    handleScanForPayment(total, itemNames, null);
+                                  }}
+                                  disabled={calculatorItems.length === 0}
+                                  className="flex-1"
+                                >
+                                  Scan & Pay
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )}
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {customItems
                       .filter(item => {
