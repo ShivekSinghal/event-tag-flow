@@ -683,7 +683,9 @@ export default function POS() {
                       {selectedGame && `₹${selectedGame.price.toFixed(2)}`}
                       {selectedDrink && `₹${selectedDrink.price.toFixed(2)}`}
                       {selectedCustomItem && customAmount && `₹${parseFloat(customAmount).toFixed(2)}`}
-                      {selectedCustomItem && !customAmount && 'Enter amount'}
+                      {selectedCustomItem && !customAmount && (
+                        <span className="text-muted-foreground">Enter amount below</span>
+                      )}
                     </span>
                   </div>
                 </div>
