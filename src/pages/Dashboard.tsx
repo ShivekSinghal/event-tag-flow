@@ -779,7 +779,7 @@ export default function Dashboard() {
 
       {/* Game Sales Section */}
       <div className="flex justify-between items-center">
-        <h2 className="text-xl font-semibold text-foreground">Game Sales Analytics & Item Management</h2>
+        <h2 className="text-xl font-semibold text-foreground">Sales Analytics & Item Management</h2>
         <Dialog open={isAddItemOpen} onOpenChange={setIsAddItemOpen}>
           <DialogTrigger asChild>
             <Button variant="outline" className="flex items-center space-x-2">
@@ -867,102 +867,134 @@ export default function Dashboard() {
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <DollarSign className="w-5 h-5 text-primary" />
-            <span>Game Sales Breakdown</span>
+            <span>Sales Breakdown</span>
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {isLoading ? (
-              <div className="space-y-3">
-                {[...Array(3)].map((_, i) => (
-                  <div key={i} className="flex items-center justify-between p-4 bg-secondary/30 rounded-lg">
-                    <div className="flex items-center space-x-3">
-                      <Skeleton className="w-8 h-8 rounded-full" />
+          <div className="space-y-6">
+            {/* Games Section */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-medium text-foreground flex items-center space-x-2">
+                <Package className="w-4 h-4 text-primary" />
+                <span>Games</span>
+              </h3>
+              {isLoading ? (
+                <div className="space-y-3">
+                  {[...Array(2)].map((_, i) => (
+                    <div key={i} className="flex items-center justify-between p-3 bg-secondary/30 rounded-lg">
+                      <div className="flex items-center space-x-3">
+                        <Skeleton className="w-8 h-8 rounded-full" />
+                        <div className="space-y-2">
+                          <Skeleton className="h-4 w-24" />
+                          <Skeleton className="h-3 w-16" />
+                        </div>
+                      </div>
                       <div className="space-y-2">
-                        <Skeleton className="h-4 w-24" />
-                        <Skeleton className="h-3 w-16" />
+                        <Skeleton className="h-6 w-20" />
+                        <Skeleton className="h-3 w-12" />
                       </div>
                     </div>
-                    <div className="space-y-2">
-                      <Skeleton className="h-6 w-20" />
-                      <Skeleton className="h-3 w-12" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : gameSales.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <DollarSign className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                <p>No game sales data available</p>
-                <p className="text-sm">Game sales will appear once purchases are made</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 gap-4">
-                {gameSales.map((gameData, index) => (
-                  <div key={gameData.game_id} className={cn(
-                    "flex items-center justify-between p-4 rounded-lg border-l-4",
-                    gameData.available 
-                      ? "bg-secondary/30 border-l-success" 
-                      : "bg-destructive/5 border-l-destructive"
-                  )}>
-                    <div className="flex items-center space-x-3">
-                      <div className={cn(
-                        "w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold",
-                        gameData.available 
-                          ? "bg-primary text-primary-foreground" 
-                          : "bg-destructive text-destructive-foreground"
-                      )}>
-                        {index + 1}
+                  ))}
+                </div>
+              ) : gameSales.length === 0 ? (
+                <div className="text-center py-6 text-muted-foreground">
+                  <Package className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">No game sales data available</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-3">
+                  {gameSales.map((gameData, index) => (
+                    <div key={gameData.game_id} className={cn(
+                      "flex items-center justify-between p-3 rounded-lg border-l-4",
+                      gameData.available 
+                        ? "bg-secondary/30 border-l-success" 
+                        : "bg-destructive/5 border-l-destructive"
+                    )}>
+                      <div className="flex items-center space-x-3">
+                        <div className={cn(
+                          "w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold",
+                          gameData.available 
+                            ? "bg-primary text-primary-foreground" 
+                            : "bg-destructive text-destructive-foreground"
+                        )}>
+                          {index + 1}
+                        </div>
+                        <div>
+                          <div className="flex items-center space-x-2">
+                            <span className="font-medium text-foreground">{gameData.game_name}</span>
+                            {!gameData.available && (
+                              <Badge variant="destructive" className="text-xs">
+                                Sold Out
+                              </Badge>
+                            )}
+                            {gameData.available && (
+                              <Badge variant="outline" className="text-xs border-success text-success">
+                                Available
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            {gameData.total_quantity} sold • Studio: {gameData.studio}
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <div className="flex items-center space-x-2">
-                          <span className="font-medium text-foreground">{gameData.game_name}</span>
-                          {!gameData.available && (
-                            <Badge variant="destructive" className="text-xs">
-                              Sold Out
-                            </Badge>
+                      <div className="flex items-center space-x-4">
+                        <div className="text-right">
+                          <div className="font-bold text-lg text-success">₹{gameData.total_revenue.toFixed(2)}</div>
+                          <div className="text-xs text-muted-foreground">
+                            Qty: {gameData.total_quantity}
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant={gameData.available ? "destructive" : "default"}
+                          onClick={() => handleToggleGameAvailability(gameData.game_id, gameData.available)}
+                          className="flex items-center space-x-1"
+                        >
+                          {gameData.available ? (
+                            <>
+                              <XCircle className="w-3 h-3" />
+                              <span className="hidden sm:inline">Mark Sold Out</span>
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle className="w-3 h-3" />
+                              <span className="hidden sm:inline">Mark Available</span>
+                            </>
                           )}
-                          {gameData.available && (
-                            <Badge variant="outline" className="text-xs border-success text-success">
-                              Available
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          {gameData.total_quantity} sold • Studio: {gameData.studio}
-                        </div>
+                        </Button>
                       </div>
                     </div>
-                    <div className="flex items-center space-x-4">
-                      <div className="text-right">
-                        <div className="font-bold text-lg text-success">₹{gameData.total_revenue.toFixed(2)}</div>
-                        <div className="text-xs text-muted-foreground">
-                          Qty: {gameData.total_quantity}
-                        </div>
-                      </div>
-                      <Button
-                        size="sm"
-                        variant={gameData.available ? "destructive" : "default"}
-                        onClick={() => handleToggleGameAvailability(gameData.game_id, gameData.available)}
-                        className="flex items-center space-x-1"
-                      >
-                        {gameData.available ? (
-                          <>
-                            <XCircle className="w-3 h-3" />
-                            <span className="hidden sm:inline">Mark Sold Out</span>
-                          </>
-                        ) : (
-                          <>
-                            <CheckCircle className="w-3 h-3" />
-                            <span className="hidden sm:inline">Mark Available</span>
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Food Section */}
+            <div className="space-y-4 border-t pt-4">
+              <h3 className="text-lg font-medium text-foreground flex items-center space-x-2">
+                <Utensils className="w-4 h-4 text-primary" />
+                <span>Food</span>
+              </h3>
+              <div className="text-center py-4 bg-secondary/20 rounded-lg">
+                <Utensils className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm text-muted-foreground">Food sales tracking coming soon</p>
+                <p className="text-xs text-muted-foreground mt-1">Enable food permissions to track sales data</p>
               </div>
-            )}
+            </div>
+
+            {/* Drinks Section */}
+            <div className="space-y-4 border-t pt-4">
+              <h3 className="text-lg font-medium text-foreground flex items-center space-x-2">
+                <DollarSign className="w-4 h-4 text-primary" />
+                <span>Drinks</span>
+              </h3>
+              <div className="text-center py-4 bg-secondary/20 rounded-lg">
+                <DollarSign className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm text-muted-foreground">Drinks sales tracking coming soon</p>
+                <p className="text-xs text-muted-foreground mt-1">Enable drinks permissions to track sales data</p>
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
