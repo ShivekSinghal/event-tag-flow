@@ -17,7 +17,7 @@ const DonationProgress = () => {
   const { addCard, FlyingCards, DonationDots, dotsCount } = useFlyingCards();
   const [stats, setStats] = useState<DonationStats>({
     totalRaised: 0,
-    goal: 500000, // ₹5,00,000 goal
+    goal: 1000000, // ₹10,00,000 goal
     percentage: 0
   });
   const [isLoading, setIsLoading] = useState(true);

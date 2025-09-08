@@ -86,13 +86,13 @@ export function useFlyingCards() {
           const amount = Math.abs(dot.amount);
           
           // Calculate dot size proportional to amount with better scaling
-          // Size range: 8px (min) to 50px (max) based on amount
+          // Size range: 6px (min) to 40px (max) based on amount (20% smaller)
           const maxAmount = 5000; // Adjust this based on typical payment amounts
           const normalizedAmount = Math.min(amount / maxAmount, 1);
           
           // Use logarithmic scaling for better visual distribution
           const logScale = Math.log(1 + normalizedAmount * 9) / Math.log(10);
-          const size = Math.round(8 + logScale * 42); // 8px to 50px range
+          const size = Math.round(6 + logScale * 34); // 6px to 40px range (20% smaller)
           
           return (
             <div
