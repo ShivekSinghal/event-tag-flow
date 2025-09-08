@@ -30,17 +30,18 @@ export function useFlyingCards() {
   const loadExistingTransactions = useCallback((transactions: any[]) => {
     const existingDots = transactions.map(transaction => {
       const walletData = transaction.wallets as any;
+      // Generate random position across entire screen
+      let x = Math.random() * window.innerWidth;
+      let y = Math.random() * window.innerHeight;
+      
+      // Ensure dots don't appear too close to the center progress circle
       const centerX = window.innerWidth / 2;
       const centerY = window.innerHeight / 2;
-      const minDistanceFromCenter = 25;
+      const minDistanceFromCenter = 200; // Increased to avoid overlapping with progress circle
       
-      // Generate random position around center with wider spread
-      let x = centerX + (Math.random() - 0.5) * 800;
-      let y = centerY + (Math.random() - 0.5) * 400;
-      
-      // Ensure minimum distance from center
       const distanceFromCenter = Math.sqrt(Math.pow(x - centerX, 2) + Math.pow(y - centerY, 2));
       if (distanceFromCenter < minDistanceFromCenter) {
+        // If too close to center, place on the edge of the safe zone
         const angle = Math.atan2(y - centerY, x - centerX);
         x = centerX + Math.cos(angle) * minDistanceFromCenter;
         y = centerY + Math.sin(angle) * minDistanceFromCenter;
