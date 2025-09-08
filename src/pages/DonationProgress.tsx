@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CircularProgress } from "@/components/ui/circular-progress";
@@ -25,7 +25,7 @@ const DonationProgress = () => {
   const [lastTransactionId, setLastTransactionId] = useState<string | null>(null);
   const [showLabels, setShowLabels] = useState(true);
 
-  const fetchDonationStats = async (showGratitude = false) => {
+  const fetchDonationStats = useCallback(async (showGratitude = false) => {
     try {
       // Get all transactions with wallet information for names and studio
       const { data: transactions, error: transactionError } = await supabase
@@ -99,7 +99,7 @@ const DonationProgress = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [stats.goal, lastTransactionId, addCard, loadExistingTransactions]);
 
   const toggleFullscreen = () => {
     if (!isFullscreen) {
