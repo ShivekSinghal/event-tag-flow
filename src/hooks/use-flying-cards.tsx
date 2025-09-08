@@ -27,6 +27,38 @@ export function useFlyingCards() {
     setCards(prev => [...prev, { ...cardData, id }]);
   }, []);
 
+  const loadExistingTransactions = useCallback((transactions: any[]) => {
+    const existingDots = transactions.map(transaction => {
+      const walletData = transaction.wallets as any;
+      const centerX = window.innerWidth / 2;
+      const centerY = window.innerHeight / 2;
+      const minDistanceFromCenter = 25;
+      
+      // Generate random position around center
+      let x = centerX + (Math.random() - 0.5) * 400;
+      let y = centerY + (Math.random() - 0.5) * 200;
+      
+      // Ensure minimum distance from center
+      const distanceFromCenter = Math.sqrt(Math.pow(x - centerX, 2) + Math.pow(y - centerY, 2));
+      if (distanceFromCenter < minDistanceFromCenter) {
+        const angle = Math.atan2(y - centerY, x - centerX);
+        x = centerX + Math.cos(angle) * minDistanceFromCenter;
+        y = centerY + Math.sin(angle) * minDistanceFromCenter;
+      }
+      
+      return {
+        x,
+        y,
+        id: `existing-${transaction.id}`,
+        amount: Number(transaction.amount),
+        name: walletData?.attendee_name || 'Anonymous',
+        studio: walletData?.studio || 'Unknown'
+      };
+    });
+    
+    setDots(existingDots);
+  }, []);
+
   const removeCard = useCallback((id: string, dotPosition?: { x: number; y: number }, amount?: number, name?: string, studio?: string) => {
     setCards(prev => prev.filter(card => card.id !== id));
     
@@ -86,13 +118,13 @@ export function useFlyingCards() {
           const amount = Math.abs(dot.amount);
           
           // Calculate dot size proportional to amount with better scaling
-          // Size range: 6px (min) to 40px (max) based on amount (20% smaller)
+          // Size range: 5px (min) to 32px (max) based on amount (20% smaller than previous)
           const maxAmount = 5000; // Adjust this based on typical payment amounts
           const normalizedAmount = Math.min(amount / maxAmount, 1);
           
           // Use logarithmic scaling for better visual distribution
           const logScale = Math.log(1 + normalizedAmount * 9) / Math.log(10);
-          const size = Math.round(6 + logScale * 34); // 6px to 40px range (20% smaller)
+          const size = Math.round(5 + logScale * 27); // 5px to 32px range (20% smaller)
           
           return (
             <div
@@ -136,6 +168,7 @@ export function useFlyingCards() {
     addCard,
     FlyingCards,
     DonationDots,
-    dotsCount: dots.length
+    dotsCount: dots.length,
+    loadExistingTransactions
   };
 }

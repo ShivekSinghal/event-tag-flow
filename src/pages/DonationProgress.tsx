@@ -14,7 +14,7 @@ interface DonationStats {
 }
 
 const DonationProgress = () => {
-  const { addCard, FlyingCards, DonationDots, dotsCount } = useFlyingCards();
+  const { addCard, FlyingCards, DonationDots, dotsCount, loadExistingTransactions } = useFlyingCards();
   const [stats, setStats] = useState<DonationStats>({
     totalRaised: 0,
     goal: 1000000, // ₹10,00,000 goal
@@ -51,6 +51,12 @@ const DonationProgress = () => {
         .reduce((sum, transaction) => sum + Number(transaction.amount), 0) || 0;
 
       const percentage = Math.min(100, (totalRaised / stats.goal) * 100);
+
+      // On initial load, show existing top-up transactions as dots
+      if (!showGratitude && transactions) {
+        const existingTopUps = transactions.filter(t => t.type === 'load');
+        loadExistingTransactions(existingTopUps);
+      }
 
       // Show gratitude and flying animation for new transactions (both top-ups and payments)
       if (showGratitude && transactions && transactions.length > 0) {
