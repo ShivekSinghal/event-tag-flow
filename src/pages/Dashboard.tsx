@@ -687,9 +687,9 @@ export default function Dashboard() {
   const filteredBookings = showAllBookings ? allBookings : bookings;
   const displayBookings = filteredBookings.filter(booking => 
     bookingSearchQuery === '' || 
-    booking.user_name.toLowerCase().includes(bookingSearchQuery.toLowerCase()) ||
-    booking.user_phone.includes(bookingSearchQuery) ||
-    booking.user_email.toLowerCase().includes(bookingSearchQuery.toLowerCase())
+    booking.user_name?.toLowerCase().includes(bookingSearchQuery.toLowerCase()) ||
+    booking.user_phone?.includes(bookingSearchQuery) ||
+    booking.user_email?.toLowerCase().includes(bookingSearchQuery.toLowerCase())
   );
 
   const handleToggleShowAllBookings = () => {
