@@ -34,9 +34,9 @@ export function useFlyingCards() {
       const centerY = window.innerHeight / 2;
       const minDistanceFromCenter = 25;
       
-      // Generate random position around center
-      let x = centerX + (Math.random() - 0.5) * 400;
-      let y = centerY + (Math.random() - 0.5) * 200;
+      // Generate random position around center with wider spread
+      let x = centerX + (Math.random() - 0.5) * 800;
+      let y = centerY + (Math.random() - 0.5) * 400;
       
       // Ensure minimum distance from center
       const distanceFromCenter = Math.sqrt(Math.pow(x - centerX, 2) + Math.pow(y - centerY, 2));

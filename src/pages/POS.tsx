@@ -74,7 +74,7 @@ export default function POS() {
     { id: 'hashtag-specials', name: 'Hashtag Specials', price: 1000, category: 'Specials' },
     { id: 'classic-cocktails', name: 'Classic Cocktails', price: 500, category: 'Cocktails' },
     { id: 'ogs', name: "OG's", price: 500, category: 'Cocktails' },
-    { id: 'mocktails', name: 'Mocktails', price: 300, category: 'Mocktails' },
+    { id: 'mocktails', name: 'Mocktails/Beer', price: 300, category: 'Mocktails' },
   ];
 
   // Custom items data
