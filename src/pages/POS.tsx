@@ -754,8 +754,8 @@ export default function POS() {
                                     handleScanForPayment(total, itemNames, null);
                                   }}
                                   disabled={calculatorItems.length === 0}
-                                  className="flex-1 text-xs sm:text-sm"
-                                  size="sm"
+                                  className="flex-1 text-sm sm:text-base h-12 sm:h-10"
+                                  size="default"
                                 >
                                   Scan & Pay
                                 </Button>
