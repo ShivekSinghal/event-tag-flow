@@ -159,13 +159,13 @@ export class NFCManager {
 
         // Setup timeout
         this.scanTimeout = setTimeout(() => {
-          console.log('⏰ NFC scan timeout after 30 seconds');
+          console.log('⏰ NFC scan timeout after 7 seconds');
           resolveOnce({
             tagId: '',
             success: false,
             error: 'NFC scan timeout. Please try again.'
           });
-        }, 30000);
+        }, 7000);
 
         try {
           console.log('Attempting to start NFC scan...');
