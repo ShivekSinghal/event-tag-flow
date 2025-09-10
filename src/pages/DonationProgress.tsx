@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { CircularProgress } from "@/components/ui/circular-progress";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Maximize, Minimize, Download } from "lucide-react";
+import { Maximize, Minimize, Download, FileText } from "lucide-react";
 import { useFlyingCards } from "@/hooks/use-flying-cards";
 
 
@@ -114,7 +114,7 @@ const DonationProgress = () => {
     }
   }, [stats.goal, lastTransactionId, addCard, loadExistingTransactions]);
 
-  const downloadSalesReport = async () => {
+  const downloadSalesReport = async (format: 'csv' | 'excel' = 'csv', startAfter: number = 0) => {
     try {
       // Fetch ALL transactions by removing limit and using pagination if needed
       let allTransactions: any[] = [];
@@ -153,9 +153,12 @@ const DonationProgress = () => {
         }
       }
 
-      console.log(`Fetched ${allTransactions.length} total transactions`);
+      // Filter transactions if startAfter is specified
+      const filteredTransactions = startAfter > 0 ? allTransactions.slice(startAfter) : allTransactions;
+      
+      console.log(`Fetched ${allTransactions.length} total transactions, using ${filteredTransactions.length} after filtering`);
 
-      // Format data for CSV export
+      // Format data for export
       const csvHeaders = [
         'Transaction ID',
         'Date', 
@@ -223,13 +226,13 @@ const DonationProgress = () => {
         type: 'text/csv;charset=utf-8;' 
       });
       
-      const filename = `sales_report_${new Date().toISOString().split('T')[0]}.csv`;
+      const filename = `sales_report_${startAfter > 0 ? `after_${startAfter}_` : ''}${new Date().toISOString().split('T')[0]}.csv`;
       
       // Try multiple download approaches for better compatibility
       if ((window.navigator as any).msSaveOrOpenBlob) {
         // IE/Edge fallback
         (window.navigator as any).msSaveOrOpenBlob(blob, filename);
-        toast.success(`CSV report downloaded with ${allTransactions.length} transactions`);
+        toast.success(`CSV report downloaded with ${filteredTransactions.length} transactions`);
       } else {
         // Modern browsers
         const url = URL.createObjectURL(blob);
@@ -247,7 +250,7 @@ const DonationProgress = () => {
           try {
             link.click();
             console.log('Download triggered successfully');
-            toast.success(`CSV report downloaded with ${allTransactions.length} transactions`);
+            toast.success(`CSV report downloaded with ${filteredTransactions.length} transactions`);
           } catch (error) {
             console.error('Download click failed:', error);
             toast.error('Download failed - please try again');
@@ -352,10 +355,18 @@ const DonationProgress = () => {
           <Button
             variant="outline"
             size="sm"
-            onClick={downloadSalesReport}
+            onClick={() => downloadSalesReport('csv')}
           >
             <Download className="w-4 h-4 mr-1" />
-            Export
+            CSV
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => downloadSalesReport('excel', 1000)}
+          >
+            <FileText className="w-4 h-4 mr-1" />
+            Excel (1000+)
           </Button>
           <Button
             variant="outline"
@@ -463,10 +474,18 @@ const DonationProgress = () => {
             <Button
               variant="outline"
               size="sm"
-              onClick={downloadSalesReport}
+              onClick={() => downloadSalesReport('csv')}
             >
               <Download className="w-4 h-4 mr-1" />
-              Export
+              CSV
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => downloadSalesReport('excel', 1000)}
+            >
+              <FileText className="w-4 h-4 mr-1" />
+              Excel (1000+)
             </Button>
             <Button
               variant="outline"
