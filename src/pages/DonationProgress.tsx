@@ -35,7 +35,7 @@ const DonationProgress = () => {
           amount, 
           type,
           created_at,
-          wallets!inner(attendee_name, studio)
+          wallets(attendee_name, studio)
         `)
         .order('created_at', { ascending: false });
 
@@ -45,6 +45,8 @@ const DonationProgress = () => {
         return;
       }
 
+      console.log('Fetched transactions:', transactions?.length, 'transactions');
+      
       // Calculate total from all transactions (top-ups + revenue from games/drinks/food)
       const totalRaised = transactions
         ?.reduce((sum, transaction) => {
@@ -57,6 +59,8 @@ const DonationProgress = () => {
           }
           return sum;
         }, 0) || 0;
+
+      console.log('Calculated total raised:', totalRaised);
 
       const percentage = Math.min(100, (totalRaised / stats.goal) * 100);
 
