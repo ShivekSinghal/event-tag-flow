@@ -396,6 +396,14 @@ export default function Dashboard() {
 
       if (error) throw error;
 
+      // Also fetch game transactions that might not be in game_sales table
+      const { data: gameTransactions, error: txError } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('type', 'games');
+
+      if (txError) throw txError;
+
       // Group sales by game
       const gameSalesMap = new Map<string, { 
         game_name: string; 
@@ -429,6 +437,64 @@ export default function Dashboard() {
             available: available,
             total_quantity: quantity,
             total_revenue: revenue
+          });
+        }
+      });
+
+      // Process game transactions and group by game name
+      const gameTransactionMap = new Map<string, { quantity: number; revenue: number }>();
+      
+      gameTransactions?.forEach((tx: any) => {
+        // Extract game name from description (e.g., "Game Purchase: Karaoke")
+        const gameName = tx.description.replace(/^Game Purchase: /, '');
+        const revenue = Math.abs(typeof tx.amount === 'string' ? parseFloat(tx.amount) : tx.amount);
+        
+        if (gameTransactionMap.has(gameName)) {
+          const existing = gameTransactionMap.get(gameName)!;
+          gameTransactionMap.set(gameName, {
+            quantity: existing.quantity + 1,
+            revenue: existing.revenue + revenue
+          });
+        } else {
+          gameTransactionMap.set(gameName, {
+            quantity: 1,
+            revenue: revenue
+          });
+        }
+      });
+
+      // Add transaction-based games to the main map
+      gameTransactionMap.forEach((data, gameName) => {
+        // Check if this game exists in our games list
+        const gameInDb = allGames?.find(g => g.name.toLowerCase() === gameName.toLowerCase());
+        
+        if (gameInDb) {
+          // Update existing entry
+          if (gameSalesMap.has(gameInDb.id)) {
+            const existing = gameSalesMap.get(gameInDb.id)!;
+            gameSalesMap.set(gameInDb.id, {
+              ...existing,
+              total_quantity: existing.total_quantity + data.quantity,
+              total_revenue: existing.total_revenue + data.revenue
+            });
+          } else {
+            gameSalesMap.set(gameInDb.id, {
+              game_name: gameInDb.name,
+              studio: gameInDb.studio,
+              available: gameInDb.available,
+              total_quantity: data.quantity,
+              total_revenue: data.revenue
+            });
+          }
+        } else {
+          // Game doesn't exist in DB, create a virtual entry
+          const virtualId = `virtual_${gameName.toLowerCase().replace(/\s+/g, '_')}`;
+          gameSalesMap.set(virtualId, {
+            game_name: gameName,
+            studio: 'Unknown',
+            available: true,
+            total_quantity: data.quantity,
+            total_revenue: data.revenue
           });
         }
       });
