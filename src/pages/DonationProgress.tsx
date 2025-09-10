@@ -223,23 +223,55 @@ const DonationProgress = () => {
             type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
           });
           
-          // Create download link
           const filename = `transactions_${startAfter > 0 ? `after_${startAfter}_` : ''}${new Date().toISOString().split('T')[0]}.xlsx`;
-          const url = URL.createObjectURL(blob);
-          const link = document.createElement('a');
           
-          link.href = url;
-          link.download = filename;
-          link.style.display = 'none';
-          
-          // Trigger download
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          URL.revokeObjectURL(url);
-          
-          console.log('Excel file download triggered successfully');
-          toast.success(`Excel report downloaded with ${filteredTransactions.length} transactions`);
+          // Try multiple download approaches for better compatibility
+          if ((window.navigator as any).msSaveOrOpenBlob) {
+            // IE/Edge fallback
+            (window.navigator as any).msSaveOrOpenBlob(blob, filename);
+            toast.success(`Excel report downloaded with ${filteredTransactions.length} transactions`);
+          } else {
+            // Modern browsers with enhanced approach
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            
+            link.href = url;
+            link.download = filename;
+            link.style.display = 'none';
+            
+            // Force the link to be focusable and trigger click
+            link.setAttribute('target', '_blank');
+            document.body.appendChild(link);
+            
+            // Add a small delay to ensure proper attachment
+            setTimeout(() => {
+              try {
+                // Try triggering click event
+                const clickEvent = new MouseEvent('click', {
+                  view: window,
+                  bubbles: true,
+                  cancelable: false
+                });
+                link.dispatchEvent(clickEvent);
+                
+                // Alternative trigger method
+                if (typeof link.click === 'function') {
+                  link.click();
+                }
+                
+                console.log('Excel file download triggered successfully');
+                toast.success(`Excel report downloaded with ${filteredTransactions.length} transactions`);
+              } catch (error) {
+                console.error('Download click failed:', error);
+                // Fallback: try direct URL navigation
+                window.open(url, '_blank');
+                toast.success(`Excel report generated - check your downloads folder`);
+              } finally {
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+              }
+            }, 100);
+          }
           return;
         } catch (error) {
           console.error('Error generating Excel file:', error);
