@@ -142,11 +142,16 @@ const DonationProgress = () => {
         const walletData = transaction.wallets as any;
         const gameData = transaction.games as any;
         
+        // For game purchases, show positive amounts to match dashboard display
+        const displayAmount = transaction.type === 'games' 
+          ? Math.abs(Number(transaction.amount)) 
+          : Number(transaction.amount);
+        
         return {
           'Transaction ID': transaction.id,
           'Date': new Date(transaction.created_at).toLocaleString(),
           'Type': transaction.type,
-          'Amount': Number(transaction.amount),
+          'Amount': displayAmount,
           'Description': transaction.description,
           'Reference': transaction.reference || '',
           'Attendee Name': walletData?.attendee_name || '',
