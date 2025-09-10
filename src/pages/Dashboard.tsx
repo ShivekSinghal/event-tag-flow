@@ -25,7 +25,7 @@ import {
   ChevronUp,
   Download
 } from "lucide-react";
-import * as XLSX from 'xlsx';
+
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -622,33 +622,41 @@ export default function Dashboard() {
       'Booking Date': new Date(booking.booking_date).toLocaleDateString('en-IN')
     }));
 
-    // Create workbook and worksheet
-    const workbook = XLSX.utils.book_new();
-    const worksheet = XLSX.utils.json_to_sheet(exportData);
-
-    // Set column widths
-    const columnWidths = [
-      { wch: 8 },   // Sr. No.
-      { wch: 20 },  // Name
-      { wch: 25 },  // Email
-      { wch: 15 },  // Phone
-      { wch: 20 },  // Package
-      { wch: 20 },  // Studio Location
-      { wch: 12 },  // Amount
-      { wch: 15 },  // Payment Status
-      { wch: 15 }   // Booking Date
+    // Create CSV headers
+    const headers = ['Sr. No.', 'Name', 'Email', 'Phone', 'Package', 'Studio Location', 'Amount (₹)', 'Payment Status', 'Booking Date'];
+    
+    // Convert to CSV format
+    const csvRows = [
+      headers.join(','),
+      ...exportData.map(row => 
+        Object.values(row).map(field => 
+          typeof field === 'string' && field.includes(',') 
+            ? `"${field.replace(/"/g, '""')}"` 
+            : field
+        ).join(',')
+      )
     ];
-    worksheet['!cols'] = columnWidths;
-
-    // Add worksheet to workbook
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Bookings');
-
+    
+    const csvContent = csvRows.join('\n');
+    
     // Generate file name with current date
     const currentDate = new Date().toLocaleDateString('en-IN').replace(/\//g, '-');
-    const fileName = `bookings-export-${currentDate}.xlsx`;
+    const fileName = `bookings-export-${currentDate}.csv`;
 
-    // Write and download the file
-    XLSX.writeFile(workbook, fileName);
+    // Create blob and download
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    
+    if (link.download !== undefined) {
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', fileName);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
 
     toast({
       title: "Export Successful",
