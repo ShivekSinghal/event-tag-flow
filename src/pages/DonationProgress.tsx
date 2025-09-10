@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Maximize, Minimize, Download, FileText } from "lucide-react";
 import { useFlyingCards } from "@/hooks/use-flying-cards";
+import * as XLSX from 'xlsx';
 
 
 interface DonationStats {
@@ -159,7 +160,7 @@ const DonationProgress = () => {
       console.log(`Fetched ${allTransactions.length} total transactions, using ${filteredTransactions.length} after filtering`);
 
       // Format data for export
-      const csvHeaders = [
+      const headers = [
         'Transaction ID',
         'Date', 
         'Type',
@@ -173,7 +174,7 @@ const DonationProgress = () => {
         'Game Price'
       ];
 
-      const csvData = allTransactions.map(transaction => {
+      const data = filteredTransactions.map(transaction => {
         const walletData = transaction.wallets as any;
         const gameData = transaction.games as any;
         
@@ -197,9 +198,36 @@ const DonationProgress = () => {
         ];
       });
 
+      if (format === 'excel') {
+        console.log('Generating Excel file...');
+        // Create Excel workbook
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
+        
+        // Auto-size columns
+        const colWidths = headers.map((_, i) => {
+          const maxLength = Math.max(
+            headers[i].length,
+            ...data.map(row => String(row[i] || '').length)
+          );
+          return { wch: Math.min(maxLength + 2, 50) };
+        });
+        ws['!cols'] = colWidths;
+        
+        XLSX.utils.book_append_sheet(wb, ws, 'Transactions');
+        
+        const filename = `transactions_${startAfter > 0 ? `after_${startAfter}_` : ''}${new Date().toISOString().split('T')[0]}.xlsx`;
+        XLSX.writeFile(wb, filename);
+        
+        toast.success(`Excel report downloaded with ${filteredTransactions.length} transactions`);
+        return;
+      }
+      // CSV Export (fallback)
+      const csvData = data;
+
       // Convert to CSV string with BOM for proper encoding
       const csvContent = [
-        csvHeaders.join(','),
+        headers.join(','),
         ...csvData.map(row => 
           row.map(field => {
             // Handle different field types properly
