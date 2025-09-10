@@ -200,27 +200,52 @@ const DonationProgress = () => {
 
       if (format === 'excel') {
         console.log('Generating Excel file...');
-        // Create Excel workbook
-        const wb = XLSX.utils.book_new();
-        const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
-        
-        // Auto-size columns
-        const colWidths = headers.map((_, i) => {
-          const maxLength = Math.max(
-            headers[i].length,
-            ...data.map(row => String(row[i] || '').length)
-          );
-          return { wch: Math.min(maxLength + 2, 50) };
-        });
-        ws['!cols'] = colWidths;
-        
-        XLSX.utils.book_append_sheet(wb, ws, 'Transactions');
-        
-        const filename = `transactions_${startAfter > 0 ? `after_${startAfter}_` : ''}${new Date().toISOString().split('T')[0]}.xlsx`;
-        XLSX.writeFile(wb, filename);
-        
-        toast.success(`Excel report downloaded with ${filteredTransactions.length} transactions`);
-        return;
+        try {
+          // Create Excel workbook
+          const wb = XLSX.utils.book_new();
+          const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
+          
+          // Auto-size columns
+          const colWidths = headers.map((_, i) => {
+            const maxLength = Math.max(
+              headers[i].length,
+              ...data.map(row => String(row[i] || '').length)
+            );
+            return { wch: Math.min(maxLength + 2, 50) };
+          });
+          ws['!cols'] = colWidths;
+          
+          XLSX.utils.book_append_sheet(wb, ws, 'Transactions');
+          
+          // Generate buffer and create blob
+          const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+          const blob = new Blob([excelBuffer], { 
+            type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+          });
+          
+          // Create download link
+          const filename = `transactions_${startAfter > 0 ? `after_${startAfter}_` : ''}${new Date().toISOString().split('T')[0]}.xlsx`;
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          
+          link.href = url;
+          link.download = filename;
+          link.style.display = 'none';
+          
+          // Trigger download
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+          
+          console.log('Excel file download triggered successfully');
+          toast.success(`Excel report downloaded with ${filteredTransactions.length} transactions`);
+          return;
+        } catch (error) {
+          console.error('Error generating Excel file:', error);
+          toast.error('Failed to generate Excel file. Please try again.');
+          return;
+        }
       }
       // CSV Export (fallback)
       const csvData = data;
