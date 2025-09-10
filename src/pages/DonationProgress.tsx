@@ -4,8 +4,9 @@ import { Button } from "@/components/ui/button";
 import { CircularProgress } from "@/components/ui/circular-progress";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Maximize, Minimize } from "lucide-react";
+import { Maximize, Minimize, Download } from "lucide-react";
 import { useFlyingCards } from "@/hooks/use-flying-cards";
+import * as XLSX from 'xlsx';
 
 interface DonationStats {
   totalRaised: number;
@@ -113,6 +114,85 @@ const DonationProgress = () => {
     }
   }, [stats.goal, lastTransactionId, addCard, loadExistingTransactions]);
 
+  const downloadSalesReport = async () => {
+    try {
+      // Fetch all transactions with detailed information
+      const { data: transactions, error } = await supabase
+        .from('transactions')
+        .select(`
+          id,
+          amount,
+          type,
+          description,
+          reference,
+          created_at,
+          wallets(attendee_name, attendee_phone, studio),
+          games(name, price)
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching transactions:', error);
+        toast.error('Failed to fetch transaction data');
+        return;
+      }
+
+      // Format data for export
+      const exportData = transactions?.map(transaction => {
+        const walletData = transaction.wallets as any;
+        const gameData = transaction.games as any;
+        
+        return {
+          'Transaction ID': transaction.id,
+          'Date': new Date(transaction.created_at).toLocaleString(),
+          'Type': transaction.type,
+          'Amount': Number(transaction.amount),
+          'Description': transaction.description,
+          'Reference': transaction.reference || '',
+          'Attendee Name': walletData?.attendee_name || '',
+          'Phone': walletData?.attendee_phone || '',
+          'Studio': walletData?.studio || '',
+          'Game Name': gameData?.name || '',
+          'Game Price': gameData?.price || ''
+        };
+      }) || [];
+
+      // Create workbook and worksheet
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      
+      // Set column widths
+      const colWidths = [
+        { wch: 20 }, // Transaction ID
+        { wch: 20 }, // Date
+        { wch: 10 }, // Type
+        { wch: 10 }, // Amount
+        { wch: 30 }, // Description
+        { wch: 15 }, // Reference
+        { wch: 20 }, // Attendee Name
+        { wch: 15 }, // Phone
+        { wch: 15 }, // Studio
+        { wch: 20 }, // Game Name
+        { wch: 10 }  // Game Price
+      ];
+      ws['!cols'] = colWidths;
+
+      // Add worksheet to workbook
+      XLSX.utils.book_append_sheet(wb, ws, 'Sales Report');
+
+      // Generate filename with current date
+      const filename = `sales_report_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+      // Save file
+      XLSX.writeFile(wb, filename);
+      
+      toast.success(`Sales report downloaded as ${filename}`);
+    } catch (error) {
+      console.error('Error generating sales report:', error);
+      toast.error('Failed to generate sales report');
+    }
+  };
+
   const toggleFullscreen = () => {
     if (!isFullscreen) {
       document.documentElement.requestFullscreen?.();
@@ -199,6 +279,14 @@ const DonationProgress = () => {
         
         {/* Fullscreen Control Buttons */}
         <div className="absolute top-4 right-4 z-50 flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={downloadSalesReport}
+          >
+            <Download className="w-4 h-4 mr-1" />
+            Export
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -302,6 +390,14 @@ const DonationProgress = () => {
       {!isFullscreen && (
         <div className="text-center mb-12 relative">
           <div className="absolute top-0 right-0 flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={downloadSalesReport}
+            >
+              <Download className="w-4 h-4 mr-1" />
+              Export
+            </Button>
             <Button
               variant="outline"
               size="sm"
