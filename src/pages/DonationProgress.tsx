@@ -194,34 +194,68 @@ const DonationProgress = () => {
         ];
       });
 
-      // Convert to CSV string
+      // Convert to CSV string with BOM for proper encoding
       const csvContent = [
         csvHeaders.join(','),
         ...csvData.map(row => 
-          row.map(field => 
-            typeof field === 'string' && field.includes(',') 
-              ? `"${field.replace(/"/g, '""')}"` 
-              : field
-          ).join(',')
+          row.map(field => {
+            // Handle different field types properly
+            if (field === null || field === undefined) return '';
+            const stringField = String(field);
+            // Escape quotes and wrap in quotes if contains comma, quote, or newline
+            if (stringField.includes(',') || stringField.includes('"') || stringField.includes('\n')) {
+              return `"${stringField.replace(/"/g, '""')}"`;
+            }
+            return stringField;
+          }).join(',')
         )
       ].join('\n');
 
-      // Create blob and download
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
+      console.log(`Generated CSV with ${csvData.length} rows`);
+      console.log('First few lines of CSV:', csvContent.split('\n').slice(0, 3));
+
+      // Add BOM for proper Excel compatibility
+      const BOM = '\uFEFF';
+      const csvWithBOM = BOM + csvContent;
+
+      // Create blob and download with more robust approach
+      const blob = new Blob([csvWithBOM], { 
+        type: 'text/csv;charset=utf-8;' 
+      });
       
-      if (link.download !== undefined) {
-        const url = URL.createObjectURL(blob);
-        link.setAttribute('href', url);
-        const filename = `sales_report_${new Date().toISOString().split('T')[0]}.csv`;
-        link.setAttribute('download', filename);
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-        
+      const filename = `sales_report_${new Date().toISOString().split('T')[0]}.csv`;
+      
+      // Try multiple download approaches for better compatibility
+      if ((window.navigator as any).msSaveOrOpenBlob) {
+        // IE/Edge fallback
+        (window.navigator as any).msSaveOrOpenBlob(blob, filename);
         toast.success(`CSV report downloaded with ${allTransactions.length} transactions`);
+      } else {
+        // Modern browsers
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        
+        link.href = url;
+        link.download = filename;
+        link.style.display = 'none';
+        
+        // Ensure the link is properly attached and triggered
+        document.body.appendChild(link);
+        
+        // Add a small delay to ensure proper attachment
+        setTimeout(() => {
+          try {
+            link.click();
+            console.log('Download triggered successfully');
+            toast.success(`CSV report downloaded with ${allTransactions.length} transactions`);
+          } catch (error) {
+            console.error('Download click failed:', error);
+            toast.error('Download failed - please try again');
+          } finally {
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+          }
+        }, 100);
       }
     } catch (error) {
       console.error('Error generating CSV report:', error);
