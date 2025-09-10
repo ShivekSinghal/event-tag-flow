@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Maximize, Minimize, Download } from "lucide-react";
 import { useFlyingCards } from "@/hooks/use-flying-cards";
-import * as XLSX from 'xlsx';
+
 
 interface DonationStats {
   totalRaised: number;
@@ -116,30 +116,61 @@ const DonationProgress = () => {
 
   const downloadSalesReport = async () => {
     try {
-      // Fetch all transactions with detailed information (set very high limit)
-      const { data: transactions, error } = await supabase
-        .from('transactions')
-        .select(`
-          id,
-          amount,
-          type,
-          description,
-          reference,
-          created_at,
-          wallets(attendee_name, attendee_phone, studio),
-          games(name, price)
-        `)
-        .order('created_at', { ascending: false })
-        .limit(50000); // Very high limit to ensure all data is fetched
+      // Fetch ALL transactions by removing limit and using pagination if needed
+      let allTransactions: any[] = [];
+      let hasMore = true;
+      let page = 0;
+      const pageSize = 1000;
 
-      if (error) {
-        console.error('Error fetching transactions:', error);
-        toast.error('Failed to fetch transaction data');
-        return;
+      while (hasMore) {
+        const { data: transactions, error } = await supabase
+          .from('transactions')
+          .select(`
+            id,
+            amount,
+            type,
+            description,
+            reference,
+            created_at,
+            wallets(attendee_name, attendee_phone, studio),
+            games(name, price)
+          `)
+          .order('created_at', { ascending: false })
+          .range(page * pageSize, (page + 1) * pageSize - 1);
+
+        if (error) {
+          console.error('Error fetching transactions:', error);
+          toast.error('Failed to fetch transaction data');
+          return;
+        }
+
+        if (!transactions || transactions.length === 0) {
+          hasMore = false;
+        } else {
+          allTransactions = [...allTransactions, ...transactions];
+          hasMore = transactions.length === pageSize;
+          page++;
+        }
       }
 
-      // Format data for export
-      const exportData = transactions?.map(transaction => {
+      console.log(`Fetched ${allTransactions.length} total transactions`);
+
+      // Format data for CSV export
+      const csvHeaders = [
+        'Transaction ID',
+        'Date', 
+        'Type',
+        'Amount',
+        'Description',
+        'Reference',
+        'Attendee Name',
+        'Phone',
+        'Studio',
+        'Game Name',
+        'Game Price'
+      ];
+
+      const csvData = allTransactions.map(transaction => {
         const walletData = transaction.wallets as any;
         const gameData = transaction.games as any;
         
@@ -148,54 +179,53 @@ const DonationProgress = () => {
           ? Math.abs(Number(transaction.amount)) 
           : Number(transaction.amount);
         
-        return {
-          'Transaction ID': transaction.id,
-          'Date': new Date(transaction.created_at).toLocaleString(),
-          'Type': transaction.type,
-          'Amount': displayAmount,
-          'Description': transaction.description,
-          'Reference': transaction.reference || '',
-          'Attendee Name': walletData?.attendee_name || '',
-          'Phone': walletData?.attendee_phone || '',
-          'Studio': walletData?.studio || '',
-          'Game Name': gameData?.name || '',
-          'Game Price': gameData?.price || ''
-        };
-      }) || [];
+        return [
+          transaction.id,
+          new Date(transaction.created_at).toLocaleString(),
+          transaction.type,
+          displayAmount,
+          transaction.description,
+          transaction.reference || '',
+          walletData?.attendee_name || '',
+          walletData?.attendee_phone || '',
+          walletData?.studio || '',
+          gameData?.name || '',
+          gameData?.price || ''
+        ];
+      });
 
-      // Create workbook and worksheet
-      const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.json_to_sheet(exportData);
+      // Convert to CSV string
+      const csvContent = [
+        csvHeaders.join(','),
+        ...csvData.map(row => 
+          row.map(field => 
+            typeof field === 'string' && field.includes(',') 
+              ? `"${field.replace(/"/g, '""')}"` 
+              : field
+          ).join(',')
+        )
+      ].join('\n');
+
+      // Create blob and download
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
       
-      // Set column widths
-      const colWidths = [
-        { wch: 20 }, // Transaction ID
-        { wch: 20 }, // Date
-        { wch: 10 }, // Type
-        { wch: 10 }, // Amount
-        { wch: 30 }, // Description
-        { wch: 15 }, // Reference
-        { wch: 20 }, // Attendee Name
-        { wch: 15 }, // Phone
-        { wch: 15 }, // Studio
-        { wch: 20 }, // Game Name
-        { wch: 10 }  // Game Price
-      ];
-      ws['!cols'] = colWidths;
-
-      // Add worksheet to workbook
-      XLSX.utils.book_append_sheet(wb, ws, 'Sales Report');
-
-      // Generate filename with current date
-      const filename = `sales_report_${new Date().toISOString().split('T')[0]}.xlsx`;
-
-      // Save file
-      XLSX.writeFile(wb, filename);
-      
-      toast.success(`Sales report downloaded as ${filename}`);
+      if (link.download !== undefined) {
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        const filename = `sales_report_${new Date().toISOString().split('T')[0]}.csv`;
+        link.setAttribute('download', filename);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        
+        toast.success(`CSV report downloaded with ${allTransactions.length} transactions`);
+      }
     } catch (error) {
-      console.error('Error generating sales report:', error);
-      toast.error('Failed to generate sales report');
+      console.error('Error generating CSV report:', error);
+      toast.error('Failed to generate CSV report');
     }
   };
 
