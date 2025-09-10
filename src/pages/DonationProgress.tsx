@@ -45,10 +45,18 @@ const DonationProgress = () => {
         return;
       }
 
-      // Calculate total from all positive transactions (top-ups contribute to donations)
+      // Calculate total from all transactions (top-ups + revenue from games/drinks/food)
       const totalRaised = transactions
-        ?.filter(t => t.type === 'load')
-        .reduce((sum, transaction) => sum + Number(transaction.amount), 0) || 0;
+        ?.reduce((sum, transaction) => {
+          if (transaction.type === 'load') {
+            // Top-ups contribute directly to donations
+            return sum + Number(transaction.amount);
+          } else if (['games', 'drinks', 'food'].includes(transaction.type)) {
+            // Revenue from purchases also contributes (amounts are negative, so we take absolute value)
+            return sum + Math.abs(Number(transaction.amount));
+          }
+          return sum;
+        }, 0) || 0;
 
       const percentage = Math.min(100, (totalRaised / stats.goal) * 100);
 
