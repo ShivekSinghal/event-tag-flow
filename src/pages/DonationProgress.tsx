@@ -116,7 +116,7 @@ const DonationProgress = () => {
 
   const downloadSalesReport = async () => {
     try {
-      // Fetch all transactions with detailed information (no limit to get all data)
+      // Fetch all transactions with detailed information (set very high limit)
       const { data: transactions, error } = await supabase
         .from('transactions')
         .select(`
@@ -130,7 +130,7 @@ const DonationProgress = () => {
           games(name, price)
         `)
         .order('created_at', { ascending: false })
-        .limit(10000); // Set high limit to ensure all data is fetched
+        .limit(50000); // Very high limit to ensure all data is fetched
 
       if (error) {
         console.error('Error fetching transactions:', error);
