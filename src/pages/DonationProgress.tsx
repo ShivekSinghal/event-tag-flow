@@ -355,10 +355,10 @@ const DonationProgress = () => {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => downloadSalesReport('csv')}
+            onClick={() => downloadSalesReport('excel')}
           >
             <Download className="w-4 h-4 mr-1" />
-            CSV
+            Excel (All)
           </Button>
           <Button
             variant="outline"
@@ -474,10 +474,10 @@ const DonationProgress = () => {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => downloadSalesReport('csv')}
+              onClick={() => downloadSalesReport('excel')}
             >
               <Download className="w-4 h-4 mr-1" />
-              CSV
+              Excel (All)
             </Button>
             <Button
               variant="outline"
