@@ -53,6 +53,33 @@ const Auth = () => {
     // Don't navigate on signup - user needs to verify email
   };
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+
+    const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+
+    setIsLoading(false);
+
+    if (error) {
+      toast({
+        title: 'Reset Failed',
+        description: error.message,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    toast({
+      title: 'Check your email',
+      description: 'We sent you a link to reset your password.',
+    });
+    setView('auth');
+    setResetEmail('');
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -125,6 +152,13 @@ const Auth = () => {
                 <Button type="submit" className="w-full" disabled={isLoading}>
                   {isLoading ? 'Signing In...' : 'Sign In'}
                 </Button>
+                <button
+                  type="button"
+                  onClick={() => { setResetEmail(email); setView('forgot'); }}
+                  className="w-full text-sm text-muted-foreground hover:text-foreground underline-offset-4 hover:underline"
+                >
+                  Forgot password?
+                </button>
               </form>
             </TabsContent>
             
