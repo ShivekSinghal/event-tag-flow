@@ -17,43 +17,43 @@ export type Database = {
       bookings: {
         Row: {
           amount: number
-          booking_date: string
-          created_at: string
+          booking_date: string | null
+          created_at: string | null
           id: string
-          package_name: string
+          package_name: string | null
           payment_id: string | null
           payment_status: string | null
           studio_location: string
-          updated_at: string
-          user_email: string
+          updated_at: string | null
+          user_email: string | null
           user_name: string
           user_phone: string
         }
         Insert: {
           amount: number
-          booking_date?: string
-          created_at?: string
+          booking_date?: string | null
+          created_at?: string | null
           id?: string
-          package_name: string
+          package_name?: string | null
           payment_id?: string | null
           payment_status?: string | null
           studio_location: string
-          updated_at?: string
-          user_email: string
+          updated_at?: string | null
+          user_email?: string | null
           user_name: string
           user_phone: string
         }
         Update: {
           amount?: number
-          booking_date?: string
-          created_at?: string
+          booking_date?: string | null
+          created_at?: string | null
           id?: string
-          package_name?: string
+          package_name?: string | null
           payment_id?: string | null
           payment_status?: string | null
           studio_location?: string
-          updated_at?: string
-          user_email?: string
+          updated_at?: string | null
+          user_email?: string | null
           user_name?: string
           user_phone?: string
         }
@@ -303,10 +303,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      get_current_user_role: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
+      get_current_user_role: { Args: never; Returns: string }
       user_has_permission: {
         Args: { _game_id?: string; _permission_type: string; _user_id: string }
         Returns: boolean
