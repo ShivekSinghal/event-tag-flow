@@ -1,44 +1,30 @@
-## Problem
+# Add Password Reset Flow
 
-You can't log in to the dashboard because the **app is failing to build**. The TypeScript compiler is reporting:
+Let users reset their own password from the login page via a "Forgot password?" link that emails a reset link, which leads to a page where they set a new password.
 
-```
-src/utils/nfc.ts(22,24): error TS2503: Cannot find namespace 'NodeJS'.
-src/utils/nfc.ts(24,29): error TS2503: Cannot find namespace 'NodeJS'.
-```
+## 1. Update `src/pages/Auth.tsx`
+- Add a **"Forgot password?"** link below the Sign In password field.
+- Add a new `forgot` view (toggled via local state, not a tab) that shows:
+  - Email input
+  - "Send reset link" button → calls `supabase.auth.resetPasswordForEmail(email, { redirectTo: \`${window.location.origin}/reset-password\` })`
+  - Success toast: "Check your email for a reset link"
+  - "Back to sign in" link
+- Keep existing Sign In / Sign Up tabs untouched.
 
-This means the bundle never loads cleanly, so the Auth page (and everything else) won't function properly. This was introduced by leftover edits — Supabase auth itself is fine, your user accounts are intact (e.g. `singhalshivek24@gmail.com` admin, `universal@hashtag.dance` admin, etc.).
+## 2. Create `src/pages/ResetPassword.tsx` (new)
+- Public page (no auth guard).
+- On mount, check `window.location.hash` for `type=recovery` — Supabase auto-creates a recovery session from the link. Listen via `supabase.auth.onAuthStateChange` for the `PASSWORD_RECOVERY` event.
+- Show form with **New password** + **Confirm password** fields (with show/hide toggle, matching Auth.tsx style).
+- On submit: `supabase.auth.updateUser({ password })` → toast success → sign out → navigate to `/auth`.
+- Handle the case where the recovery token is missing/expired (show error + link back to "Forgot password").
 
-## Root cause
+## 3. Register the route in `src/App.tsx`
+- Add `<Route path="/reset-password" element={<ResetPassword />} />` **outside** the `ProtectedRoute` wrapper (it must be public so users arriving from email aren't redirected).
 
-`src/utils/nfc.ts` declares two private fields using `NodeJS.Timeout`:
+## 4. Email delivery
+- Supabase's default recovery email template will be used — no custom email setup needed. The reset link will redirect to `https://nfc.hashtag.dance/reset-password` (or the preview URL during testing).
+- **Action required from you in the Supabase dashboard:** ensure `https://nfc.hashtag.dance/reset-password` and your preview URL are listed under **Auth → URL Configuration → Redirect URLs**. Otherwise Supabase will block the redirect. I'll remind you with a direct link after implementation.
 
-```ts
-private scanTimeout: NodeJS.Timeout | null = null;
-private progressInterval: NodeJS.Timeout | null = null;
-```
-
-`NodeJS` is a Node-only namespace and isn't available in this browser/Vite project's TypeScript config, so the typecheck fails and the build breaks.
-
-## Fix
-
-Replace both `NodeJS.Timeout` types with the browser-safe equivalents:
-
-```ts
-private scanTimeout: ReturnType<typeof setTimeout> | null = null;
-private progressInterval: ReturnType<typeof setInterval> | null = null;
-```
-
-This is the standard cross-environment way to type timer handles and works in both browser and Node without needing `@types/node`.
-
-## Files changed
-
-- `src/utils/nfc.ts` — update lines 22 and 24 only.
-
-## Expected outcome
-
-- TypeScript build succeeds.
-- The Auth page loads correctly.
-- You can sign in and reach the Dashboard again with your existing admin credentials.
-
-No database changes, no auth config changes needed.
+## Out of scope
+- No custom branded email templates (default Supabase recovery email is fine for now — can be added later if you want).
+- No changes to existing roles, profiles, or admin user management.
