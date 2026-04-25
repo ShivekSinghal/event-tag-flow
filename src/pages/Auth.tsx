@@ -100,10 +100,38 @@ const Auth = () => {
             <CardTitle className="text-2xl">Game POS</CardTitle>
           </div>
           <CardDescription>
-            Sign in to access the game management system
+            {view === 'forgot'
+              ? 'Enter your email to receive a reset link'
+              : 'Sign in to access the game management system'}
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {view === 'forgot' ? (
+            <form onSubmit={handleForgotPassword} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="reset-email">Email</Label>
+                <Input
+                  id="reset-email"
+                  type="email"
+                  placeholder="Enter your email"
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value)}
+                  required
+                />
+              </div>
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? 'Sending...' : 'Send Reset Link'}
+              </Button>
+              <button
+                type="button"
+                onClick={() => setView('auth')}
+                className="w-full inline-flex items-center justify-center text-sm text-muted-foreground hover:text-foreground"
+              >
+                <ArrowLeft className="h-3 w-3 mr-1" />
+                Back to sign in
+              </button>
+            </form>
+          ) : (
           <Tabs defaultValue="signin" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="signin">Sign In</TabsTrigger>
