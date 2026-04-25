@@ -19,9 +19,9 @@ export class NFCManager {
   private static instance: NFCManager;
   private reader: any = null;
   private isScanning: boolean = false;
-  private scanTimeout: NodeJS.Timeout | null = null;
+  private scanTimeout: ReturnType<typeof setTimeout> | null = null;
   private scanStartTime: number = 0;
-  private progressInterval: NodeJS.Timeout | null = null;
+  private progressInterval: ReturnType<typeof setInterval> | null = null;
   private onScanStateChange?: (state: NFCScanState) => void;
 
   static getInstance(): NFCManager {
