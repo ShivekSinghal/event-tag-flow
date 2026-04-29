@@ -4,4 +4,4 @@ project_id = "xdaienqjbybomctsoiro"
 verify_jwt = false
 
 [functions.bulk-create-users]
-verify_jwt = true
+verify_jwt = false
