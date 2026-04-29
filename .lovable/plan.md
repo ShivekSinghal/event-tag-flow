@@ -1,10 +1,35 @@
-# Run bulk user creation (no JWT)
+## Goal
 
-1. Update `supabase/config.toml` to set `verify_jwt = false` for `bulk-create-users`.
-2. Patch `supabase/functions/bulk-create-users/index.ts` to remove the caller-JWT admin check (since there's no JWT now). Keep service-role key server-side. The function will still only be invoked once by me from this session.
-3. Redeploy the function.
-4. Invoke it with the 10 users payload.
-5. Return per-user success/failure log.
-6. After completion, recommend deleting/locking the function (or I can re-enable JWT verification in a follow-up).
+In the POS Food section, hardcode the menu pricing properly so totals and NFC charges work correctly, and make the Food Calculator always visible (no toggle).
 
-Security note: temporarily disabling JWT means anyone who knows the function URL could call it during the brief window it's open. I will redeploy a locked-down version (verify_jwt = true) immediately after the one-shot run so it can't be reused.
+## Changes
+
+**File:** `src/pages/POS.tsx`
+
+### 1. Fix price parsing in dish dropdown
+Each `<SelectItem>` `value` currently encodes the price with a `₹` symbol (e.g. `"Manas' Curry Cut Biryani|₹550"`). The handler does `parseFloat(price)`, and `parseFloat("₹550")` returns `NaN`, so added items get a broken price and the calculator total / NFC charge are wrong.
+
+Drop the `₹` from the `value` only — keep it in the visible label:
+
+| Item | Old `value` | New `value` |
+|---|---|---|
+| Manas' Curry Cut Biryani | `Manas' Curry Cut Biryani\|₹550` | `Manas' Curry Cut Biryani\|550` |
+| Chicken 65 | `Chicken 65\|₹350` | `Chicken 65\|350` |
+| Gobhi 65 | `Gobhi 65\|₹250` | `Gobhi 65\|250` |
+| Chicken Chicken | `Chicken Chicken\|₹400` | `Chicken Chicken\|400` |
+| Veg Korma | `Veg Korma\|₹300` | `Veg Korma\|300` |
+| Parotta | `Parotta\|₹100` | `Parotta\|100` |
+
+Items and prices match the screenshot exactly — no items added or removed.
+
+### 2. Remove the "Show Calculator" toggle
+Currently the Food section shows just an empty header until the user clicks "Show Calculator". Make the calculator always visible:
+- Remove the toggle `<Button>` and the `showCalculator` conditional wrapper around the Food Calculator `<Card>`.
+- Replace the toggle row with a simple section heading (Calculator icon + "Food Items").
+- Leave the `showCalculator` state declaration in place (low risk; harmless if unused elsewhere).
+
+## Out of scope
+
+- Drinks prices — unchanged.
+- Backend / DB — food sales are written into `transactions` at sale time using the price passed in. With the parseFloat fix, the correct numeric amount flows into Supabase automatically. There is no menu table to update.
+- Permissions, NFC flow, custom games — unchanged.

@@ -645,164 +645,152 @@ export default function POS() {
                     {/* Food & Custom Section */}
                     {activeSection === "food" && (
                       <div className="space-y-4">
-                        {/* Food Calculator Toggle */}
-                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                        <div className="flex items-center gap-2">
+                          <Calculator className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
                           <h3 className="text-base sm:text-lg font-medium">Food Items</h3>
-                          <Button
-                            variant="outline"
-                            onClick={() => setShowCalculator(!showCalculator)}
-                            className="flex items-center space-x-2 w-full sm:w-auto text-xs sm:text-sm"
-                            size="sm"
-                          >
-                            <Calculator className="w-3 h-3 sm:w-4 sm:h-4" />
-                            <span>{showCalculator ? "Hide Calculator" : "Show Calculator"}</span>
-                          </Button>
                         </div>
 
-                        {/* Food Calculator */}
-                        {showCalculator && (
-                          <Card className="border-primary/20">
-                            <CardHeader className="pb-3">
-                              <CardTitle className="text-base sm:text-lg">Food Calculator</CardTitle>
-                              <p className="text-xs sm:text-sm text-muted-foreground">
-                                Add multiple dishes to calculate total before payment
-                              </p>
-                            </CardHeader>
-                            <CardContent className="space-y-4">
-                              {/* Dish Dropdown */}
+                        {/* Food Calculator (always visible) */}
+                        <Card className="border-primary/20">
+                          <CardHeader className="pb-3">
+                            <CardTitle className="text-base sm:text-lg">Food Calculator</CardTitle>
+                            <p className="text-xs sm:text-sm text-muted-foreground">
+                              Add multiple dishes to calculate total before payment
+                            </p>
+                          </CardHeader>
+                          <CardContent className="space-y-4">
+                            {/* Dish Dropdown */}
+                            <div className="space-y-2">
+                              <Label htmlFor="dish-select" className="text-xs sm:text-sm">
+                                Select Dish
+                              </Label>
+                              <Select
+                                onValueChange={(value) => {
+                                  const [name, price] = value.split("|");
+                                  setCalculatorItems([
+                                    ...calculatorItems,
+                                    { name, price: parseFloat(price), quantity: 1 },
+                                  ]);
+                                }}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Choose a dish to add" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="Manas' Curry Cut Biryani|550">
+                                    Manas' Curry Cut Biryani - ₹550
+                                  </SelectItem>
+                                  <SelectItem value="Chicken 65|350">Chicken 65 - ₹350</SelectItem>
+                                  <SelectItem value="Gobhi 65|250">Gobhi 65 - ₹250</SelectItem>
+                                  <SelectItem value="Chicken Chicken|400">Chicken Chicken - ₹400</SelectItem>
+                                  <SelectItem value="Veg Korma|300">Veg Korma - ₹300</SelectItem>
+                                  <SelectItem value="Parotta|100">Parotta - ₹100</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            {/* Calculator Items List */}
+                            {calculatorItems.length > 0 && (
                               <div className="space-y-2">
-                                <Label htmlFor="dish-select" className="text-xs sm:text-sm">
-                                  Select Dish
-                                </Label>
-                                <Select
-                                  onValueChange={(value) => {
-                                    const [name, price] = value.split("|");
-                                    setCalculatorItems([
-                                      ...calculatorItems,
-                                      { name, price: parseFloat(price), quantity: 1 },
-                                    ]);
-                                  }}
-                                >
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Choose a dish to add" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="Manas' Curry Cut Biryani|₹550">
-                                      Manas' Curry Cut Biryani - ₹550
-                                    </SelectItem>
-                                    <SelectItem value="Chicken 65|₹350">Chicken 65 - ₹350</SelectItem>
-                                    <SelectItem value="Gobhi 65|₹250">Gobhi 65 - ₹250</SelectItem>
-                                    <SelectItem value="Chicken Chicken|₹400">Chicken Chicken - ₹400</SelectItem>
-                                    <SelectItem value="Veg Korma|₹300">Veg Korma - ₹300</SelectItem>
-
-                                    <SelectItem value="Parotta|₹100">Parotta - ₹100</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </div>
-
-                              {/* Calculator Items List */}
-                              {calculatorItems.length > 0 && (
-                                <div className="space-y-2">
-                                  <h4 className="font-medium text-sm sm:text-base">Added Items:</h4>
-                                  {calculatorItems.map((item, index) => (
-                                    <div
-                                      key={index}
-                                      className="flex items-center justify-between p-2 sm:p-3 border rounded-lg"
-                                    >
-                                      <div className="flex-1 min-w-0">
-                                        <div className="font-medium text-sm sm:text-base truncate">{item.name}</div>
-                                        <div className="text-xs sm:text-sm text-muted-foreground">
-                                          ₹{item.price.toFixed(2)} each
-                                        </div>
-                                      </div>
-                                      <div className="flex items-center space-x-1 sm:space-x-2 shrink-0">
-                                        <Button
-                                          variant="outline"
-                                          size="sm"
-                                          onClick={() => {
-                                            const newItems = [...calculatorItems];
-                                            if (newItems[index].quantity > 1) {
-                                              newItems[index].quantity -= 1;
-                                              setCalculatorItems(newItems);
-                                            }
-                                          }}
-                                          className="w-6 h-6 sm:w-8 sm:h-8 p-0 text-xs"
-                                        >
-                                          -
-                                        </Button>
-                                        <span className="w-6 sm:w-8 text-center text-xs sm:text-sm">
-                                          {item.quantity}
-                                        </span>
-                                        <Button
-                                          variant="outline"
-                                          size="sm"
-                                          onClick={() => {
-                                            const newItems = [...calculatorItems];
-                                            newItems[index].quantity += 1;
-                                            setCalculatorItems(newItems);
-                                          }}
-                                          className="w-6 h-6 sm:w-8 sm:h-8 p-0 text-xs"
-                                        >
-                                          +
-                                        </Button>
-                                        <Button
-                                          variant="destructive"
-                                          size="sm"
-                                          onClick={() => {
-                                            setCalculatorItems(calculatorItems.filter((_, i) => i !== index));
-                                          }}
-                                          className="w-6 h-6 sm:w-8 sm:h-8 p-0 text-xs"
-                                        >
-                                          ×
-                                        </Button>
+                                <h4 className="font-medium text-sm sm:text-base">Added Items:</h4>
+                                {calculatorItems.map((item, index) => (
+                                  <div
+                                    key={index}
+                                    className="flex items-center justify-between p-2 sm:p-3 border rounded-lg"
+                                  >
+                                    <div className="flex-1 min-w-0">
+                                      <div className="font-medium text-sm sm:text-base truncate">{item.name}</div>
+                                      <div className="text-xs sm:text-sm text-muted-foreground">
+                                        ₹{item.price.toFixed(2)} each
                                       </div>
                                     </div>
-                                  ))}
-
-                                  {/* Total and Pay */}
-                                  <div className="border-t pt-4">
-                                    <div className="flex justify-between items-center mb-4">
-                                      <span className="text-base sm:text-lg font-bold">Total:</span>
-                                      <span className="text-lg sm:text-2xl font-bold text-primary">
-                                        ₹
-                                        {calculatorItems
-                                          .reduce((total, item) => total + item.price * item.quantity, 0)
-                                          .toFixed(2)}
-                                      </span>
-                                    </div>
-                                    <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
+                                    <div className="flex items-center space-x-1 sm:space-x-2 shrink-0">
                                       <Button
                                         variant="outline"
-                                        onClick={() => setCalculatorItems([])}
-                                        className="flex-1 text-xs sm:text-sm"
                                         size="sm"
+                                        onClick={() => {
+                                          const newItems = [...calculatorItems];
+                                          if (newItems[index].quantity > 1) {
+                                            newItems[index].quantity -= 1;
+                                            setCalculatorItems(newItems);
+                                          }
+                                        }}
+                                        className="w-6 h-6 sm:w-8 sm:h-8 p-0 text-xs"
                                       >
-                                        Clear All
+                                        -
+                                      </Button>
+                                      <span className="w-6 sm:w-8 text-center text-xs sm:text-sm">
+                                        {item.quantity}
+                                      </span>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => {
+                                          const newItems = [...calculatorItems];
+                                          newItems[index].quantity += 1;
+                                          setCalculatorItems(newItems);
+                                        }}
+                                        className="w-6 h-6 sm:w-8 sm:h-8 p-0 text-xs"
+                                      >
+                                        +
                                       </Button>
                                       <Button
+                                        variant="destructive"
+                                        size="sm"
                                         onClick={() => {
-                                          const total = calculatorItems.reduce(
-                                            (sum, item) => sum + item.price * item.quantity,
-                                            0,
-                                          );
-                                          const itemNames = calculatorItems
-                                            .map((item) => `${item.name} (${item.quantity}x)`)
-                                            .join(", ");
-                                          handleScanForPayment(total, itemNames, null);
+                                          setCalculatorItems(calculatorItems.filter((_, i) => i !== index));
                                         }}
-                                        disabled={calculatorItems.length === 0}
-                                        className="flex-1 text-sm sm:text-base h-12 sm:h-10"
-                                        size="default"
+                                        className="w-6 h-6 sm:w-8 sm:h-8 p-0 text-xs"
                                       >
-                                        Scan & Pay
+                                        ×
                                       </Button>
                                     </div>
                                   </div>
+                                ))}
+
+                                {/* Total and Pay */}
+                                <div className="border-t pt-4">
+                                  <div className="flex justify-between items-center mb-4">
+                                    <span className="text-base sm:text-lg font-bold">Total:</span>
+                                    <span className="text-lg sm:text-2xl font-bold text-primary">
+                                      ₹
+                                      {calculatorItems
+                                        .reduce((total, item) => total + item.price * item.quantity, 0)
+                                        .toFixed(2)}
+                                    </span>
+                                  </div>
+                                  <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
+                                    <Button
+                                      variant="outline"
+                                      onClick={() => setCalculatorItems([])}
+                                      className="flex-1 text-xs sm:text-sm"
+                                      size="sm"
+                                    >
+                                      Clear All
+                                    </Button>
+                                    <Button
+                                      onClick={() => {
+                                        const total = calculatorItems.reduce(
+                                          (sum, item) => sum + item.price * item.quantity,
+                                          0,
+                                        );
+                                        const itemNames = calculatorItems
+                                          .map((item) => `${item.name} (${item.quantity}x)`)
+                                          .join(", ");
+                                        handleScanForPayment(total, itemNames, null);
+                                      }}
+                                      disabled={calculatorItems.length === 0}
+                                      className="flex-1 text-sm sm:text-base h-12 sm:h-10"
+                                      size="default"
+                                    >
+                                      Scan & Pay
+                                    </Button>
+                                  </div>
                                 </div>
-                              )}
-                            </CardContent>
-                          </Card>
-                        )}
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           {customItems
