@@ -687,11 +687,14 @@ export default function POS() {
                                     <SelectValue placeholder="Choose a dish to add" />
                                   </SelectTrigger>
                                   <SelectContent>
+                                    <SelectItem value="Manas' Curry Cut Biryani|₹550">
+                                      Manas' Curry Cut Biryani - ₹550
+                                    </SelectItem>
                                     <SelectItem value="Chicken 65|₹350">Chicken 65 - ₹350</SelectItem>
                                     <SelectItem value="Gobhi 65|₹250">Gobhi 65 - ₹250</SelectItem>
                                     <SelectItem value="Chicken Chicken|₹400">Chicken Chicken - ₹400</SelectItem>
                                     <SelectItem value="Veg Korma|₹300">Veg Korma - ₹300</SelectItem>
-                                    <SelectItem value="Biryani with Raita|₹550">Biryani with Raita - ₹550</SelectItem>
+
                                     <SelectItem value="Parotta|₹100">Parotta - ₹100</SelectItem>
                                   </SelectContent>
                                 </Select>
