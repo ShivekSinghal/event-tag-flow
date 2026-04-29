@@ -1,30 +1,53 @@
-# Add Password Reset Flow
+# Bulk Create 10 Staff User Accounts
 
-Let users reset their own password from the login page via a "Forgot password?" link that emails a reset link, which leads to a page where they set a new password.
+## Goal
+Provision 10 user accounts in Supabase Auth with the provided emails/passwords, skip any that already exist, and return a per-user success/failure log.
 
-## 1. Update `src/pages/Auth.tsx`
-- Add a **"Forgot password?"** link below the Sign In password field.
-- Add a new `forgot` view (toggled via local state, not a tab) that shows:
-  - Email input
-  - "Send reset link" button → calls `supabase.auth.resetPasswordForEmail(email, { redirectTo: \`${window.location.origin}/reset-password\` })`
-  - Success toast: "Check your email for a reset link"
-  - "Back to sign in" link
-- Keep existing Sign In / Sign Up tabs untouched.
+## Approach
+Use a one-time admin edge function that calls Supabase's Admin API (`auth.admin.createUser`). Passwords are hashed by Supabase Auth automatically (bcrypt). Profiles are auto-created by the existing `handle_new_user` trigger with default role `staff`.
 
-## 2. Create `src/pages/ResetPassword.tsx` (new)
-- Public page (no auth guard).
-- On mount, check `window.location.hash` for `type=recovery` — Supabase auto-creates a recovery session from the link. Listen via `supabase.auth.onAuthStateChange` for the `PASSWORD_RECOVERY` event.
-- Show form with **New password** + **Confirm password** fields (with show/hide toggle, matching Auth.tsx style).
-- On submit: `supabase.auth.updateUser({ password })` → toast success → sign out → navigate to `/auth`.
-- Handle the case where the recovery token is missing/expired (show error + link back to "Forgot password").
+Note: the existing `handle_new_user` function references `public.profiles` but the DB schema shows no trigger is currently attached. I'll verify and, if missing, attach the `on_auth_user_created` trigger so profile rows are created. If the trigger already runs server-side (managed elsewhere), the migration will be a no-op safe `CREATE OR REPLACE` + `DROP TRIGGER IF EXISTS` + recreate.
 
-## 3. Register the route in `src/App.tsx`
-- Add `<Route path="/reset-password" element={<ResetPassword />} />` **outside** the `ProtectedRoute` wrapper (it must be public so users arriving from email aren't redirected).
+## Steps
 
-## 4. Email delivery
-- Supabase's default recovery email template will be used — no custom email setup needed. The reset link will redirect to `https://nfc.hashtag.dance/reset-password` (or the preview URL during testing).
-- **Action required from you in the Supabase dashboard:** ensure `https://nfc.hashtag.dance/reset-password` and your preview URL are listed under **Auth → URL Configuration → Redirect URLs**. Otherwise Supabase will block the redirect. I'll remind you with a direct link after implementation.
+1. **Migration** — ensure trigger exists:
+   - `DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;`
+   - `CREATE TRIGGER on_auth_user_created AFTER INSERT ON auth.users FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();`
 
-## Out of scope
-- No custom branded email templates (default Supabase recovery email is fine for now — can be added later if you want).
-- No changes to existing roles, profiles, or admin user management.
+2. **Create edge function** `supabase/functions/bulk-create-users/index.ts`:
+   - Protected: requires caller to be an authenticated admin (verify JWT, check `profiles.role = 'admin'` using service role client).
+   - Accepts `{ users: [{ email, password }] }`.
+   - For each user:
+     - Check if email exists via `supabase.auth.admin.listUsers` (paginated lookup) or attempt create and catch duplicate error.
+     - If exists → log `{ email, status: "skipped", reason: "already exists" }`.
+     - Else call `supabase.auth.admin.createUser({ email, password, email_confirm: true })` → log success or failure.
+   - Returns JSON `{ results: [...] }`.
+   - Configure `verify_jwt = true` in `supabase/config.toml`.
+
+3. **Invoke function once** from the chat (via `supabase--curl_edge_functions` after deployment) using an admin session JWT, passing the 10 users. Return the success/failure log to the user.
+
+## Users to create (all default role `staff`)
+- singhalshivek24@gmail.com
+- priyanshiikamboj05@gmail.com
+- khanduja.dhriti04@gmail.com
+- divijamalhotra@gmail.com
+- asthat2716@gmail.com
+- tarun@hashtag.dance
+- rubanimay01@gmail.com
+- kritirao1209@gmail.com
+- akash@bbuzz.digital
+- food@hashtag.dance
+
+## Security notes
+- Service role key stays inside the edge function (`Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')`), never exposed to client.
+- Function gated by admin role check so non-admins can't mass-create users.
+- Passwords transmitted once over HTTPS to the function, then hashed by Supabase Auth. They will not be retrievable afterwards — share them with users via a secure channel and recommend they reset on first login.
+
+## Deliverable
+A log printed in chat like:
+```
+singhalshivek24@gmail.com  → created
+priyanshiikamboj05@gmail.com → created
+tarun@hashtag.dance        → skipped (already exists)
+...
+```
