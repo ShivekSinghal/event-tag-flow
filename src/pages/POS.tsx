@@ -63,9 +63,9 @@ export default function POS() {
   // Drinks data
   const drinkItems: DrinkItem[] = [
     { id: "hashtag-specials", name: "Hashtag Specials", price: 1000, category: "Specials" },
-    { id: "classic-cocktails", name: "Classic Cocktails", price: 500, category: "Cocktails" },
-    { id: "ogs", name: "OG's", price: 500, category: "Cocktails" },
-    { id: "mocktails", name: "Mocktails/Beer", price: 300, category: "Mocktails" },
+    { id: "classic-cocktails", name: "Classic Cocktails", price: 800, category: "Cocktails" },
+    { id: "ogs", name: "OG's", price: 800, category: "Cocktails" },
+    { id: "mocktails", name: "Mocktails/Beer", price: 500, category: "Mocktails" },
   ];
 
   // Custom items data
