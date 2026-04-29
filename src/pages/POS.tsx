@@ -682,7 +682,7 @@ export default function POS() {
                                   </SelectItem>
                                   <SelectItem value="Chicken 65|350">Chicken 65 - ₹350</SelectItem>
                                   <SelectItem value="Gobhi 65|250">Gobhi 65 - ₹250</SelectItem>
-                                  <SelectItem value="Chicken Chicken|400">Chicken Chicken - ₹400</SelectItem>
+                                  <SelectItem value="Chicken Chettinad|400">Chicken Chettinad - ₹400</SelectItem>
                                   <SelectItem value="Veg Korma|300">Veg Korma - ₹300</SelectItem>
                                   <SelectItem value="Parotta|100">Parotta - ₹100</SelectItem>
                                 </SelectContent>
@@ -719,9 +719,7 @@ export default function POS() {
                                       >
                                         -
                                       </Button>
-                                      <span className="w-6 sm:w-8 text-center text-xs sm:text-sm">
-                                        {item.quantity}
-                                      </span>
+                                      <span className="w-6 sm:w-8 text-center text-xs sm:text-sm">{item.quantity}</span>
                                       <Button
                                         variant="outline"
                                         size="sm"
