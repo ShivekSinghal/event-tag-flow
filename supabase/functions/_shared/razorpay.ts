@@ -44,6 +44,7 @@ export async function createRazorpayOrder(params: {
   customerName: string;
   customerEmail: string;
   customerPhone: string;
+  customerStudio?: string | null;
   itemsSummary?: string;
   coinSummary?: string;
   keyId?: string | null;
@@ -66,6 +67,7 @@ export async function createRazorpayOrder(params: {
         customer_name: params.customerName,
         customer_email: params.customerEmail,
         customer_phone: params.customerPhone,
+        customer_studio: compactNote(params.customerStudio, 128),
         total_amount_inr: params.amountInr.toFixed(2),
         items_bought: compactNote(params.itemsSummary),
         pinkd_coins: compactNote(params.coinSummary, 256),

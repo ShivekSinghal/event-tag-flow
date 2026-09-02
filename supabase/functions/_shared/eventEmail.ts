@@ -18,6 +18,7 @@ type EventOrder = {
   customer_name: string;
   customer_email: string;
   customer_phone: string;
+  customer_studio: string | null;
   total_amount_inr: number;
   payment_provider: string;
   payment_reference: string | null;
@@ -93,6 +94,7 @@ function renderConfirmationEmail(order: EventOrder) {
                 <span style="color:#777;">Payment</span>
                 <strong style="color:#111;">${escapeHtml(order.payment_provider || "payment")}</strong>
               </div>
+              ${order.customer_studio ? `<div style="display:flex;justify-content:space-between;gap:12px;margin-bottom:8px;"><span style="color:#777;">Studio</span><strong style="color:#111;">${escapeHtml(order.customer_studio)}</strong></div>` : ""}
               ${paidAt ? `<div style="display:flex;justify-content:space-between;gap:12px;"><span style="color:#777;">Paid At</span><strong style="color:#111;">${escapeHtml(paidAt)}</strong></div>` : ""}
             </div>
 
@@ -120,7 +122,7 @@ function renderConfirmationEmail(order: EventOrder) {
 export async function sendEventConfirmationEmail(supabase: SupabaseAdminClient, eventOrderId: string) {
   const { data: order, error: orderError } = await supabase
     .from("event_orders")
-    .select("id, customer_name, customer_email, customer_phone, total_amount_inr, payment_provider, payment_reference, paid_at, confirmation_email_sent_at, event_order_items(*)")
+    .select("id, customer_name, customer_email, customer_phone, customer_studio, total_amount_inr, payment_provider, payment_reference, paid_at, confirmation_email_sent_at, event_order_items(*)")
     .eq("id", eventOrderId)
     .single();
 

@@ -75,7 +75,7 @@ serve(async (req: Request) => {
 
     const { data: order, error: orderError } = await supabase
       .from("event_orders")
-      .select("id, customer_name, customer_phone, customer_email, total_amount_inr, payment_status, cashfree_order_id, cashfree_payment_session_id, razorpay_order_id, razorpay_order_response, checkout_token_hash, checkout_token_expires_at, event_order_items(package_category, package_name, unit_price_inr, quantity, line_total_inr, selected_time_slots)")
+      .select("id, customer_name, customer_phone, customer_email, customer_studio, total_amount_inr, payment_status, cashfree_order_id, cashfree_payment_session_id, razorpay_order_id, razorpay_order_response, checkout_token_hash, checkout_token_expires_at, event_order_items(package_category, package_name, unit_price_inr, quantity, line_total_inr, selected_time_slots)")
       .eq("id", event_order_id)
       .single();
 
@@ -115,6 +115,7 @@ serve(async (req: Request) => {
             name: order.customer_name,
             email: order.customer_email,
             phone: order.customer_phone,
+            studio: order.customer_studio || "",
           },
         });
       }
@@ -125,6 +126,7 @@ serve(async (req: Request) => {
         customerName: order.customer_name,
         customerEmail: order.customer_email,
         customerPhone: order.customer_phone,
+        customerStudio: order.customer_studio,
         itemsSummary,
         coinSummary,
         keyId: settings.razorpay_key_id,
@@ -154,6 +156,7 @@ serve(async (req: Request) => {
           name: order.customer_name,
           email: order.customer_email,
           phone: order.customer_phone,
+          studio: order.customer_studio || "",
         },
       });
     }
@@ -190,6 +193,7 @@ serve(async (req: Request) => {
           customer_name: order.customer_name,
           customer_email: order.customer_email,
           customer_phone: order.customer_phone,
+          customer_studio: order.customer_studio || "",
         },
         order_meta: {
           return_url: `${siteUrl}/?event_order_id=${order.id}&cashfree_order_id=${cashfreeOrderId}`,

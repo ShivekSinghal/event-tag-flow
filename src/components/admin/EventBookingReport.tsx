@@ -192,6 +192,7 @@ export default function EventBookingReport() {
     "Name",
     "Phone",
     "Email",
+    "Studio",
     "Cart Items",
     "Time Slots",
     "Total INR",
@@ -217,6 +218,7 @@ export default function EventBookingReport() {
         order.customer_name,
         order.customer_phone,
         order.customer_email,
+        order.customer_studio || "",
         getItemsSummary(order),
         getOrderItems(order)
           .map((item) => formatTimeSlots(item.selected_time_slots))
@@ -447,6 +449,9 @@ export default function EventBookingReport() {
                       <div className="mt-1 text-sm text-muted-foreground">
                         {order.customer_phone} · {order.customer_email}
                       </div>
+                      {order.customer_studio ? (
+                        <div className="mt-1 text-sm font-medium text-primary">{order.customer_studio}</div>
+                      ) : null}
                       <div className="mt-2 space-y-1 text-sm">
                         {getOrderItems(order).map((item) => (
                           <div key={item.id} className="rounded-md bg-background/55 px-2 py-1">

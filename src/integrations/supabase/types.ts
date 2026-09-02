@@ -193,6 +193,7 @@ export type Database = {
           customer_email: string
           customer_name: string
           customer_phone: string
+          customer_studio: string | null
           id: string
           last_payment_verified_at: string | null
           paid_at: string | null
@@ -225,6 +226,7 @@ export type Database = {
           customer_email: string
           customer_name: string
           customer_phone: string
+          customer_studio?: string | null
           id?: string
           last_payment_verified_at?: string | null
           paid_at?: string | null
@@ -257,6 +259,7 @@ export type Database = {
           customer_email?: string
           customer_name?: string
           customer_phone?: string
+          customer_studio?: string | null
           id?: string
           last_payment_verified_at?: string | null
           paid_at?: string | null
@@ -645,6 +648,7 @@ export type Database = {
           p_customer_email: string
           p_customer_name: string
           p_customer_phone: string
+          p_customer_studio?: string | null
         }
         Returns: {
           order_id: string
@@ -658,6 +662,7 @@ export type Database = {
           p_customer_email: string
           p_customer_name: string
           p_customer_phone: string
+          p_customer_studio?: string | null
         }
         Returns: {
           order_id: string

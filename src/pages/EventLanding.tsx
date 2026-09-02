@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Sheet,
   SheetContent,
@@ -81,13 +82,29 @@ type CheckoutFormState = {
   name: string;
   phone: string;
   email: string;
+  studio: string;
 };
 
 const initialFormState: CheckoutFormState = {
   name: "",
   phone: "",
   email: "",
+  studio: "",
 };
+
+const STUDIO_OPTIONS = [
+  "Noida Sector 43 (NDA)",
+  "Noida Sector 50 (RMG)",
+  "Pitampura (PP)",
+  "Rajouri Garden (RG)",
+  "Preet Vihar (ED)",
+  "Anand Vihar (AV)",
+  "Gurgaon (GGN)",
+  "Indirapuram (IPM)",
+  "South Delhi (SD)",
+  "Dwarka (DWK)",
+  "Not a Student",
+];
 
 const posterImage = "/lovable-uploads/39450c63-d438-4b34-97b6-ee61d75c29dd.png";
 const logoImage = "/lovable-uploads/pinkd-logo-white-new.png";
@@ -665,10 +682,10 @@ export default function EventLanding() {
       return;
     }
 
-    if (!form.name.trim() || !form.phone.trim() || !form.email.trim()) {
+    if (!form.name.trim() || !form.phone.trim() || !form.email.trim() || !form.studio) {
       toast({
         title: "Details Required",
-        description: "Please add your name, phone, and email to reserve your cart.",
+        description: "Please add your name, phone, email, and studio to reserve your cart.",
         variant: "destructive",
       });
       return;
@@ -690,6 +707,7 @@ export default function EventLanding() {
           p_customer_name: form.name.trim(),
           p_customer_phone: form.phone.trim(),
           p_customer_email: form.email.trim(),
+          p_customer_studio: form.studio,
           p_checkout_token_hash: checkoutTokenHash,
           p_cart_items: [
             ...cartLines.map((line) => ({
@@ -1320,6 +1338,21 @@ export default function EventLanding() {
                     placeholder="you@email.com"
                   />
                 </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-white/80">Studio</Label>
+                <Select value={form.studio} onValueChange={(value) => updateField("studio", value)}>
+                  <SelectTrigger className="border-white/15 bg-white/[0.08] text-white">
+                    <SelectValue placeholder="Select studio" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STUDIO_OPTIONS.map((studio) => (
+                      <SelectItem key={studio} value={studio}>
+                        {studio}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
