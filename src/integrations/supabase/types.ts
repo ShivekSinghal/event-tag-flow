@@ -177,6 +177,7 @@ export type Database = {
       }
       event_orders: {
         Row: {
+          attribution: Json
           booking_source: string
           cashfree_cf_order_id: string | null
           cashfree_order_id: string | null
@@ -210,6 +211,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          attribution?: Json
           booking_source?: string
           cashfree_cf_order_id?: string | null
           cashfree_order_id?: string | null
@@ -243,6 +245,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          attribution?: Json
           booking_source?: string
           cashfree_cf_order_id?: string | null
           cashfree_order_id?: string | null
@@ -657,6 +660,7 @@ export type Database = {
       }
       create_event_order_checkout: {
         Args: {
+          p_attribution: Json
           p_cart_items: Json
           p_checkout_token_hash: string
           p_customer_email: string

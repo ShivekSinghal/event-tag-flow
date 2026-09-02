@@ -1,22 +1,27 @@
 import type { FormEvent } from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { Link } from "react-router-dom";
 import {
+  ArrowRight,
+  CalendarDays,
   CheckCircle2,
   ChevronsUpDown,
   Coins,
   CreditCard,
   Loader2,
   Mail,
+  MapPin,
   Minus,
   Phone,
   Plus,
+  ShieldCheck,
   ShoppingBag,
   Sparkles,
   Ticket,
   Trash2,
   User,
+  Users,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -57,6 +62,15 @@ import {
   normalizeEventPackage,
 } from "@/lib/eventPackages";
 import { formatCoins } from "@/lib/coins";
+import {
+  captureLandingAttribution,
+  getLandingAttribution,
+  trackInitiateCheckout,
+  trackLeadOnce,
+  trackPurchaseOnce,
+  trackViewContent,
+  type TrackingCartItem,
+} from "@/lib/tracking";
 
 type CartItem = {
   id: string;
@@ -111,6 +125,9 @@ const posterImage = "/pinkd-event-poster.png";
 const logoImage = "/pinkd-logo.png";
 const brandName = "PINK'D";
 const brandColor = "#ff007f";
+const eventDateLabel = "11 SEPTEMBER";
+const eventVenueLabel = "GLASS VILLA, GURGAON";
+const eventDirectionsUrl = "https://www.google.com/maps/search/?api=1&query=Glass%20Villa%20Gurgaon";
 const cashfreeScriptId = "cashfree-checkout-js";
 const razorpayScriptId = "razorpay-checkout-js";
 
@@ -398,6 +415,19 @@ function getCategoryTone(category: EventPackageOption["category"]) {
   }
 }
 
+function getCategoryAnchor(category: EventPackageOption["category"]) {
+  switch (category) {
+    case "intensives":
+      return "intensives";
+    case "party":
+      return "party";
+    case "package":
+      return "packages";
+    case "group":
+      return "group-packages";
+  }
+}
+
 function getSlotSummary(selectedTimeSlots: string[], intensiveCount?: number) {
   if (!intensiveCount) return "No slot selection needed";
   if (selectedTimeSlots.length === 0) return "Select time slots";
@@ -420,6 +450,7 @@ export default function EventLanding() {
     total: number;
     status: "paid" | "pending";
     customerEmail: string;
+    purchasedItems?: string;
     confirmationEmailSent?: boolean;
     confirmationEmailError?: string | null;
   } | null>(null);
@@ -435,6 +466,8 @@ export default function EventLanding() {
   const [paymentSettingsLoading, setPaymentSettingsLoading] = useState(true);
   const [isGatewayActive, setIsGatewayActive] = useState(false);
   const [isGatewayOpening, setIsGatewayOpening] = useState(false);
+  const [selectedGroupPackageId, setSelectedGroupPackageId] = useState("");
+  const viewContentTrackedRef = useRef(false);
 
   const fetchEventConfig = useCallback(async () => {
     try {
@@ -489,6 +522,10 @@ export default function EventLanding() {
     fetchEventConfig();
   }, [fetchEventConfig]);
 
+  useEffect(() => {
+    captureLandingAttribution();
+  }, []);
+
   const groupedOptions = useMemo(
     () =>
       eventOptions.reduce(
@@ -505,6 +542,20 @@ export default function EventLanding() {
       ),
     [eventOptions],
   );
+
+  const fullPassOption = groupedOptions.package.find((option) => option.id === "four-intensives-party") || groupedOptions.package[0];
+  const fourIntensiveOption = groupedOptions.intensives.find((option) => option.id === "four-intensives");
+  const partyOption = groupedOptions.party.find((option) => option.id === "party-entry") || groupedOptions.party[0];
+  const fullPassSeparateTotal = (fourIntensiveOption?.priceInr || 0) + (partyOption?.priceInr || 0);
+  const fullPassSavings = fullPassOption ? Math.max(0, fullPassSeparateTotal - fullPassOption.priceInr) : 0;
+  const selectedGroupOption =
+    groupedOptions.group.find((option) => option.id === selectedGroupPackageId) || groupedOptions.group[0];
+
+  useEffect(() => {
+    if (!selectedGroupPackageId && groupedOptions.group[0]) {
+      setSelectedGroupPackageId(groupedOptions.group[0].id);
+    }
+  }, [groupedOptions.group, selectedGroupPackageId]);
 
   const cartLines = useMemo(
     () =>
@@ -547,6 +598,49 @@ export default function EventLanding() {
   const cartCount = cartLines.reduce((sum, line) => sum + line.quantity, 0) + coinLines.reduce((sum, line) => sum + line.quantity, 0);
   const grandTotal = eventSubtotal + coinSubtotal;
   const hasCheckoutItems = cartLines.length > 0 || coinLines.length > 0;
+  const purchasedItemsSummary = useMemo(
+    () =>
+      [
+        ...cartLines.map((line) => `${line.quantity} x ${line.option.name}`),
+        ...coinLines.map((line) => `${line.quantity} x ${formatCoins(line.option.coin_amount)}`),
+      ].join(", "),
+    [cartLines, coinLines],
+  );
+  const trackingItems = useMemo<TrackingCartItem[]>(
+    () => [
+      ...cartLines.map((line) => ({
+        item_id: line.packageId,
+        item_name: line.option.name,
+        item_category: line.option.category,
+        price: line.option.priceInr,
+        quantity: line.quantity,
+      })),
+      ...coinLines.map((line) => ({
+        item_id: `coin-package:${line.coinPackageId}`,
+        item_name: `${line.option.coin_amount} Pink'D Coins`,
+        item_category: "coins",
+        price: line.option.inr_amount,
+        quantity: line.quantity,
+      })),
+    ],
+    [cartLines, coinLines],
+  );
+
+  useEffect(() => {
+    if (!eventOptions.length || viewContentTrackedRef.current) return;
+    viewContentTrackedRef.current = true;
+
+    trackViewContent({
+      value: Math.min(...eventOptions.map((option) => option.priceInr)),
+      items: eventOptions.map((option) => ({
+        item_id: option.id,
+        item_name: option.name,
+        item_category: option.category,
+        price: option.priceInr,
+        quantity: 1,
+      })),
+    });
+  }, [eventOptions]);
 
   const openPackageModal = (option: EventPackageOption) => {
     setConfirmedOrder(null);
@@ -720,6 +814,7 @@ export default function EventLanding() {
           p_customer_email: form.email.trim(),
           p_customer_studio: form.studio,
           p_checkout_token_hash: checkoutTokenHash,
+          p_attribution: getLandingAttribution(),
           p_cart_items: [
             ...cartLines.map((line) => ({
               item_type: "event_package",
@@ -753,6 +848,13 @@ export default function EventLanding() {
         if (paymentData?.provider === "cashfree" || paymentData?.provider === "razorpay") {
           attemptedPaymentProvider = paymentData.provider;
         }
+
+        trackInitiateCheckout({
+          orderId,
+          value: orderTotal,
+          items: trackingItems,
+          paymentProvider: attemptedPaymentProvider,
+        });
 
         if (paymentError) throw new Error(await getFunctionErrorMessage(paymentError, paymentData));
 
@@ -809,9 +911,24 @@ export default function EventLanding() {
             total: orderTotal,
             status: isPaid ? "paid" : "pending",
             customerEmail: form.email.trim(),
+            purchasedItems: purchasedItemsSummary,
             confirmationEmailSent,
             confirmationEmailError,
           });
+          if (isPaid) {
+            trackPurchaseOnce({
+              orderId,
+              value: orderTotal,
+              items: trackingItems,
+              paymentProvider: "razorpay",
+            });
+            trackLeadOnce({
+              orderId,
+              value: orderTotal,
+              items: trackingItems,
+              paymentProvider: "razorpay",
+            });
+          }
           toast({
             title: isPaid ? "Payment Confirmed" : "Payment Pending",
             description: isPaid
@@ -870,9 +987,24 @@ export default function EventLanding() {
             total: orderTotal,
             status: isPaid ? "paid" : "pending",
             customerEmail: form.email.trim(),
+            purchasedItems: purchasedItemsSummary,
             confirmationEmailSent,
             confirmationEmailError,
           });
+          if (isPaid) {
+            trackPurchaseOnce({
+              orderId,
+              value: orderTotal,
+              items: trackingItems,
+              paymentProvider: "cashfree",
+            });
+            trackLeadOnce({
+              orderId,
+              value: orderTotal,
+              items: trackingItems,
+              paymentProvider: "cashfree",
+            });
+          }
           toast({
             title: isPaid ? "Payment Confirmed" : "Payment Pending",
             description: isPaid
@@ -885,7 +1017,13 @@ export default function EventLanding() {
         }
       } catch (paymentError) {
         console.error("Event payment setup failed:", paymentError);
-        setConfirmedOrder({ id: orderId, total: orderTotal, status: "pending", customerEmail: form.email.trim() });
+        setConfirmedOrder({
+          id: orderId,
+          total: orderTotal,
+          status: "pending",
+          customerEmail: form.email.trim(),
+          purchasedItems: purchasedItemsSummary,
+        });
         setIsCartOpen(true);
         toast({
           title: "Payment Setup Failed",
@@ -895,6 +1033,7 @@ export default function EventLanding() {
       }
 
       if (paymentFlowCompleted) {
+        setIsCartOpen(true);
         setCart([]);
         setCoinCart([]);
         setForm(initialFormState);
@@ -933,31 +1072,133 @@ export default function EventLanding() {
             </Button>
           </nav>
 
-          <div className="py-10 lg:py-14">
-            <Badge className="mb-5 border border-primary/35 bg-primary/15 text-white hover:bg-primary/20">
-              <Ticket className="mr-2 h-3.5 w-3.5" />
-              Single-page cart booking
-            </Badge>
-            <h1 className="max-w-3xl text-4xl font-black leading-none sm:text-6xl lg:text-7xl">
-              <img src={logoImage} alt="Pink'D" className="mb-3 h-auto w-52 max-w-full object-contain sm:w-72 lg:w-80" />
-              <span className="block text-primary">Event Passes</span>
-            </h1>
-            <p className="mt-5 max-w-2xl text-base leading-7 text-white/68 sm:text-lg">
-              Pick a package, choose your intensive slots, and review everything in the side cart. Event orders are INR-only and separate from Pink'D Coins.
-            </p>
+          <div className="grid gap-8 py-8 lg:grid-cols-[1fr_24rem] lg:items-end lg:py-12">
+            <div>
+              <Badge className="mb-5 border border-primary/35 bg-primary/15 text-white hover:bg-primary/20">
+                <Ticket className="mr-2 h-3.5 w-3.5" />
+                {eventDateLabel}
+              </Badge>
+              <h1 className="max-w-3xl text-5xl font-black leading-none sm:text-7xl lg:text-8xl">
+                PINK'D
+                <span className="block text-primary">EVENT PASSES</span>
+              </h1>
+              <div className="mt-5 flex flex-wrap gap-2 text-sm font-bold uppercase text-white/78">
+                <span className="inline-flex items-center rounded-md border border-white/12 bg-white/[0.06] px-3 py-2">
+                  <CalendarDays className="mr-2 h-4 w-4 text-primary" />
+                  11 September
+                </span>
+                <a
+                  href={eventDirectionsUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center rounded-md border border-white/12 bg-white/[0.06] px-3 py-2 transition hover:border-primary/45 hover:text-primary"
+                >
+                  <MapPin className="mr-2 h-4 w-4 text-primary" />
+                  {eventVenueLabel}
+                </a>
+              </div>
+              <p className="mt-5 max-w-2xl text-base leading-7 text-white/68 sm:text-lg">
+                Pick passes, add Pink'D Coins for games at the party, and pay in INR. Event bookings stay separate from NFC wallet balances.
+              </p>
+              <div className="mt-6 flex flex-wrap gap-2 text-xs font-black uppercase tracking-wide">
+                <a href="#party" className="rounded-md border border-white/12 px-3 py-2 text-white/74 transition hover:border-primary/45 hover:text-primary">Party</a>
+                <a href="#full-pass" className="rounded-md border border-primary/45 bg-primary/12 px-3 py-2 text-white transition hover:bg-primary/20">Full Pass</a>
+                <a href="#intensives" className="rounded-md border border-white/12 px-3 py-2 text-white/74 transition hover:border-primary/45 hover:text-primary">Intensives</a>
+                <a href="#groups" className="rounded-md border border-white/12 px-3 py-2 text-white/74 transition hover:border-primary/45 hover:text-primary">Groups</a>
+                <a href="#faq" className="rounded-md border border-white/12 px-3 py-2 text-white/74 transition hover:border-primary/45 hover:text-primary">FAQ</a>
+              </div>
+            </div>
+
+            {fullPassOption ? (
+              <div id="full-pass" className="rounded-lg border border-primary/45 bg-primary/12 p-5 shadow-[0_0_42px_rgba(255,0,127,0.18)]">
+                <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wide text-primary">
+                  <Sparkles className="h-4 w-4" />
+                  Best value
+                </div>
+                <div className="mt-3 text-2xl font-black">{fullPassOption.name}</div>
+                <p className="mt-2 text-sm leading-6 text-white/68">{fullPassOption.description}</p>
+                <div className="mt-5 flex items-end justify-between gap-3">
+                  <div>
+                    <div className="text-4xl font-black text-primary">{formatEventPrice(fullPassOption.priceInr)}</div>
+                    {fullPassSavings > 0 ? (
+                      <div className="mt-1 text-sm text-white/62">
+                        Save {formatEventPrice(fullPassSavings)} vs buying separately
+                      </div>
+                    ) : null}
+                  </div>
+                  <Button type="button" onClick={() => openPackageModal(fullPassOption)} className="bg-primary text-black hover:bg-primary/90">
+                    Book Now
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-5 py-8 sm:px-8 lg:px-10">
+      <section id="book" className="mx-auto max-w-7xl px-5 py-8 sm:px-8 lg:px-10">
         <div className="space-y-8">
           {packagesLoading ? (
             <div className="rounded-lg border border-white/10 bg-white/[0.04] p-4 text-sm text-white/58">
               Loading available packages...
             </div>
           ) : null}
+          {selectedGroupOption ? (
+            <div id="groups" className="rounded-lg border border-white/12 bg-white/[0.04] p-4 sm:p-5">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                  <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wide text-primary">
+                    <Users className="h-4 w-4" />
+                    Group deal picker
+                  </div>
+                  <h2 className="mt-2 text-2xl font-black">Bring the whole crew</h2>
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-white/62">
+                    Choose a group pass and see the total, per-person price, and value before adding it to cart.
+                  </p>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2 lg:w-[28rem]">
+                  {groupedOptions.group.map((option) => (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => setSelectedGroupPackageId(option.id)}
+                      className={`rounded-lg border p-3 text-left transition ${
+                        selectedGroupOption.id === option.id
+                          ? "border-primary bg-primary/15 text-white"
+                          : "border-white/12 bg-black/30 text-white/70 hover:border-primary/45"
+                      }`}
+                    >
+                      <div className="text-sm font-black">{option.pax} Pax</div>
+                      <div className="mt-1 text-xs">{formatEventPrice(option.priceInr)}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                <div className="rounded-lg border border-white/10 bg-black/35 p-3">
+                  <div className="text-xs uppercase text-white/45">Total</div>
+                  <div className="mt-1 text-xl font-black text-primary">{formatEventPrice(selectedGroupOption.priceInr)}</div>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-black/35 p-3">
+                  <div className="text-xs uppercase text-white/45">Per person</div>
+                  <div className="mt-1 text-xl font-black">
+                    {formatEventPrice(Math.round(selectedGroupOption.priceInr / Math.max(selectedGroupOption.pax || 1, 1)))}
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  onClick={() => openPackageModal(selectedGroupOption)}
+                  className="h-full min-h-16 bg-primary text-base font-black text-black hover:bg-primary/90"
+                >
+                  Add Group Pass
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          ) : null}
           {(Object.keys(groupedOptions) as Array<keyof typeof groupedOptions>).map((category) => (
-            <div key={category} className="space-y-3">
+            <div key={category} id={getCategoryAnchor(category)} className="scroll-mt-24 space-y-3">
               <h2 className="text-sm font-bold uppercase tracking-[0.16em] text-white/58">{EVENT_CATEGORY_LABELS[category]}</h2>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {groupedOptions[category].map((option) => (
@@ -1114,6 +1355,40 @@ export default function EventLanding() {
               Review items, quantities, and INR total before reserving.
             </SheetDescription>
           </SheetHeader>
+
+          {confirmedOrder ? (
+            <div className="mt-5 rounded-md border border-success/30 bg-success/10 p-3 text-sm text-success">
+              <div className="flex items-center gap-2 font-semibold">
+                <CheckCircle2 className="h-4 w-4" />
+                {confirmedOrder.status === "paid" ? "Payment confirmed" : "Order saved"}
+              </div>
+              <div className="mt-1 text-success/85">
+                Ref {confirmedOrder.id.slice(0, 8).toUpperCase()} · {formatEventPrice(confirmedOrder.total)}
+              </div>
+              <div className="mt-2 space-y-1 text-success/85">
+                {confirmedOrder.purchasedItems ? <div>{confirmedOrder.purchasedItems}</div> : null}
+                <div>{eventDateLabel} · {eventVenueLabel}</div>
+                <a
+                  href={eventDirectionsUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 font-semibold underline underline-offset-4"
+                >
+                  Get directions
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </a>
+              </div>
+              {confirmedOrder.status === "paid" ? (
+                <div className="mt-1 text-success/85">
+                  {confirmedOrder.confirmationEmailSent
+                    ? `Confirmation email sent to ${confirmedOrder.customerEmail}.`
+                    : confirmedOrder.confirmationEmailError
+                      ? `Payment is confirmed, but email failed: ${confirmedOrder.confirmationEmailError}`
+                      : "Payment is confirmed. Confirmation email will be sent shortly."}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
 
           <form onSubmit={handleSubmit} className="mt-5 flex flex-1 flex-col">
             <div className="space-y-3">
@@ -1383,6 +1658,16 @@ export default function EventLanding() {
               Payment is processed in INR with {getGatewayLabel(paymentProvider)}. Event booking revenue stays separate from NFC wallet balances.
             </div>
 
+            <div className="mt-3 rounded-md border border-white/12 bg-black/35 p-3 text-sm font-bold uppercase leading-6 text-white/78">
+              <div className="flex items-start gap-2">
+                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                <div>
+                  <div>18+ event. Valid ID required at entry.</div>
+                  <div>All bookings are non-refundable.</div>
+                </div>
+              </div>
+            </div>
+
             <Button
               type="submit"
               disabled={isSubmitting || !hasCheckoutItems}
@@ -1394,26 +1679,6 @@ export default function EventLanding() {
                 : `Pay with ${getGatewayLabel(paymentProvider)}`}
             </Button>
 
-            {confirmedOrder ? (
-              <div className="mt-4 rounded-md border border-success/30 bg-success/10 p-3 text-sm text-success">
-                <div className="flex items-center gap-2 font-semibold">
-                  <CheckCircle2 className="h-4 w-4" />
-                  {confirmedOrder.status === "paid" ? "Payment confirmed" : "Order saved"}
-                </div>
-                <div className="mt-1 text-success/85">
-                  Ref {confirmedOrder.id.slice(0, 8).toUpperCase()} · {formatEventPrice(confirmedOrder.total)}
-                </div>
-                {confirmedOrder.status === "paid" ? (
-                  <div className="mt-1 text-success/85">
-                    {confirmedOrder.confirmationEmailSent
-                      ? `Confirmation email sent to ${confirmedOrder.customerEmail}.`
-                      : confirmedOrder.confirmationEmailError
-                        ? `Payment is confirmed, but email failed: ${confirmedOrder.confirmationEmailError}`
-                        : "Payment is confirmed. Confirmation email will be sent shortly."}
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
           </form>
         </SheetContent>
       </Sheet>
@@ -1431,6 +1696,29 @@ export default function EventLanding() {
           </div>
         </div>
       ) : null}
+
+      <section id="faq" className="mx-auto max-w-7xl scroll-mt-24 px-5 pb-8 sm:px-8 lg:px-10">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
+            <div className="font-black uppercase">Venue</div>
+            <p className="mt-2 text-sm leading-6 text-white/62">
+              {eventVenueLabel}. Use the directions link for navigation.
+            </p>
+          </div>
+          <div className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
+            <div className="font-black uppercase">Payments</div>
+            <p className="mt-2 text-sm leading-6 text-white/62">
+              Prices are listed in INR. Bookings confirm only after the payment gateway verifies success.
+            </p>
+          </div>
+          <div className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
+            <div className="font-black uppercase">Entry</div>
+            <p className="mt-2 text-sm leading-6 text-white/62">
+              18+ only. Carry a valid ID. All bookings are non-refundable.
+            </p>
+          </div>
+        </div>
+      </section>
 
       <footer className="border-t border-white/10 bg-black/30">
         <div className="mx-auto grid max-w-7xl gap-5 px-5 py-7 text-sm text-white/58 sm:px-8 lg:grid-cols-[1.2fr_1fr] lg:px-10">
@@ -1450,12 +1738,19 @@ export default function EventLanding() {
 
       <button
         type="button"
-        onClick={() => setIsCartOpen(true)}
+        onClick={() => {
+          if (hasCheckoutItems) {
+            setIsCartOpen(true);
+            return;
+          }
+
+          document.getElementById("book")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }}
         className="fixed inset-x-3 bottom-3 z-40 flex items-center justify-between rounded-lg border border-primary/35 bg-black/90 px-4 py-3 shadow-2xl backdrop-blur sm:left-auto sm:w-80"
       >
         <span className="flex items-center gap-2 font-bold">
           <ShoppingBag className="h-4 w-4 text-primary" />
-          Cart
+          BOOK NOW
           {cartCount > 0 ? <span className="text-primary">({cartCount})</span> : null}
         </span>
         <span className="font-black text-primary">{formatEventPrice(grandTotal)}</span>

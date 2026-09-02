@@ -27,6 +27,10 @@ type EventOrder = {
   event_order_items: EventOrderItem[] | null;
 };
 
+const EVENT_DATE_LABEL = "11 September";
+const EVENT_VENUE_LABEL = "Glass Villa, Gurgaon";
+const EVENT_DIRECTIONS_URL = "https://www.google.com/maps/search/?api=1&query=Glass%20Villa%20Gurgaon";
+
 function formatInr(value: number) {
   return `Rs. ${Number(value || 0).toLocaleString("en-IN")}`;
 }
@@ -87,6 +91,14 @@ function renderConfirmationEmail(order: EventOrder) {
 
             <div style="background:#f8f8f8;border:1px solid #eee;border-radius:12px;padding:16px;margin-bottom:20px;">
               <div style="display:flex;justify-content:space-between;gap:12px;margin-bottom:8px;">
+                <span style="color:#777;">Event Date</span>
+                <strong style="color:#111;">${EVENT_DATE_LABEL}</strong>
+              </div>
+              <div style="display:flex;justify-content:space-between;gap:12px;margin-bottom:8px;">
+                <span style="color:#777;">Venue</span>
+                <strong style="color:#111;">${EVENT_VENUE_LABEL}</strong>
+              </div>
+              <div style="display:flex;justify-content:space-between;gap:12px;margin-bottom:8px;">
                 <span style="color:#777;">Order Ref</span>
                 <strong style="color:#111;">${orderRef}</strong>
               </div>
@@ -110,7 +122,10 @@ function renderConfirmationEmail(order: EventOrder) {
             </div>
 
             <p style="margin:24px 0 0;color:#666;line-height:1.6;font-size:14px;">
-              Please keep this email handy for entry. This event booking is separate from Pink'D Coins and does not credit your NFC wallet.
+              Please keep this email handy for entry. Get directions: <a href="${EVENT_DIRECTIONS_URL}" style="color:#ff007f;font-weight:700;">${EVENT_DIRECTIONS_URL}</a>
+            </p>
+            <p style="margin:12px 0 0;color:#666;line-height:1.6;font-size:14px;">
+              18+ event. Valid ID required at entry. All bookings are non-refundable. This event booking is separate from Pink'D Coins and does not credit your NFC wallet.
             </p>
           </div>
         </div>
