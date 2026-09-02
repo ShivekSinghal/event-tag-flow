@@ -93,6 +93,33 @@ type CoinCartItem = {
   quantity: number;
 };
 
+type EventPricingPhase = {
+  id: string;
+  phase_key: string;
+  name: string;
+  active: boolean;
+  starts_at: string | null;
+  ends_at: string | null;
+  display_order: number;
+};
+
+type EventPackagePhaseLimit = {
+  id: string;
+  phase_id: string;
+  package_id: string;
+  capacity: number;
+  display_registration_boost: number;
+  price_inr: number;
+  active: boolean;
+};
+
+type PhasePackageStats = {
+  phase_id: string;
+  package_id: string;
+  confirmed_quantity: number;
+  pending_quantity: number;
+};
+
 type CheckoutFormState = {
   name: string;
   phone: string;
@@ -428,6 +455,25 @@ function getCategoryAnchor(category: EventPackageOption["category"]) {
   }
 }
 
+function findCurrentPhase(phases: EventPricingPhase[]) {
+  const now = Date.now();
+  return phases.find((phase) => {
+    if (!phase.active) return false;
+    const startsAt = phase.starts_at ? new Date(phase.starts_at).getTime() : -Infinity;
+    const endsAt = phase.ends_at ? new Date(phase.ends_at).getTime() : Infinity;
+    return startsAt <= now && now < endsAt;
+  }) || null;
+}
+
+function formatPhaseEnd(value: string | null) {
+  if (!value) return "while passes last";
+  return new Date(value).toLocaleString("en-IN", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "Asia/Kolkata",
+  });
+}
+
 function getSlotSummary(selectedTimeSlots: string[], intensiveCount?: number) {
   if (!intensiveCount) return "No slot selection needed";
   if (selectedTimeSlots.length === 0) return "Select time slots";
@@ -460,6 +506,9 @@ export default function EventLanding() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [eventOptions, setEventOptions] = useState<EventPackageOption[]>(EVENT_PACKAGE_OPTIONS);
   const [coinPackages, setCoinPackages] = useState<CoinPackage[]>([]);
+  const [pricingPhases, setPricingPhases] = useState<EventPricingPhase[]>([]);
+  const [phaseLimits, setPhaseLimits] = useState<EventPackagePhaseLimit[]>([]);
+  const [phaseStats, setPhaseStats] = useState<PhasePackageStats[]>([]);
   const [packagesLoading, setPackagesLoading] = useState(true);
   const [coinPackagesLoading, setCoinPackagesLoading] = useState(true);
   const [paymentProvider, setPaymentProvider] = useState<PaymentProvider>("cashfree");
@@ -475,7 +524,7 @@ export default function EventLanding() {
       setCoinPackagesLoading(true);
       setPaymentSettingsLoading(true);
 
-      const [packageResult, coinPackageResult, paymentSettingResult] = await Promise.all([
+      const [packageResult, coinPackageResult, paymentSettingResult, phaseResult, limitResult, statResult] = await Promise.all([
         supabase
           .from("event_packages")
           .select("*")
@@ -491,11 +540,24 @@ export default function EventLanding() {
           .select("active_provider")
           .eq("id", "event_bookings")
           .single(),
+        supabase
+          .from("event_pricing_phases")
+          .select("id, phase_key, name, active, starts_at, ends_at, display_order")
+          .eq("active", true)
+          .order("display_order", { ascending: true }),
+        supabase
+          .from("event_package_phase_limits")
+          .select("id, phase_id, package_id, capacity, display_registration_boost, price_inr, active")
+          .eq("active", true),
+        supabase.rpc("get_event_phase_package_stats"),
       ]);
 
       if (packageResult.error) throw packageResult.error;
       if (coinPackageResult.error) throw coinPackageResult.error;
       if (paymentSettingResult.error) throw paymentSettingResult.error;
+      if (phaseResult.error) throw phaseResult.error;
+      if (limitResult.error) throw limitResult.error;
+      if (statResult.error) throw statResult.error;
 
       setEventOptions((packageResult.data || []).length > 0 ? packageResult.data.map(normalizeEventPackage) : EVENT_PACKAGE_OPTIONS);
       setCoinPackages((coinPackageResult.data || []).map((coinPackage) => ({
@@ -505,11 +567,38 @@ export default function EventLanding() {
         active: Boolean(coinPackage.active),
         display_order: Number(coinPackage.display_order),
       })));
+      setPricingPhases((phaseResult.data || []).map((phase) => ({
+        id: phase.id,
+        phase_key: phase.phase_key,
+        name: phase.name,
+        active: Boolean(phase.active),
+        starts_at: phase.starts_at,
+        ends_at: phase.ends_at,
+        display_order: Number(phase.display_order),
+      })));
+      setPhaseLimits((limitResult.data || []).map((limit) => ({
+        id: limit.id,
+        phase_id: limit.phase_id,
+        package_id: limit.package_id,
+        capacity: Number(limit.capacity),
+        display_registration_boost: Number(limit.display_registration_boost),
+        price_inr: Number(limit.price_inr),
+        active: Boolean(limit.active),
+      })));
+      setPhaseStats((statResult.data || []).map((stat) => ({
+        phase_id: stat.phase_id,
+        package_id: stat.package_id,
+        confirmed_quantity: Number(stat.confirmed_quantity || 0),
+        pending_quantity: Number(stat.pending_quantity || 0),
+      })));
       setPaymentProvider(paymentSettingResult.data?.active_provider === "razorpay" ? "razorpay" : "cashfree");
     } catch (error) {
       console.error("Event config load failed:", error);
       setEventOptions(EVENT_PACKAGE_OPTIONS);
       setCoinPackages([]);
+      setPricingPhases([]);
+      setPhaseLimits([]);
+      setPhaseStats([]);
       setPaymentProvider("cashfree");
     } finally {
       setPackagesLoading(false);
@@ -526,9 +615,36 @@ export default function EventLanding() {
     captureLandingAttribution();
   }, []);
 
+  const activePhase = useMemo(() => findCurrentPhase(pricingPhases), [pricingPhases]);
+  const activePhaseLimits = useMemo(
+    () => phaseLimits.filter((limit) => activePhase && limit.phase_id === activePhase.id && limit.active),
+    [activePhase, phaseLimits],
+  );
+  const activePhaseLimitMap = useMemo(() => {
+    const map = new Map<string, EventPackagePhaseLimit>();
+    activePhaseLimits.forEach((limit) => map.set(limit.package_id, limit));
+    return map;
+  }, [activePhaseLimits]);
+  const phaseStatMap = useMemo(() => {
+    const map = new Map<string, PhasePackageStats>();
+    phaseStats.forEach((stat) => map.set(`${stat.phase_id}:${stat.package_id}`, stat));
+    return map;
+  }, [phaseStats]);
+  const displayEventOptions = useMemo(
+    () =>
+      eventOptions
+        .map((option) => {
+          const phaseLimit = activePhaseLimitMap.get(option.id);
+          if (activePhase && !phaseLimit) return null;
+          return phaseLimit ? { ...option, priceInr: phaseLimit.price_inr } : option;
+        })
+        .filter(Boolean) as EventPackageOption[],
+    [activePhase, activePhaseLimitMap, eventOptions],
+  );
+
   const groupedOptions = useMemo(
     () =>
-      eventOptions.reduce(
+      displayEventOptions.reduce(
         (groups, option) => {
           groups[option.category].push(option);
           return groups;
@@ -540,7 +656,7 @@ export default function EventLanding() {
           group: [] as EventPackageOption[],
         },
       ),
-    [eventOptions],
+    [displayEventOptions],
   );
 
   const fullPassOption = groupedOptions.package.find((option) => option.id === "four-intensives-party") || groupedOptions.package[0];
@@ -561,7 +677,7 @@ export default function EventLanding() {
     () =>
       cart
         .map((item) => {
-          const option = eventOptions.find((eventOption) => eventOption.id === item.packageId);
+          const option = displayEventOptions.find((eventOption) => eventOption.id === item.packageId);
           if (!option) return null;
 
           return {
@@ -571,7 +687,7 @@ export default function EventLanding() {
           };
         })
         .filter(Boolean) as Array<CartItem & { option: EventPackageOption; lineTotal: number }>,
-    [cart, eventOptions],
+    [cart, displayEventOptions],
   );
 
   const coinLines = useMemo(
@@ -626,13 +742,65 @@ export default function EventLanding() {
     [cartLines, coinLines],
   );
 
+  const getPhaseDisplayForPackage = useCallback(
+    (packageId: string) => {
+      if (!activePhase) return null;
+
+      const limit = activePhaseLimitMap.get(packageId);
+      if (!limit) return null;
+
+      const stat = phaseStatMap.get(`${activePhase.id}:${packageId}`);
+      const confirmed = Number(stat?.confirmed_quantity || 0);
+      const pending = Number(stat?.pending_quantity || 0);
+      const displayBoost = Number(limit.display_registration_boost || 0);
+      const visibleCount = confirmed + displayBoost;
+      const capacity = Number(limit.capacity || 0);
+      const remaining = Math.max(capacity - confirmed - pending, 0);
+      const progress = capacity > 0 ? Math.min(100, Math.round((visibleCount / capacity) * 100)) : 100;
+
+      return {
+        phaseName: activePhase.name,
+        endsAt: activePhase.ends_at,
+        confirmed,
+        pending,
+        displayBoost,
+        visibleCount,
+        capacity,
+        remaining,
+        progress,
+      };
+    },
+    [activePhase, activePhaseLimitMap, phaseStatMap],
+  );
+
+  const renderUrgencyMeter = (packageId: string) => {
+    const urgency = getPhaseDisplayForPackage(packageId);
+    if (!urgency) return null;
+
+    return (
+      <div className="mt-4 rounded-md border border-primary/25 bg-black/35 p-3">
+        <div className="flex items-center justify-between gap-3 text-xs font-bold uppercase tracking-wide text-white/58">
+          <span>{urgency.phaseName}</span>
+          <span>{urgency.remaining} left</span>
+        </div>
+        <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/10">
+          <div className="h-full rounded-full bg-primary" style={{ width: `${urgency.progress}%` }} />
+        </div>
+        <div className="mt-2 flex items-center justify-between gap-3 text-xs text-white/58">
+          <span>{urgency.visibleCount} people have picked this pass</span>
+          <span>{urgency.pending} held</span>
+        </div>
+      </div>
+    );
+  };
+
   useEffect(() => {
-    if (!eventOptions.length || viewContentTrackedRef.current) return;
+    if (!displayEventOptions.length || viewContentTrackedRef.current) return;
     viewContentTrackedRef.current = true;
 
     trackViewContent({
-      value: Math.min(...eventOptions.map((option) => option.priceInr)),
-      items: eventOptions.map((option) => ({
+      value: Math.min(...displayEventOptions.map((option) => option.priceInr)),
+      items: displayEventOptions.map((option) => ({
         item_id: option.id,
         item_name: option.name,
         item_category: option.category,
@@ -640,7 +808,7 @@ export default function EventLanding() {
         quantity: 1,
       })),
     });
-  }, [eventOptions]);
+  }, [displayEventOptions]);
 
   const openPackageModal = (option: EventPackageOption) => {
     setConfirmedOrder(null);
@@ -854,6 +1022,7 @@ export default function EventLanding() {
           value: orderTotal,
           items: trackingItems,
           paymentProvider: attemptedPaymentProvider,
+          pricingPhase: activePhase?.phase_key || activePhase?.name,
         });
 
         if (paymentError) throw new Error(await getFunctionErrorMessage(paymentError, paymentData));
@@ -921,12 +1090,14 @@ export default function EventLanding() {
               value: orderTotal,
               items: trackingItems,
               paymentProvider: "razorpay",
+              pricingPhase: activePhase?.phase_key || activePhase?.name,
             });
             trackLeadOnce({
               orderId,
               value: orderTotal,
               items: trackingItems,
               paymentProvider: "razorpay",
+              pricingPhase: activePhase?.phase_key || activePhase?.name,
             });
           }
           toast({
@@ -997,12 +1168,14 @@ export default function EventLanding() {
               value: orderTotal,
               items: trackingItems,
               paymentProvider: "cashfree",
+              pricingPhase: activePhase?.phase_key || activePhase?.name,
             });
             trackLeadOnce({
               orderId,
               value: orderTotal,
               items: trackingItems,
               paymentProvider: "cashfree",
+              pricingPhase: activePhase?.phase_key || activePhase?.name,
             });
           }
           toast({
@@ -1105,6 +1278,14 @@ export default function EventLanding() {
                   {eventVenueLabel}
                 </a>
               </div>
+              {activePhase ? (
+                <div className="mt-4 inline-flex max-w-full items-center rounded-lg border border-primary/35 bg-primary/12 px-4 py-3 text-sm font-bold text-white">
+                  <Sparkles className="mr-2 h-4 w-4 shrink-0 text-primary" />
+                  <span className="truncate">
+                    {activePhase.name} live until {formatPhaseEnd(activePhase.ends_at)}
+                  </span>
+                </div>
+              ) : null}
               <p className="mt-5 max-w-2xl text-base leading-7 text-white/68 sm:text-lg">
                 Pick passes, add Pink'D Coins for games at the party, and pay in INR. Event bookings stay separate from NFC wallet balances.
               </p>
@@ -1125,6 +1306,7 @@ export default function EventLanding() {
                 </div>
                 <div className="mt-3 text-2xl font-black">{fullPassOption.name}</div>
                 <p className="mt-2 text-sm leading-6 text-white/68">{fullPassOption.description}</p>
+                {renderUrgencyMeter(fullPassOption.id)}
                 <div className="mt-5 flex items-end justify-between gap-3">
                   <div>
                     <div className="text-4xl font-black text-primary">{formatEventPrice(fullPassOption.priceInr)}</div>
@@ -1203,6 +1385,7 @@ export default function EventLanding() {
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </div>
+              {renderUrgencyMeter(selectedGroupOption.id)}
             </div>
           ) : null}
           {(Object.keys(groupedOptions) as Array<keyof typeof groupedOptions>).map((category) => (
@@ -1231,6 +1414,7 @@ export default function EventLanding() {
                         Add to Cart
                       </Button>
                     </div>
+                    {renderUrgencyMeter(option.id)}
                   </article>
                 ))}
               </div>
@@ -1262,11 +1446,14 @@ export default function EventLanding() {
                 <div className="mt-5 rounded-lg border border-white/10 bg-white/[0.04] p-4">
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <div className="text-sm text-white/56">Package price</div>
+                      <div className="text-sm text-white/56">
+                        {activePhase ? `${activePhase.name} price` : "Package price"}
+                      </div>
                       <div className="mt-1 text-3xl font-black text-primary">{formatEventPrice(selectedPackage.priceInr)}</div>
                     </div>
                     {selectedPackage.pax ? <Badge className="bg-white/10 text-white hover:bg-white/15">{selectedPackage.pax} pax</Badge> : null}
                   </div>
+                  {renderUrgencyMeter(selectedPackage.id)}
                 </div>
 
                 <div className="mt-5 space-y-2">

@@ -38,6 +38,7 @@ import StaffManagement from "@/components/admin/StaffManagement";
 import CoinPackageManagement from "@/components/admin/CoinPackageManagement";
 import EventBookingReport from "@/components/admin/EventBookingReport";
 import EventPackageManagement from "@/components/admin/EventPackageManagement";
+import EventPhaseManagement from "@/components/admin/EventPhaseManagement";
 import PaymentGatewaySettings from "@/components/admin/PaymentGatewaySettings";
 import { formatCoins, formatInr, getCoinAmount, getCoinBalance, LOW_COIN_BALANCE_THRESHOLD, toIntegerCoins } from "@/lib/coins";
 
@@ -1550,6 +1551,10 @@ export default function Dashboard() {
                   <Package className="h-4 w-4" />
                   <span>Event Packages</span>
                 </TabsTrigger>
+                <TabsTrigger value="event-phases" className="gap-2 px-4 py-2">
+                  <CalendarCheck className="h-4 w-4" />
+                  <span>Phases</span>
+                </TabsTrigger>
                 <TabsTrigger value="coins-pos" className="gap-2 px-4 py-2">
                   <Coins className="h-4 w-4" />
                   <span>Coins & POS</span>
@@ -1568,6 +1573,11 @@ export default function Dashboard() {
             <TabsContent value="event-packages" className="space-y-5">
               {/* Event Landing Package Sales and Availability */}
               <EventPackageManagement />
+            </TabsContent>
+
+            <TabsContent value="event-phases" className="space-y-5">
+              {/* Event Landing Phase Pricing and Urgency Controls */}
+              <EventPhaseManagement />
             </TabsContent>
 
             <TabsContent value="coins-pos" className="space-y-5">

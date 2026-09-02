@@ -90,6 +90,9 @@ export type Database = {
           package_key: string
           package_name: string
           pax: number | null
+          phase_id: string | null
+          phase_name: string | null
+          phase_price_inr: number | null
           quantity: number
           selected_time_slots: Json
           unit_price_inr: number
@@ -103,6 +106,9 @@ export type Database = {
           package_key: string
           package_name: string
           pax?: number | null
+          phase_id?: string | null
+          phase_name?: string | null
+          phase_price_inr?: number | null
           quantity: number
           selected_time_slots?: Json
           unit_price_inr: number
@@ -116,6 +122,9 @@ export type Database = {
           package_key?: string
           package_name?: string
           pax?: number | null
+          phase_id?: string | null
+          phase_name?: string | null
+          phase_price_inr?: number | null
           quantity?: number
           selected_time_slots?: Json
           unit_price_inr?: number
@@ -126,6 +135,64 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "event_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_order_items_phase_id_fkey"
+            columns: ["phase_id"]
+            isOneToOne: false
+            referencedRelation: "event_pricing_phases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_package_phase_limits: {
+        Row: {
+          active: boolean
+          capacity: number
+          created_at: string
+          display_registration_boost: number
+          id: string
+          package_id: string
+          phase_id: string
+          price_inr: number
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          capacity?: number
+          created_at?: string
+          display_registration_boost?: number
+          id?: string
+          package_id: string
+          phase_id: string
+          price_inr: number
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          capacity?: number
+          created_at?: string
+          display_registration_boost?: number
+          id?: string
+          package_id?: string
+          phase_id?: string
+          price_inr?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_package_phase_limits_package_id_fkey"
+            columns: ["package_id"]
+            isOneToOne: false
+            referencedRelation: "event_packages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_package_phase_limits_phase_id_fkey"
+            columns: ["phase_id"]
+            isOneToOne: false
+            referencedRelation: "event_pricing_phases"
             referencedColumns: ["id"]
           },
         ]
@@ -171,6 +238,42 @@ export type Database = {
           name?: string
           pax?: number | null
           price_inr?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      event_pricing_phases: {
+        Row: {
+          active: boolean
+          created_at: string
+          display_order: number
+          ends_at: string | null
+          id: string
+          name: string
+          phase_key: string
+          starts_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          display_order?: number
+          ends_at?: string | null
+          id?: string
+          name: string
+          phase_key: string
+          starts_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          display_order?: number
+          ends_at?: string | null
+          id?: string
+          name?: string
+          phase_key?: string
+          starts_at?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -671,6 +774,15 @@ export type Database = {
         Returns: {
           order_id: string
           total_amount_inr: number
+        }[]
+      }
+      get_event_phase_package_stats: {
+        Args: never
+        Returns: {
+          confirmed_quantity: number
+          package_id: string
+          pending_quantity: number
+          phase_id: string
         }[]
       }
       get_current_user_role: { Args: never; Returns: string }

@@ -94,6 +94,7 @@ function makeCommercePayload(payload: {
   items: TrackingCartItem[];
   source?: string;
   paymentProvider?: string;
+  pricingPhase?: string | null;
 }) {
   const quantity = payload.items.reduce((sum, item) => sum + item.quantity, 0);
 
@@ -102,7 +103,7 @@ function makeCommercePayload(payload: {
     value: payload.value,
     order_id: payload.orderId,
     source: payload.source || "pinkd_landing",
-    pricing_phase: "standard",
+    pricing_phase: payload.pricingPhase || "standard",
     product_type: "event_booking",
     payment_provider: payload.paymentProvider,
     content_type: "product",
@@ -140,6 +141,7 @@ export function trackInitiateCheckout(payload: {
   value: number;
   items: TrackingCartItem[];
   paymentProvider: string;
+  pricingPhase?: string | null;
 }) {
   const eventPayload = makeCommercePayload(payload);
   pushDataLayer("InitiateCheckout", eventPayload);
@@ -151,6 +153,7 @@ export function trackPurchaseOnce(payload: {
   value: number;
   items: TrackingCartItem[];
   paymentProvider: string;
+  pricingPhase?: string | null;
 }) {
   const eventPayload = makeCommercePayload(payload);
   return trackOnce(`${purchasePrefix}${payload.orderId}`, "Purchase", eventPayload, "Purchase");
@@ -161,6 +164,7 @@ export function trackLeadOnce(payload: {
   value: number;
   items: TrackingCartItem[];
   paymentProvider: string;
+  pricingPhase?: string | null;
 }) {
   const eventPayload = makeCommercePayload(payload);
   return trackOnce(`${leadPrefix}${payload.orderId}`, "Lead", eventPayload, "Lead");
