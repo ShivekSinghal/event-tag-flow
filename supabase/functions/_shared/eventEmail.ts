@@ -78,7 +78,7 @@ function renderConfirmationEmail(order: EventOrder) {
       <div style="max-width:640px;margin:0 auto;padding:28px 16px;">
         <div style="background:#ffffff;border-radius:16px;overflow:hidden;">
           <div style="background:#ff007f;padding:24px;">
-            <div style="font-size:28px;font-weight:900;color:#fff;letter-spacing:.04em;">pinkd</div>
+            <div style="font-size:28px;font-weight:900;color:#fff;letter-spacing:.04em;">PINK'D</div>
             <div style="margin-top:8px;color:#fff;font-size:15px;">Event booking confirmed</div>
           </div>
           <div style="padding:26px;">

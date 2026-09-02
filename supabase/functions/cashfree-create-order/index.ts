@@ -9,7 +9,7 @@ import {
   makeCashfreeOrderId,
 } from "../_shared/cashfree.ts";
 
-const BRAND_NAME = "pinkd";
+const BRAND_NAME = "PINK'D";
 const BRAND_COLOR = "#ff007f";
 
 serve(async (req: Request) => {
@@ -78,11 +78,11 @@ serve(async (req: Request) => {
         order_meta: {
           return_url: `${siteUrl}/?event_order_id=${order.id}&cashfree_order_id=${cashfreeOrderId}`,
         },
-        order_note: "pinkd event booking",
+        order_note: "PINK'D event booking",
         order_tags: {
           brand_name: BRAND_NAME,
           brand_color: BRAND_COLOR,
-          checkout_context: "pinkd event booking",
+          checkout_context: "PINK'D event booking",
         },
       }),
     });

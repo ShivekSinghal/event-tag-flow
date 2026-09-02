@@ -109,7 +109,7 @@ const STUDIO_OPTIONS = [
 
 const posterImage = "/pinkd-event-poster.png";
 const logoImage = "/pinkd-logo.png";
-const brandName = "pinkd";
+const brandName = "PINK'D";
 const brandColor = "#ff007f";
 const cashfreeScriptId = "cashfree-checkout-js";
 const razorpayScriptId = "razorpay-checkout-js";
@@ -229,7 +229,7 @@ function openRazorpayCheckout(paymentData: {
       amount: paymentData.amount_paise,
       currency: paymentData.currency,
       name: brandName,
-      description: "pinkd event booking",
+      description: "PINK'D event booking",
       order_id: paymentData.razorpay_order_id,
       prefill: {
         name: paymentData.customer.name,
