@@ -106,8 +106,8 @@ const STUDIO_OPTIONS = [
   "Not a Student",
 ];
 
-const posterImage = "/lovable-uploads/39450c63-d438-4b34-97b6-ee61d75c29dd.png";
-const logoImage = "/lovable-uploads/pinkd-logo-white-new.png";
+const posterImage = "/pinkd-event-poster.png";
+const logoImage = "/pinkd-logo.png";
 const cashfreeScriptId = "cashfree-checkout-js";
 const razorpayScriptId = "razorpay-checkout-js";
 

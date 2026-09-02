@@ -499,7 +499,7 @@ const DonationProgress = () => {
               >
                 <div className="text-center">
                   <img 
-                    src="/lovable-uploads/39450c63-d438-4b34-97b6-ee61d75c29dd.png" 
+                    src="/pinkd-event-poster.png" 
                     alt="Pink D Logo" 
                     className="w-32 h-32 mx-auto object-contain"
                   />
@@ -617,7 +617,7 @@ const DonationProgress = () => {
           >
             <div className="text-center">
               <img 
-                src="/lovable-uploads/39450c63-d438-4b34-97b6-ee61d75c29dd.png" 
+                src="/pinkd-event-poster.png" 
                 alt="Pink D Logo" 
                 className="w-32 h-32 mx-auto object-contain"
               />
