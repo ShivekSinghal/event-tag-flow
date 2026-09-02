@@ -1061,6 +1061,14 @@ export default function EventLanding() {
               <img src={logoImage} alt="Pink'D" className="h-11 w-auto max-w-[9.5rem] object-contain" />
             </div>
             <Button
+              asChild
+              type="button"
+              variant="ghost"
+              className="hidden text-white/70 hover:bg-white/10 hover:text-white sm:inline-flex"
+            >
+              <Link to="/dashboard">Dashboard</Link>
+            </Button>
+            <Button
               type="button"
               variant="outline"
               onClick={() => setIsCartOpen(true)}

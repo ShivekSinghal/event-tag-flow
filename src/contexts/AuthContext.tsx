@@ -15,6 +15,8 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   profile: Profile | null;
+  profileLoading: boolean;
+  profileError: string | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signUp: (email: string, password: string, fullName?: string) => Promise<{ error: any }>;
@@ -38,10 +40,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
   const fetchProfile = async (userId: string) => {
+    setProfileLoading(true);
+    setProfileError(null);
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -51,12 +57,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (error) {
         console.error('Error fetching profile:', error);
+        setProfile(null);
+        setProfileError(error.message || 'Could not load your access profile');
         return;
       }
 
       setProfile(data as Profile);
     } catch (error) {
       console.error('Error fetching profile:', error);
+      setProfile(null);
+      setProfileError('Could not load your access profile');
+    } finally {
+      setProfileLoading(false);
     }
   };
 
@@ -68,12 +80,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(session?.user ?? null);
         
         if (session?.user) {
+          setProfile(null);
           // Defer profile fetching to avoid blocking auth state changes
           setTimeout(() => {
             fetchProfile(session.user.id);
           }, 0);
         } else {
           setProfile(null);
+          setProfileLoading(false);
+          setProfileError(null);
         }
         
         setLoading(false);
@@ -86,9 +101,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(session?.user ?? null);
       
       if (session?.user) {
+        setProfile(null);
         setTimeout(() => {
           fetchProfile(session.user.id);
         }, 0);
+      } else {
+        setProfileLoading(false);
+        setProfileError(null);
       }
       
       setLoading(false);
@@ -166,6 +185,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(null);
       setSession(null);
       setProfile(null);
+      setProfileLoading(false);
+      setProfileError(null);
       toast({
         title: "Signed Out",
         description: "You have been signed out successfully.",
@@ -187,6 +208,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     user,
     session,
     profile,
+    profileLoading,
+    profileError,
     loading,
     signIn,
     signUp,
