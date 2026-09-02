@@ -76,7 +76,7 @@ const ResetPassword = () => {
     });
 
     await supabase.auth.signOut();
-    navigate('/auth');
+    navigate('/pinkd-login');
   };
 
   if (checking) {
@@ -149,7 +149,7 @@ const ResetPassword = () => {
               <p className="text-sm text-muted-foreground text-center">
                 Please request a new password reset link from the sign-in page.
               </p>
-              <Button className="w-full" onClick={() => navigate('/auth')}>
+              <Button className="w-full" onClick={() => navigate('/pinkd-login')}>
                 Back to Sign In
               </Button>
             </div>

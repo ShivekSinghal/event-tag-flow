@@ -5,3 +5,24 @@ verify_jwt = false
 
 [functions.bulk-create-users]
 verify_jwt = true
+
+[functions.cashfree-create-order]
+verify_jwt = true
+
+[functions.cashfree-verify-order]
+verify_jwt = true
+
+[functions.cashfree-webhook]
+verify_jwt = false
+
+[functions.event-payment-create]
+verify_jwt = false
+
+[functions.event-payment-verify]
+verify_jwt = false
+
+[functions.event-payment-webhook]
+verify_jwt = false
+
+[functions.event-confirmation-email]
+verify_jwt = true

@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Navigate, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import Layout from "./components/layout/Layout";
@@ -12,6 +12,7 @@ import TopUp from "./pages/TopUp";
 import POS from "./pages/POS";
 import Balance from "./pages/Balance";
 import DonationProgress from "./pages/DonationProgress";
+import EventLanding from "./pages/EventLanding";
 import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
@@ -26,18 +27,16 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
-            <Route path="/auth" element={<Auth />} />
+            <Route path="/" element={<EventLanding />} />
+            <Route path="/event" element={<EventLanding />} />
+            <Route path="/pinkd-login" element={<Auth />} />
+            <Route path="/auth" element={<Navigate to="/pinkd-login" replace />} />
             <Route path="/reset-password" element={<ResetPassword />} />
-            <Route path="/" element={
+            <Route element={
               <ProtectedRoute>
                 <Layout />
               </ProtectedRoute>
             }>
-              <Route index element={
-                <ProtectedRoute requiredRole="admin">
-                  <Dashboard />
-                </ProtectedRoute>
-              } />
               <Route path="dashboard" element={
                 <ProtectedRoute requiredRole="admin">
                   <Dashboard />

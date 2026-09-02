@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Maximize, Minimize, Download, FileText } from "lucide-react";
 import { useFlyingCards } from "@/hooks/use-flying-cards";
+import { formatCoins, formatInr, getCoinAmount } from "@/lib/coins";
 import * as XLSX from 'xlsx';
 
 
@@ -19,7 +20,7 @@ const DonationProgress = () => {
   const { addCard, FlyingCards, DonationDots, dotsCount, loadExistingTransactions } = useFlyingCards();
   const [stats, setStats] = useState<DonationStats>({
     totalRaised: 0,
-    goal: 1000000, // ₹10,00,000 goal
+    goal: 1000000, // Real-money donation goal in INR
     percentage: 0
   });
   const [isLoading, setIsLoading] = useState(true);
@@ -34,7 +35,9 @@ const DonationProgress = () => {
         .from('transactions')
         .select(`
           id,
-          amount, 
+          amount,
+          inr_amount,
+          coin_amount,
           type,
           created_at,
           wallets(attendee_name, studio)
@@ -49,15 +52,11 @@ const DonationProgress = () => {
 
       console.log('Fetched transactions:', transactions?.length, 'transactions');
       
-      // Calculate total from all transactions (top-ups + revenue from games/drinks/food)
+      // Calculate real money collected from coin purchases/top-ups.
       const totalRaised = transactions
         ?.reduce((sum, transaction) => {
-          if (transaction.type === 'load') {
-            // Top-ups contribute directly to donations
-            return sum + Number(transaction.amount);
-          } else if (['games', 'drinks', 'food'].includes(transaction.type)) {
-            // Revenue from purchases also contributes (amounts are negative, so we take absolute value)
-            return sum + Math.abs(Number(transaction.amount));
+          if (transaction.type === 'load' || transaction.type === 'coin_purchase') {
+            return sum + Number((transaction as any).inr_amount ?? transaction.amount ?? 0);
           }
           return sum;
         }, 0) || 0;
@@ -68,7 +67,7 @@ const DonationProgress = () => {
 
       // On initial load, show existing top-up transactions as dots
       if (!showGratitude && transactions) {
-        const existingTopUps = transactions.filter(t => t.type === 'load');
+        const existingTopUps = transactions.filter(t => t.type === 'load' || t.type === 'coin_purchase');
         loadExistingTransactions(existingTopUps);
       }
 
@@ -77,24 +76,26 @@ const DonationProgress = () => {
         const latestTransaction = transactions[0]; // Get the most recent transaction
         if (latestTransaction && latestTransaction.id !== lastTransactionId) {
           const walletData = latestTransaction.wallets as any;
+          const latestCoins = getCoinAmount(latestTransaction as any);
+          const latestInr = Number((latestTransaction as any).inr_amount ?? latestTransaction.amount ?? 0);
           
           // Add flying card for both top-ups and payments
           addCard({
-            amount: Number(latestTransaction.amount),
+            amount: latestCoins,
             name: walletData?.attendee_name || 'Anonymous',
             studio: walletData?.studio || 'Unknown',
-            type: latestTransaction.type === 'load' ? "topup" : "sale"
+            type: latestTransaction.type === 'load' || latestTransaction.type === 'coin_purchase' ? "topup" : "sale"
           });
           
           // Show different messages for top-ups vs payments
-          if (latestTransaction.type === 'load') {
+          if (latestTransaction.type === 'load' || latestTransaction.type === 'coin_purchase') {
             toast.success(
-              `🙏 Thank you ${walletData?.attendee_name || 'Anonymous'} from ${walletData?.studio || 'Unknown'} for your generous contribution of ₹${Number(latestTransaction.amount).toFixed(2)}! Your support helps aspiring dancers achieve their dreams.`,
+              `🙏 Thank you ${walletData?.attendee_name || 'Anonymous'} from ${walletData?.studio || 'Unknown'} for your contribution of ${formatInr(latestInr)}. ${formatCoins(latestCoins)} were credited.`,
               { duration: 6000 }
             );
           } else {
             toast.success(
-              `💃 ${walletData?.attendee_name || 'Anonymous'} from ${walletData?.studio || 'Unknown'} made a purchase of ₹${Math.abs(Number(latestTransaction.amount)).toFixed(2)}!`,
+              `💃 ${walletData?.attendee_name || 'Anonymous'} from ${walletData?.studio || 'Unknown'} spent ${formatCoins(Math.abs(latestCoins))}.`,
               { duration: 4000 }
             );
           }
@@ -129,6 +130,10 @@ const DonationProgress = () => {
           .select(`
             id,
             amount,
+            inr_amount,
+            coin_amount,
+            item_name,
+            item_category,
             type,
             description,
             reference,
@@ -164,35 +169,39 @@ const DonationProgress = () => {
         'Transaction ID',
         'Date', 
         'Type',
-        'Amount',
+        'INR Paid',
+        "Pink'D Coins",
         'Description',
         'Reference',
         'Attendee Name',
         'Phone',
         'Studio',
+        'Item Name',
+        'Item Category',
         'Game Name',
-        'Game Price'
+        "Game Price (Pink'D Coins)"
       ];
 
       const data = filteredTransactions.map(transaction => {
         const walletData = transaction.wallets as any;
         const gameData = transaction.games as any;
         
-        // For game purchases, show positive amounts to match dashboard display
-        const displayAmount = transaction.type === 'games' 
-          ? Math.abs(Number(transaction.amount)) 
-          : Number(transaction.amount);
+        const inrPaid = transaction.inr_amount ? Number(transaction.inr_amount) : '';
+        const coinAmount = getCoinAmount(transaction);
         
         return [
           transaction.id,
           new Date(transaction.created_at).toLocaleString(),
           transaction.type,
-          displayAmount,
+          inrPaid,
+          coinAmount,
           transaction.description,
           transaction.reference || '',
           walletData?.attendee_name || '',
           walletData?.attendee_phone || '',
           walletData?.studio || '',
+          transaction.item_name || '',
+          transaction.item_category || '',
           gameData?.name || '',
           gameData?.price || ''
         ];
@@ -514,7 +523,7 @@ const DonationProgress = () => {
               </CardHeader>
               <CardContent className="pt-0 pb-4">
                 <div className="text-2xl font-bold">
-                  ₹{stats.totalRaised.toFixed(2)}
+                  {formatInr(stats.totalRaised)}
                 </div>
               </CardContent>
             </Card>
@@ -525,7 +534,7 @@ const DonationProgress = () => {
               </CardHeader>
               <CardContent className="pt-0 pb-4">
                 <div className="text-2xl font-bold">
-                  ₹{stats.goal.toLocaleString()}
+                  {formatInr(stats.goal)}
                 </div>
               </CardContent>
             </Card>
@@ -536,7 +545,7 @@ const DonationProgress = () => {
               </CardHeader>
               <CardContent className="pt-0 pb-4">
                 <div className="text-2xl font-bold">
-                  ₹{Math.max(0, stats.goal - stats.totalRaised).toFixed(2)}
+                  {formatInr(Math.max(0, stats.goal - stats.totalRaised))}
                 </div>
               </CardContent>
             </Card>
@@ -641,7 +650,7 @@ const DonationProgress = () => {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold">
-              ₹{stats.totalRaised.toFixed(2)}
+              {formatInr(stats.totalRaised)}
             </div>
           </CardContent>
         </Card>
@@ -652,7 +661,7 @@ const DonationProgress = () => {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold">
-              ₹{stats.goal.toLocaleString()}
+              {formatInr(stats.goal)}
             </div>
           </CardContent>
         </Card>
@@ -663,7 +672,7 @@ const DonationProgress = () => {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold">
-              ₹{Math.max(0, stats.goal - stats.totalRaised).toFixed(2)}
+              {formatInr(Math.max(0, stats.goal - stats.totalRaised))}
             </div>
           </CardContent>
         </Card>

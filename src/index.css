@@ -106,6 +106,16 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  body .razorpay-container,
+  body .razorpay-backdrop,
+  body .razorpay-checkout-frame,
+  body [class*="razorpay"],
+  body [id*="razorpay"],
+  body iframe[src*="razorpay.com"],
+  body iframe[src*="checkout.razorpay.com"] {
+    z-index: 2147483647 !important;
+  }
 }
 
 @layer utilities {

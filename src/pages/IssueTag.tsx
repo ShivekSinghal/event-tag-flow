@@ -117,8 +117,9 @@ export default function IssueTag() {
           attendee_phone: attendeePhone,
           studio: selectedStudio,
           balance: 0.00,
+          coin_balance: 0,
           status: 'active'
-        })
+        } as any)
         .select()
         .single();
 
@@ -150,7 +151,7 @@ export default function IssueTag() {
       {/* Header */}
       <div className="text-center">
         <h1 className="text-3xl font-bold text-foreground">Issue NFC Tag</h1>
-        <p className="text-muted-foreground mt-2">Scan an NFC tag and create a new digital wallet</p>
+        <p className="text-muted-foreground mt-2">Scan the band's default NFC UID and create a Pink'D Coin wallet</p>
       </div>
 
       {/* NFC Scanning Card */}

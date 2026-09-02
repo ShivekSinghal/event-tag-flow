@@ -10,6 +10,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useFlyingCards } from "@/hooks/use-flying-cards";
 import { useStaffPermissions } from "@/hooks/use-staff-permissions";
 import { nfcManager } from "@/utils/nfc";
+import { formatCoins, getCoinBalance } from "@/lib/coins";
 import { useState, useEffect } from "react";
 import { Package, CreditCard, DollarSign, Scan, AlertCircle, ArrowRight, CheckCircle, Calculator } from "lucide-react";
 
@@ -33,7 +34,17 @@ interface CustomItem {
   id: string;
   name: string;
   type: "food" | "game";
-  requiresCustomAmount: boolean;
+  price: number;
+  categoryRef: string;
+}
+
+interface PosItem {
+  id: string;
+  name: string;
+  category: "drink" | "food" | "custom_food" | "custom_game";
+  coin_price: number;
+  active: boolean;
+  display_order: number;
 }
 
 export default function POS() {
@@ -57,23 +68,55 @@ export default function POS() {
   const [showCalculator, setShowCalculator] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [games, setGames] = useState<Game[]>([]);
+  const [drinkItems, setDrinkItems] = useState<DrinkItem[]>([]);
+  const [foodItems, setFoodItems] = useState<DrinkItem[]>([]);
+  const [customItems, setCustomItems] = useState<CustomItem[]>([]);
   const [isLoadingGames, setIsLoadingGames] = useState(false);
   const [activeSection, setActiveSection] = useState<"games" | "drinks" | "food" | "custom-games">("games");
 
-  // Drinks data
-  const drinkItems: DrinkItem[] = [
-    { id: "hashtag-specials", name: "Hashtag Specials", price: 1000, category: "Specials" },
-    { id: "classic-cocktails", name: "Classic Cocktails", price: 800, category: "Cocktails" },
-    { id: "ogs", name: "OG's", price: 800, category: "Cocktails" },
-    { id: "mocktails", name: "Mocktails/Beer", price: 500, category: "Mocktails" },
-  ];
+  useEffect(() => {
+    const fetchPosItems = async () => {
+      const { data, error } = await supabase
+        .from("pos_items")
+        .select("*")
+        .eq("active", true)
+        .order("display_order", { ascending: true });
 
-  // Custom items data
-  const customItems: CustomItem[] = [
-    { id: "food-menu", name: "Food Menu", type: "food", requiresCustomAmount: true },
-    { id: "dunk-company-member", name: "Dunk a Company Member", type: "game", requiresCustomAmount: true },
-    { id: "karaoke", name: "Karaoke", type: "game", requiresCustomAmount: true },
-  ];
+      if (error) {
+        toast({
+          title: "Item Prices Unavailable",
+          description: "Could not load Pink'D Coin item prices.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const items = (data || []) as PosItem[];
+      setDrinkItems(
+        items
+          .filter((item) => item.category === "drink")
+          .map((item) => ({ id: item.id, name: item.name, price: item.coin_price, category: "Drinks" })),
+      );
+      setFoodItems(
+        items
+          .filter((item) => item.category === "food")
+          .map((item) => ({ id: item.id, name: item.name, price: item.coin_price, category: "Food" })),
+      );
+      setCustomItems(
+        items
+          .filter((item) => item.category === "custom_food" || item.category === "custom_game")
+          .map((item) => ({
+            id: item.id,
+            name: item.name,
+            type: item.category === "custom_game" ? "game" : "food",
+            price: item.coin_price,
+            categoryRef: item.category,
+          })),
+      );
+    };
+
+    fetchPosItems();
+  }, [toast]);
 
   // Handle section switching based on permissions
   useEffect(() => {
@@ -156,7 +199,7 @@ export default function POS() {
     setShowCustomAmountInput(false);
     toast({
       title: "Scanning Started",
-      description: `Selected ${game.name} (₹${game.price.toFixed(2)}). Please scan the customer's NFC tag.`,
+      description: `Selected ${game.name} (${formatCoins(game.price)}). Please scan the customer's NFC tag.`,
     });
 
     // Automatically start NFC scanning
@@ -174,14 +217,14 @@ export default function POS() {
     setShowCustomAmountInput(false);
     toast({
       title: "Scanning Started",
-      description: `Selected ${drink.name} (₹${drink.price.toFixed(2)}). Please scan the customer's NFC tag.`,
+      description: `Selected ${drink.name} (${formatCoins(drink.price)}). Please scan the customer's NFC tag.`,
     });
 
     // Automatically start NFC scanning
     await handleScanForPayment(drink.price, `${drink.name}`, null, "drinks");
   };
 
-  const handleCustomItemSelect = (item: CustomItem) => {
+  const handleCustomItemSelect = async (item: CustomItem) => {
     if (isScanning || isProcessing) {
       return;
     }
@@ -189,12 +232,15 @@ export default function POS() {
     setSelectedCustomItem(item);
     setSelectedGame(null);
     setSelectedDrink(null);
-    setShowCustomAmountInput(true);
-    setCustomAmount("");
+    setShowCustomAmountInput(false);
+    setCustomAmount(item.price.toString());
     toast({
-      title: "Enter Amount",
-      description: `Selected ${item.name}. Please enter the amount.`,
+      title: "Scanning Started",
+      description: `Selected ${item.name} (${formatCoins(item.price)}). Please scan the customer's NFC tag.`,
     });
+
+    const itemType = item.type === "game" ? "games" : "food";
+    await handleScanForPayment(item.price, item.name, null, itemType);
   };
 
   const handleCustomAmountConfirm = async () => {
@@ -220,7 +266,7 @@ export default function POS() {
     setShowCustomAmountInput(false);
     toast({
       title: "Scanning Started",
-      description: `Selected ${selectedCustomItem.name} (₹${amount.toFixed(2)}). Please scan the customer's NFC tag.`,
+      description: `Selected ${selectedCustomItem.name} (${formatCoins(amount)}). Please scan the customer's NFC tag.`,
     });
 
     // Automatically start NFC scanning
@@ -270,7 +316,7 @@ export default function POS() {
           attendeeName: wallet.attendee_name,
           attendeePhone: wallet.attendee_phone,
           tagId: wallet.tag_id,
-          currentBalance: typeof wallet.balance === "string" ? parseFloat(wallet.balance) : wallet.balance,
+          currentBalance: getCoinBalance(wallet),
           status: wallet.status,
         };
 
@@ -307,8 +353,8 @@ export default function POS() {
   ) => {
     if (price > wallet.currentBalance) {
       toast({
-        title: "Insufficient Balance",
-        description: `Balance: ₹${wallet.currentBalance.toFixed(2)} | Required: ₹${price.toFixed(2)}`,
+        title: "Insufficient Pink'D Coins",
+        description: `Balance: ${formatCoins(wallet.currentBalance)} | Required: ${formatCoins(price)}`,
         variant: "destructive",
       });
       return;
@@ -319,8 +365,11 @@ export default function POS() {
     try {
       const newBalance = wallet.currentBalance - price;
 
-      // Update wallet balance in Supabase
-      const { error: updateError } = await supabase.from("wallets").update({ balance: newBalance }).eq("id", wallet.id);
+      // Update wallet coin balance in Supabase.
+      const { error: updateError } = await supabase
+        .from("wallets")
+        .update({ coin_balance: newBalance, balance: newBalance })
+        .eq("id", wallet.id);
 
       if (updateError) {
         console.error("Wallet update error:", updateError);
@@ -334,10 +383,15 @@ export default function POS() {
           wallet_id: wallet.id,
           type: transactionType,
           amount: -price,
+          inr_amount: null,
+          coin_amount: -price,
           description: `${transactionType === "drinks" ? "Drinks" : transactionType === "games" ? "Game" : "Food"} Purchase: ${itemName}`,
-          reference: `POS_${Date.now()}`,
+          reference: `${transactionType.toUpperCase()}_${gameId || selectedDrink?.id || selectedCustomItem?.id || Date.now()}`,
           game_id: gameId,
-        })
+          item_name: itemName,
+          item_category: transactionType,
+          staff_user_id: profile?.id || null,
+        } as any)
         .select()
         .single();
 
@@ -353,7 +407,8 @@ export default function POS() {
           transaction_id: transactionData.id,
           quantity: 1,
           sale_price: price,
-        });
+          coin_price: price,
+        } as any);
 
         if (salesError) {
           console.error("Game sales creation error:", salesError);
@@ -364,7 +419,7 @@ export default function POS() {
 
       toast({
         title: "Payment Successful!",
-        description: `₹${price.toFixed(2)} charged for ${itemName}. New balance: ₹${newBalance.toFixed(2)}`,
+        description: `${formatCoins(price)} charged for ${itemName}. New balance: ${formatCoins(newBalance)}`,
       });
 
       // Show flying card animation
@@ -414,7 +469,7 @@ export default function POS() {
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Point of Sale</h1>
         </div>
         <p className="text-sm sm:text-base text-muted-foreground mt-2">
-          Tap items, scan NFC tag, process payment instantly
+          Tap items, scan NFC tag, deduct Pink'D Coins instantly
         </p>
       </div>
 
@@ -538,7 +593,7 @@ export default function POS() {
                           {activeSection === "games" && "Available Games"}
                           {activeSection === "drinks" && "Drinks Menu"}
                           {activeSection === "food" && "Food & Custom Items"}
-                          {activeSection === "custom-games" && "Custom Amount Games"}
+                          {activeSection === "custom-games" && "Custom Game Items"}
                         </span>
                       </div>
                       <div className="flex items-center space-x-2">
@@ -598,7 +653,7 @@ export default function POS() {
                                 </div>
                                 <div className="text-right shrink-0 ml-2">
                                   <span className="font-bold text-sm sm:text-lg text-success">
-                                    ₹{game.price.toFixed(2)}
+                                    {formatCoins(game.price)}
                                   </span>
                                 </div>
                               </div>
@@ -634,7 +689,7 @@ export default function POS() {
                             </div>
                             <div className="text-right shrink-0 ml-2">
                               <span className="font-bold text-sm sm:text-lg text-success">
-                                ₹{drink.price.toFixed(2)}
+                                {formatCoins(drink.price)}
                               </span>
                             </div>
                           </div>
@@ -666,10 +721,11 @@ export default function POS() {
                               </Label>
                               <Select
                                 onValueChange={(value) => {
-                                  const [name, price] = value.split("|");
+                                  const foodItem = foodItems.find((item) => item.id === value);
+                                  if (!foodItem) return;
                                   setCalculatorItems([
                                     ...calculatorItems,
-                                    { name, price: parseFloat(price), quantity: 1 },
+                                    { name: foodItem.name, price: foodItem.price, quantity: 1 },
                                   ]);
                                 }}
                               >
@@ -677,14 +733,11 @@ export default function POS() {
                                   <SelectValue placeholder="Choose a dish to add" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="Manas' Curry Cut Biryani|550">
-                                    Manas' Curry Cut Biryani - ₹550
-                                  </SelectItem>
-                                  <SelectItem value="Chicken 65|350">Chicken 65 - ₹350</SelectItem>
-                                  <SelectItem value="Gobhi 65|250">Gobhi 65 - ₹250</SelectItem>
-                                  <SelectItem value="Chicken Chettinad|400">Chicken Chettinad - ₹400</SelectItem>
-                                  <SelectItem value="Veg Korma|300">Veg Korma - ₹300</SelectItem>
-                                  <SelectItem value="Parotta|100">Parotta - ₹100</SelectItem>
+                                  {foodItems.map((item) => (
+                                    <SelectItem key={item.id} value={item.id}>
+                                      {item.name} - {formatCoins(item.price)}
+                                    </SelectItem>
+                                  ))}
                                 </SelectContent>
                               </Select>
                             </div>
@@ -701,7 +754,7 @@ export default function POS() {
                                     <div className="flex-1 min-w-0">
                                       <div className="font-medium text-sm sm:text-base truncate">{item.name}</div>
                                       <div className="text-xs sm:text-sm text-muted-foreground">
-                                        ₹{item.price.toFixed(2)} each
+                                        {formatCoins(item.price)} each
                                       </div>
                                     </div>
                                     <div className="flex items-center space-x-1 sm:space-x-2 shrink-0">
@@ -751,10 +804,7 @@ export default function POS() {
                                   <div className="flex justify-between items-center mb-4">
                                     <span className="text-base sm:text-lg font-bold">Total:</span>
                                     <span className="text-lg sm:text-2xl font-bold text-primary">
-                                      ₹
-                                      {calculatorItems
-                                        .reduce((total, item) => total + item.price * item.quantity, 0)
-                                        .toFixed(2)}
+                                      {formatCoins(calculatorItems.reduce((total, item) => total + item.price * item.quantity, 0))}
                                     </span>
                                   </div>
                                   <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
@@ -819,22 +869,22 @@ export default function POS() {
                                   </div>
                                   <div className="text-sm text-muted-foreground capitalize">{item.type}</div>
                                 </div>
-                                <div className="text-sm font-medium text-muted-foreground">Custom Amount</div>
+                                <div className="text-sm font-medium text-primary">{formatCoins(item.price)}</div>
                               </div>
                             ))}
                         </div>
 
-                        {/* Custom Amount Input */}
+                        {/* Custom Coin Input */}
                         {showCustomAmountInput && selectedCustomItem && (
                           <Card className="border-primary/20">
                             <CardHeader>
-                              <CardTitle className="text-lg">Enter Amount for {selectedCustomItem.name}</CardTitle>
+                              <CardTitle className="text-lg">Enter Pink'D Coins for {selectedCustomItem.name}</CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-4">
                               {/* Predefined Amount Buttons for Games */}
                               {selectedCustomItem.type === "game" && (
                                 <div>
-                                  <p className="text-sm text-muted-foreground mb-3">Quick Select Amount:</p>
+                                  <p className="text-sm text-muted-foreground mb-3">Quick Select Coins:</p>
                                   <div className="grid grid-cols-4 gap-2 mb-4">
                                     {[1, 50, 100, 200, 500, 1000, 2000].map((amount) => (
                                       <Button
@@ -844,12 +894,12 @@ export default function POS() {
                                         onClick={() => setCustomAmount(amount.toString())}
                                         className="h-12"
                                       >
-                                        ₹{amount}
+                                        {formatCoins(amount)}
                                       </Button>
                                     ))}
                                   </div>
                                   <div className="text-center text-sm text-muted-foreground mb-3">
-                                    Or enter custom amount:
+                                    Or enter custom coin amount:
                                   </div>
                                 </div>
                               )}
@@ -858,11 +908,11 @@ export default function POS() {
                                 <div className="flex-1">
                                   <Input
                                     type="number"
-                                    placeholder="Enter amount (₹)"
+                                    placeholder="Enter Pink'D Coins"
                                     value={customAmount}
                                     onChange={(e) => setCustomAmount(e.target.value)}
                                     min="0"
-                                    step="0.01"
+                                    step="1"
                                   />
                                 </div>
                                 <Button
@@ -916,24 +966,24 @@ export default function POS() {
                                     {item.type}
                                   </div>
                                 </div>
-                                <div className="text-xs sm:text-sm font-medium text-muted-foreground shrink-0">
-                                  Custom Amount
+                                <div className="text-xs sm:text-sm font-medium text-primary shrink-0">
+                                  {formatCoins(item.price)}
                                 </div>
                               </div>
                             ))}
                         </div>
 
-                        {/* Custom Amount Input */}
+                        {/* Custom Coin Input */}
                         {showCustomAmountInput && selectedCustomItem && (
                           <Card className="border-primary/20">
                             <CardHeader>
-                              <CardTitle className="text-lg">Enter Amount for {selectedCustomItem.name}</CardTitle>
+                              <CardTitle className="text-lg">Enter Pink'D Coins for {selectedCustomItem.name}</CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-4">
                               {/* Predefined Amount Buttons for Games */}
                               {selectedCustomItem.type === "game" && (
                                 <div>
-                                  <p className="text-sm text-muted-foreground mb-3">Quick Select Amount:</p>
+                                  <p className="text-sm text-muted-foreground mb-3">Quick Select Coins:</p>
                                   <div className="grid grid-cols-4 gap-2 mb-4">
                                     {[1, 50, 100, 200, 500, 1000, 2000].map((amount) => (
                                       <Button
@@ -943,12 +993,12 @@ export default function POS() {
                                         onClick={() => setCustomAmount(amount.toString())}
                                         className="h-12"
                                       >
-                                        ₹{amount}
+                                        {formatCoins(amount)}
                                       </Button>
                                     ))}
                                   </div>
                                   <div className="text-center text-sm text-muted-foreground mb-3">
-                                    Or enter custom amount:
+                                    Or enter custom coin amount:
                                   </div>
                                 </div>
                               )}
@@ -957,11 +1007,11 @@ export default function POS() {
                                 <div className="flex-1">
                                   <Input
                                     type="number"
-                                    placeholder="Enter amount (₹)"
+                                    placeholder="Enter Pink'D Coins"
                                     value={customAmount}
                                     onChange={(e) => setCustomAmount(e.target.value)}
                                     min="0"
-                                    step="0.01"
+                                    step="1"
                                   />
                                 </div>
                                 <Button
@@ -1000,16 +1050,16 @@ export default function POS() {
                           <div className="text-xs sm:text-sm text-muted-foreground mb-3">
                             {selectedGame?.description ||
                               selectedDrink?.category ||
-                              `${selectedCustomItem?.type} - Custom Amount`}
+                              `${selectedCustomItem?.type} - Pink'D Coin price`}
                           </div>
                           <div className="flex items-center justify-between pt-3 border-t border-primary/20">
                             <span className="text-xs sm:text-sm font-medium text-muted-foreground">Price</span>
                             <span className="text-base sm:text-lg font-bold text-primary">
-                              {selectedGame && `₹${selectedGame.price.toFixed(2)}`}
-                              {selectedDrink && `₹${selectedDrink.price.toFixed(2)}`}
-                              {selectedCustomItem && customAmount && `₹${parseFloat(customAmount).toFixed(2)}`}
+                              {selectedGame && formatCoins(selectedGame.price)}
+                              {selectedDrink && formatCoins(selectedDrink.price)}
+                              {selectedCustomItem && customAmount && formatCoins(customAmount)}
                               {selectedCustomItem && !customAmount && (
-                                <span className="text-muted-foreground text-xs">Enter amount below</span>
+                                <span className="text-muted-foreground text-xs">Enter coins below</span>
                               )}
                             </span>
                           </div>
@@ -1085,7 +1135,7 @@ export default function POS() {
                           <div className="flex items-center justify-between pt-3 border-t border-success/20">
                             <span className="text-xs sm:text-sm font-medium text-muted-foreground">Balance</span>
                             <span className="text-base sm:text-lg font-bold text-success">
-                              ₹{scannedWallet.currentBalance.toFixed(2)}
+                              {formatCoins(scannedWallet.currentBalance)}
                             </span>
                           </div>
                         </div>

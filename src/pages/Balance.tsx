@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { nfcManager } from "@/utils/nfc";
 import { supabase } from "@/integrations/supabase/client";
+import { formatCoins, formatInr, getCoinAmount, getCoinBalance } from "@/lib/coins";
 import { 
   CreditCard, 
   Scan, 
@@ -39,6 +40,8 @@ export default function Balance() {
               id,
               type,
               amount,
+              inr_amount,
+              coin_amount,
               description,
               created_at
             )
@@ -58,12 +61,12 @@ export default function Balance() {
 
         // Calculate totals
         const totalTopUp = wallet.transactions
-          ?.filter((t: any) => t.type === 'load')
-          .reduce((sum: number, t: any) => sum + parseFloat(t.amount), 0) || 0;
+          ?.filter((t: any) => t.type === 'load' || t.type === 'coin_purchase')
+          .reduce((sum: number, t: any) => sum + Math.max(0, getCoinAmount(t)), 0) || 0;
         
         const totalSpent = wallet.transactions
-          ?.filter((t: any) => t.type === 'spend')
-          .reduce((sum: number, t: any) => sum + Math.abs(parseFloat(t.amount)), 0) || 0;
+          ?.filter((t: any) => ['spend', 'games', 'drinks', 'food'].includes(t.type))
+          .reduce((sum: number, t: any) => sum + Math.abs(getCoinAmount(t)), 0) || 0;
 
         // Format data for UI
         const formattedWallet = {
@@ -72,13 +75,14 @@ export default function Balance() {
           tagId: wallet.tag_id,
           issuedDate: new Date(wallet.created_at).toLocaleDateString(),
           status: wallet.status,
-          currentBalance: typeof wallet.balance === 'string' ? parseFloat(wallet.balance) : wallet.balance,
+          currentBalance: getCoinBalance(wallet),
           totalTopUp,
           totalSpent,
           transactions: wallet.transactions?.map((t: any) => ({
             id: t.id,
-            type: t.type === 'load' ? 'Load' : 'Sale',
-            amount: t.type === 'load' ? parseFloat(t.amount) : -Math.abs(parseFloat(t.amount)),
+            type: t.type === 'load' || t.type === 'coin_purchase' ? 'Coin Purchase' : 'Sale',
+            amount: getCoinAmount(t),
+            inrAmount: t.inr_amount,
             description: t.description,
             timestamp: new Date(t.created_at).toLocaleString()
           })) || []
@@ -112,8 +116,8 @@ export default function Balance() {
     <div className="max-w-4xl mx-auto space-y-8">
       {/* Header */}
       <div className="text-center">
-        <h1 className="text-3xl font-bold text-foreground">Check Balance</h1>
-        <p className="text-muted-foreground mt-2">View wallet balance and transaction history</p>
+        <h1 className="text-3xl font-bold text-foreground">Check Pink'D Coins</h1>
+        <p className="text-muted-foreground mt-2">View NFC wallet coin balance and transaction history</p>
       </div>
 
       {/* Scanner Card */}
@@ -192,9 +196,9 @@ export default function Balance() {
                   <div className="text-center space-y-4">
                     <Wallet className="w-12 h-12 text-primary mx-auto" />
                     <div>
-                      <div className="text-sm text-muted-foreground mb-1">Current Balance</div>
+                      <div className="text-sm text-muted-foreground mb-1">Current Pink'D Coin Balance</div>
                       <div className="text-4xl font-bold text-primary">
-                        ₹{walletData.currentBalance.toFixed(2)}
+                        {formatCoins(walletData.currentBalance)}
                       </div>
                     </div>
                   </div>
@@ -212,9 +216,9 @@ export default function Balance() {
                     <TrendingUp className="w-5 h-5 text-success" />
                   </div>
                   <div>
-                    <div className="text-sm text-muted-foreground">Total Loaded</div>
+                    <div className="text-sm text-muted-foreground">Coins Credited</div>
                     <div className="text-xl font-bold text-foreground">
-                      ₹{walletData.totalTopUp.toFixed(2)}
+                      {formatCoins(walletData.totalTopUp)}
                     </div>
                   </div>
                 </div>
@@ -228,9 +232,9 @@ export default function Balance() {
                     <TrendingDown className="w-5 h-5 text-destructive" />
                   </div>
                   <div>
-                    <div className="text-sm text-muted-foreground">Total Spent</div>
+                    <div className="text-sm text-muted-foreground">Coins Spent</div>
                     <div className="text-xl font-bold text-foreground">
-                      ₹{walletData.totalSpent.toFixed(2)}
+                      {formatCoins(walletData.totalSpent)}
                     </div>
                   </div>
                 </div>
@@ -288,8 +292,13 @@ export default function Balance() {
                       <div className={`font-bold ${
                         transaction.amount > 0 ? "text-success" : "text-destructive"
                       }`}>
-                        {transaction.amount > 0 ? "+" : ""}₹{Math.abs(transaction.amount).toFixed(2)}
+                        {transaction.amount > 0 ? "+" : ""}{formatCoins(Math.abs(transaction.amount))}
                       </div>
+                      {transaction.inrAmount && (
+                        <div className="text-xs text-muted-foreground">
+                          Paid {formatInr(transaction.inrAmount)}
+                        </div>
+                      )}
                       <Badge 
                         variant={transaction.type === "Sale" ? "destructive" : "default"}
                         className="text-xs"

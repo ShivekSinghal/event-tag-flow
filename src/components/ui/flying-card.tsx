@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
+import { formatCoins } from "@/lib/coins";
 
 interface FlyingCardProps {
   amount: number;
@@ -57,7 +58,7 @@ export function FlyingCard({ amount, name, studio, type, onComplete }: FlyingCar
           "animate-scroll-up-donation min-w-[200px] text-center"
         )}
       >
-        <div className="font-bold text-lg">₹{amount}</div>
+        <div className="font-bold text-lg">{formatCoins(amount)}</div>
         <div className="text-sm opacity-90">{name}</div>
         <div className="text-xs opacity-75">{studio}</div>
       </div>

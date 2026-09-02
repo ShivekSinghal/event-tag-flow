@@ -10,6 +10,13 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Gamepad2, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 
+function getPostLoginPath(role?: 'admin' | 'staff' | 'studio_manager') {
+  if (role === 'admin') return '/dashboard';
+  if (role === 'staff') return '/pos';
+  if (role === 'studio_manager') return '/issue-tag';
+  return '/dashboard';
+}
+
 const Auth = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -19,25 +26,21 @@ const Auth = () => {
   const [view, setView] = useState<'auth' | 'forgot'>('auth');
   const [resetEmail, setResetEmail] = useState('');
   const navigate = useNavigate();
-  const { signIn, signUp, user, loading } = useAuth();
+  const { signIn, signUp, user, profile, loading } = useAuth();
   const { toast } = useToast();
 
   useEffect(() => {
     // Redirect if already authenticated
-    if (!loading && user) {
-      navigate('/');
+    if (!loading && user && profile) {
+      navigate(getPostLoginPath(profile.role), { replace: true });
     }
-  }, [user, loading, navigate]);
+  }, [user, profile, loading, navigate]);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     
     const { error } = await signIn(email, password);
-    
-    if (!error) {
-      navigate('/');
-    }
     
     setIsLoading(false);
   };

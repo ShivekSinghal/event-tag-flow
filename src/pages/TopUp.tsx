@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { nfcManager } from "@/utils/nfc";
 import { supabase } from "@/integrations/supabase/client";
 import { useFlyingCards } from "@/hooks/use-flying-cards";
+import { formatCoins, formatInr, getCoinBalance } from "@/lib/coins";
 import { 
   Wallet, 
   Scan, 
@@ -18,15 +19,46 @@ import {
   CreditCard
 } from "lucide-react";
 
-const quickAmounts = [100, 250, 500, 1000];
+interface CoinPackage {
+  id: string;
+  inr_amount: number;
+  coin_amount: number;
+  active: boolean;
+  display_order: number;
+}
 
 export default function TopUp() {
   const { toast } = useToast();
   const { addCard } = useFlyingCards();
   const [isScanning, setIsScanning] = useState(false);
   const [scannedWallet, setScannedWallet] = useState<any>(null);
-  const [topUpAmount, setTopUpAmount] = useState("");
+  const [coinPackages, setCoinPackages] = useState<CoinPackage[]>([]);
+  const [selectedPackageId, setSelectedPackageId] = useState("");
+  const [paymentReference, setPaymentReference] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
+
+  useEffect(() => {
+    fetchCoinPackages();
+  }, []);
+
+  const fetchCoinPackages = async () => {
+    const { data, error } = await supabase
+      .from("coin_packages")
+      .select("*")
+      .eq("active", true)
+      .order("display_order", { ascending: true });
+
+    if (error) {
+      toast({
+        title: "Packages Unavailable",
+        description: "Could not load Pink'D Coin packages. Please try again.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setCoinPackages((data || []) as CoinPackage[]);
+  };
 
   const handleScanWallet = async () => {
     setIsScanning(true);
@@ -58,7 +90,7 @@ export default function TopUp() {
           attendeeName: wallet.attendee_name,
           attendeePhone: wallet.attendee_phone,
           tagId: wallet.tag_id,
-          currentBalance: typeof wallet.balance === 'string' ? parseFloat(wallet.balance) : wallet.balance,
+          currentBalance: getCoinBalance(wallet),
           status: wallet.status
         };
 
@@ -86,15 +118,22 @@ export default function TopUp() {
     }
   };
 
-  const handleQuickAmount = (amount: number) => {
-    setTopUpAmount(amount.toString());
-  };
-
   const handleTopUp = async () => {
-    if (!scannedWallet || !topUpAmount || parseFloat(topUpAmount) <= 0) {
+    const selectedPackage = coinPackages.find((pkg) => pkg.id === selectedPackageId);
+
+    if (!scannedWallet || !selectedPackage) {
       toast({
-        title: "Invalid Amount",
-        description: "Please enter a valid top-up amount.",
+        title: "Select Package",
+        description: "Please select a Pink'D Coin package.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!paymentReference.trim()) {
+      toast({
+        title: "Payment Reference Required",
+        description: "Confirm payment success by entering the payment reference before crediting coins.",
         variant: "destructive",
       });
       return;
@@ -103,13 +142,14 @@ export default function TopUp() {
     setIsProcessing(true);
     
     try {
-      const amount = parseFloat(topUpAmount);
-      const newBalance = scannedWallet.currentBalance + amount;
+      const inrAmount = Number(selectedPackage.inr_amount);
+      const coinAmount = Number(selectedPackage.coin_amount);
+      const newBalance = scannedWallet.currentBalance + coinAmount;
       
-      // Update wallet balance in Supabase
+      // Update wallet coin balance in Supabase only after payment confirmation.
       const { error: updateError } = await supabase
         .from('wallets')
-        .update({ balance: newBalance })
+        .update({ coin_balance: newBalance, balance: newBalance })
         .eq('id', scannedWallet.id);
 
       if (updateError) {
@@ -121,10 +161,12 @@ export default function TopUp() {
         .from('transactions')
         .insert({
           wallet_id: scannedWallet.id,
-          type: 'load',
-          amount: amount,
-          description: `Top-up at staff terminal`,
-          reference: `TOPUP_${Date.now()}`
+          type: 'coin_purchase',
+          amount: coinAmount,
+          inr_amount: inrAmount,
+          coin_amount: coinAmount,
+          description: `Pink'D Coin package purchase`,
+          reference: paymentReference.trim()
         });
 
       if (transactionError) {
@@ -132,13 +174,13 @@ export default function TopUp() {
       }
       
       toast({
-        title: "Top-Up Successful",
-        description: `Added ₹${amount.toFixed(2)} to wallet. New balance: ₹${newBalance.toFixed(2)}`,
+        title: "Pink'D Coins Credited",
+        description: `${formatCoins(coinAmount)} added after ${formatInr(inrAmount)} payment. New balance: ${formatCoins(newBalance)}.`,
       });
 
       // Show flying card animation
       addCard({
-        amount: amount,
+        amount: coinAmount,
         name: scannedWallet.attendeeName,
         studio: "Staff Terminal", // You can get this from user context if needed
         type: "topup"
@@ -149,7 +191,8 @@ export default function TopUp() {
         ...scannedWallet,
         currentBalance: newBalance
       });
-      setTopUpAmount("");
+      setSelectedPackageId("");
+      setPaymentReference("");
     } catch (error) {
       toast({
         title: "Top-Up Failed",
@@ -165,8 +208,8 @@ export default function TopUp() {
     <div className="max-w-2xl mx-auto space-y-8">
       {/* Header */}
       <div className="text-center">
-        <h1 className="text-3xl font-bold text-foreground">Wallet Top-Up</h1>
-        <p className="text-muted-foreground mt-2">Add funds to an attendee's digital wallet</p>
+        <h1 className="text-3xl font-bold text-foreground">Pink'D Coin Top-Up</h1>
+        <p className="text-muted-foreground mt-2">Sell coin packages and credit an attendee's NFC wallet</p>
       </div>
 
       {/* Wallet Scanner Card */}
@@ -217,11 +260,11 @@ export default function TopUp() {
               </div>
               
               <div className="flex items-center justify-between pt-3 border-t border-success/20">
-                <span className="text-sm font-medium text-muted-foreground">Current Balance</span>
+                <span className="text-sm font-medium text-muted-foreground">Current Pink'D Coin Balance</span>
                 <div className="flex items-center space-x-2">
                   <Wallet className="w-4 h-4 text-success" />
                   <span className="text-lg font-bold text-success">
-                    ₹{scannedWallet.currentBalance.toFixed(2)}
+                    {formatCoins(scannedWallet.currentBalance)}
                   </span>
                 </div>
               </div>
@@ -236,43 +279,35 @@ export default function TopUp() {
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
               <Plus className="w-5 h-5 text-primary" />
-              <span>Add Funds</span>
+              <span>Select Coin Package</span>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* Quick Amount Buttons */}
-            <div>
-              <Label className="text-sm font-medium text-muted-foreground mb-3 block">
-                Quick Amounts
-              </Label>
-              <div className="grid grid-cols-4 gap-3">
-                {quickAmounts.map((amount) => (
-                  <Button
-                    key={amount}
-                    variant="outline"
-                    onClick={() => handleQuickAmount(amount)}
-                    className="hover:bg-primary hover:text-primary-foreground transition-smooth"
-                  >
-                    ₹{amount}
-                  </Button>
-                ))}
-              </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {coinPackages.map((pkg) => (
+                <Button
+                  key={pkg.id}
+                  type="button"
+                  variant={selectedPackageId === pkg.id ? "default" : "outline"}
+                  onClick={() => setSelectedPackageId(pkg.id)}
+                  className="h-auto justify-between p-4 text-left"
+                >
+                  <span>{formatInr(pkg.inr_amount)}</span>
+                  <span className="font-bold">{formatCoins(pkg.coin_amount)}</span>
+                </Button>
+              ))}
             </div>
 
-            {/* Custom Amount Input */}
             <div className="space-y-2">
-              <Label htmlFor="amount" className="flex items-center space-x-2">
+              <Label htmlFor="payment-reference" className="flex items-center space-x-2">
                 <DollarSign className="w-4 h-4" />
-                <span>Custom Amount</span>
+                <span>Confirmed Payment Reference</span>
               </Label>
               <Input
-                id="amount"
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="Enter amount"
-                value={topUpAmount}
-                onChange={(e) => setTopUpAmount(e.target.value)}
+                id="payment-reference"
+                placeholder="UPI/Razorpay/cash receipt reference"
+                value={paymentReference}
+                onChange={(e) => setPaymentReference(e.target.value)}
                 className="transition-smooth focus:shadow-hover"
               />
             </div>
@@ -280,7 +315,7 @@ export default function TopUp() {
             {/* Top-Up Button */}
             <Button
               onClick={handleTopUp}
-              disabled={!topUpAmount || parseFloat(topUpAmount) <= 0 || isProcessing}
+              disabled={!selectedPackageId || !paymentReference.trim() || isProcessing}
               size="lg"
               className="w-full bg-gradient-primary hover:shadow-hover transition-smooth"
             >
@@ -292,7 +327,11 @@ export default function TopUp() {
               ) : (
                 <div className="flex items-center space-x-2">
                   <Plus className="w-5 h-5" />
-                  <span>Add ₹{topUpAmount ? parseFloat(topUpAmount).toFixed(2) : "0.00"}</span>
+                  <span>
+                    Credit {selectedPackageId
+                      ? formatCoins(coinPackages.find((pkg) => pkg.id === selectedPackageId)?.coin_amount || 0)
+                      : "Pink'D Coins"}
+                  </span>
                 </div>
               )}
             </Button>
@@ -306,12 +345,12 @@ export default function TopUp() {
           <div className="flex items-start space-x-3">
             <AlertCircle className="w-5 h-5 text-primary mt-0.5" />
             <div className="text-sm text-muted-foreground">
-              <p className="font-medium text-foreground mb-2">Manual Top-Up Process:</p>
+              <p className="font-medium text-foreground mb-2">Coin Top-Up Process:</p>
               <ul className="space-y-1">
-                <li>• Collect cash payment from attendee before processing</li>
-                <li>• Verify the payment amount matches the top-up amount</li>
-                <li>• Scan the attendee's NFC tag to load their wallet</li>
-                <li>• Transaction will be logged for reconciliation</li>
+                <li>• Scan the attendee's NFC band using its default UID</li>
+                <li>• Select the package and collect the listed INR payment</li>
+                <li>• Enter the confirmed payment reference before crediting coins</li>
+                <li>• The transaction logs INR paid and Pink'D Coins credited</li>
               </ul>
             </div>
           </div>

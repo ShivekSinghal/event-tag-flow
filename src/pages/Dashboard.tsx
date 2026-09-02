@@ -12,6 +12,7 @@ import {
   Users, 
   AlertTriangle,
   DollarSign,
+  Coins,
   CreditCard,
   Plus,
   Package,
@@ -33,11 +34,18 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { nfcManager } from "@/utils/nfc";
 import StaffManagement from "@/components/admin/StaffManagement";
+import CoinPackageManagement from "@/components/admin/CoinPackageManagement";
+import EventBookingReport from "@/components/admin/EventBookingReport";
+import EventPackageManagement from "@/components/admin/EventPackageManagement";
+import PaymentGatewaySettings from "@/components/admin/PaymentGatewaySettings";
+import { formatCoins, formatInr, getCoinAmount, getCoinBalance, LOW_COIN_BALANCE_THRESHOLD, toIntegerCoins } from "@/lib/coins";
 
 interface DashboardStats {
   totalWallets: number;
-  totalBalance: number;
-  totalSales: number;
+  totalCoinBalance: number;
+  totalCoinsIssued: number;
+  totalCoinsSpent: number;
+  totalInrCollected: number;
   activeTags: number;
 }
 
@@ -45,11 +53,12 @@ interface Transaction {
   id: string;
   type: string;
   description: string;
-  amount: number;
+  coinAmount: number;
+  inrAmount: number | null;
   created_at: string;
   wallet: {
     attendee_name: string;
-    balance: number;
+    coin_balance: number;
   };
 }
 
@@ -58,12 +67,12 @@ interface LowBalanceAlert {
   tag_id: string;
   attendee_name: string;
   attendee_phone: string;
-  balance: number;
+  coin_balance: number;
 }
 
 interface StudioSales {
   studio: string;
-  totalSales: number;
+  totalCoinsSpent: number;
   transactionCount: number;
 }
 
@@ -72,7 +81,7 @@ interface GameSales {
   game_name: string;
   studio: string;
   total_quantity: number;
-  total_revenue: number;
+  total_coins_spent: number;
   available: boolean;
 }
 
@@ -91,7 +100,7 @@ interface Booking {
 interface FoodSales {
   id: string;
   itemName: string;
-  amount: number;
+  coinAmount: number;
   quantity: number;
   created_at: string;
 }
@@ -99,7 +108,7 @@ interface FoodSales {
 interface DrinksSales {
   id: string;
   itemName: string;
-  amount: number;
+  coinAmount: number;
   quantity: number;
   created_at: string;
 }
@@ -107,8 +116,10 @@ interface DrinksSales {
 export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats>({
     totalWallets: 0,
-    totalBalance: 0,
-    totalSales: 0,
+    totalCoinBalance: 0,
+    totalCoinsIssued: 0,
+    totalCoinsSpent: 0,
+    totalInrCollected: 0,
     activeTags: 0
   });
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
@@ -158,29 +169,33 @@ export default function Dashboard() {
 
       // Calculate stats
       const totalWallets = wallets?.length || 0;
-      const totalBalance = wallets?.reduce((sum, wallet) => {
-        const balance = typeof wallet.balance === 'string' ? parseFloat(wallet.balance) : wallet.balance;
-        return sum + balance;
-      }, 0) || 0;
+      const totalCoinBalance = wallets?.reduce((sum, wallet) => sum + getCoinBalance(wallet), 0) || 0;
       const activeTags = wallets?.filter(wallet => wallet.status === 'active').length || 0;
 
-      // Fetch all sales transactions including legacy 'spend' type
-      const { data: allSalesTransactions, error: transactionsError } = await supabase
+      const { data: allTransactions, error: transactionsError } = await supabase
         .from('transactions')
-        .select('amount')
-        .in('type', ['spend', 'food', 'drinks', 'games']);
+        .select('type, amount, inr_amount, coin_amount');
 
       if (transactionsError) throw transactionsError;
 
-      const totalSales = Math.abs(allSalesTransactions?.reduce((sum, tx) => {
-        const amount = typeof tx.amount === 'string' ? parseFloat(tx.amount) : tx.amount;
-        return sum + Math.abs(amount);
-      }, 0) || 0);
+      const totalCoinsIssued = allTransactions
+        ?.filter((tx) => tx.type === 'load' || tx.type === 'coin_purchase')
+        .reduce((sum, tx) => sum + Math.max(0, getCoinAmount(tx)), 0) || 0;
+
+      const totalCoinsSpent = allTransactions
+        ?.filter((tx) => ['spend', 'food', 'drinks', 'games'].includes(tx.type))
+        .reduce((sum, tx) => sum + Math.abs(getCoinAmount(tx)), 0) || 0;
+
+      const totalInrCollected = allTransactions
+        ?.filter((tx) => tx.type === 'load' || tx.type === 'coin_purchase')
+        .reduce((sum, tx: any) => sum + Number(tx.inr_amount ?? tx.amount ?? 0), 0) || 0;
 
       setStats({
         totalWallets,
-        totalBalance,
-        totalSales,
+        totalCoinBalance,
+        totalCoinsIssued,
+        totalCoinsSpent,
+        totalInrCollected,
         activeTags
       });
 
@@ -192,8 +207,10 @@ export default function Dashboard() {
           type,
           description,
           amount,
+          inr_amount,
+          coin_amount,
           created_at,
-          wallets!inner(attendee_name, balance)
+          wallets!inner(attendee_name, coin_balance, balance)
         `)
         .order('created_at', { ascending: false })
         .limit(5);
@@ -205,21 +222,22 @@ export default function Dashboard() {
         id: tx.id,
         type: tx.type,
         description: tx.description,
-        amount: tx.amount,
+        coinAmount: getCoinAmount(tx),
+        inrAmount: (tx as any).inr_amount,
         created_at: tx.created_at,
         wallet: {
           attendee_name: (tx.wallets as any).attendee_name,
-          balance: (tx.wallets as any).balance
+          coin_balance: getCoinBalance(tx.wallets as any)
         }
       })) || [];
 
       setRecentTransactions(transformedTransactions);
 
-      // Fetch low balance wallets (less than ₹50)
+      // Fetch low coin balance wallets.
       const { data: lowBalanceWallets, error: lowBalanceError } = await supabase
         .from('wallets')
-        .select('id, tag_id, attendee_name, attendee_phone, balance')
-        .lt('balance', 50)
+        .select('id, tag_id, attendee_name, attendee_phone, coin_balance, balance')
+        .lt('coin_balance', LOW_COIN_BALANCE_THRESHOLD)
         .eq('status', 'active');
 
       if (lowBalanceError) throw lowBalanceError;
@@ -263,6 +281,7 @@ export default function Dashboard() {
         .from('transactions')
         .select(`
           amount,
+          coin_amount,
           type,
           wallets!inner(studio)
         `)
@@ -271,21 +290,21 @@ export default function Dashboard() {
       if (error) throw error;
 
       // Group sales by studio
-      const studioSalesMap = new Map<string, { totalSales: number; transactionCount: number }>();
+      const studioSalesMap = new Map<string, { totalCoinsSpent: number; transactionCount: number }>();
       
       salesData?.forEach((transaction: any) => {
         const studio = transaction.wallets.studio;
-        const amount = Math.abs(typeof transaction.amount === 'string' ? parseFloat(transaction.amount) : transaction.amount);
+        const coinAmount = Math.abs(getCoinAmount(transaction));
         
         if (studioSalesMap.has(studio)) {
           const existing = studioSalesMap.get(studio)!;
           studioSalesMap.set(studio, {
-            totalSales: existing.totalSales + amount,
+            totalCoinsSpent: existing.totalCoinsSpent + coinAmount,
             transactionCount: existing.transactionCount + 1
           });
         } else {
           studioSalesMap.set(studio, {
-            totalSales: amount,
+            totalCoinsSpent: coinAmount,
             transactionCount: 1
           });
         }
@@ -295,10 +314,10 @@ export default function Dashboard() {
       const studioSalesArray: StudioSales[] = Array.from(studioSalesMap.entries())
         .map(([studio, data]) => ({
           studio,
-          totalSales: data.totalSales,
+          totalCoinsSpent: data.totalCoinsSpent,
           transactionCount: data.transactionCount
         }))
-        .sort((a, b) => b.totalSales - a.totalSales);
+        .sort((a, b) => b.totalCoinsSpent - a.totalCoinsSpent);
 
       setStudioSales(studioSalesArray);
     } catch (error) {
@@ -325,7 +344,7 @@ export default function Dashboard() {
       const foodSalesData: FoodSales[] = foodTransactions?.map((tx: any) => ({
         id: tx.id,
         itemName: tx.description.replace(/^(Food Purchase: |POS Purchase: )/, ''),
-        amount: Math.abs(typeof tx.amount === 'string' ? parseFloat(tx.amount) : tx.amount),
+        coinAmount: Math.abs(getCoinAmount(tx)),
         quantity: 1,
         created_at: tx.created_at
       })) || [];
@@ -355,7 +374,7 @@ export default function Dashboard() {
       const drinksSalesData: DrinksSales[] = drinksTransactions?.map((tx: any) => ({
         id: tx.id,
         itemName: tx.description.replace(/^(Drinks Purchase: |POS Purchase: )/, ''),
-        amount: Math.abs(typeof tx.amount === 'string' ? parseFloat(tx.amount) : tx.amount),
+        coinAmount: Math.abs(getCoinAmount(tx)),
         quantity: 1,
         created_at: tx.created_at
       })) || [];
@@ -391,6 +410,7 @@ export default function Dashboard() {
           game_id,
           quantity,
           sale_price,
+          coin_price,
           transaction_id,
           games!inner(name, studio, available)
         `);
@@ -410,7 +430,7 @@ export default function Dashboard() {
         game_name: string; 
         studio: string; 
         total_quantity: number; 
-        total_revenue: number; 
+        total_coins_spent: number;
         available: boolean;
         processed_transactions: Set<string>;
       }>();
@@ -422,7 +442,7 @@ export default function Dashboard() {
         const studio = sale.games.studio;
         const available = sale.games.available;
         const quantity = sale.quantity;
-        const revenue = typeof sale.sale_price === 'string' ? parseFloat(sale.sale_price) : sale.sale_price;
+        const coinsSpent = toIntegerCoins(sale.coin_price ?? sale.sale_price);
         const transactionId = sale.transaction_id;
         
         if (!gameSalesMap.has(gameId)) {
@@ -431,7 +451,7 @@ export default function Dashboard() {
             studio: studio,
             available: available,
             total_quantity: 0,
-            total_revenue: 0,
+            total_coins_spent: 0,
             processed_transactions: new Set()
           });
         }
@@ -442,11 +462,11 @@ export default function Dashboard() {
         if (transactionId && !existing.processed_transactions.has(transactionId)) {
           existing.processed_transactions.add(transactionId);
           existing.total_quantity += quantity;
-          existing.total_revenue += revenue;
+          existing.total_coins_spent += coinsSpent;
         } else if (!transactionId) {
           // If no transaction_id, just add it (shouldn't happen but fallback)
           existing.total_quantity += quantity;
-          existing.total_revenue += revenue;
+          existing.total_coins_spent += coinsSpent;
         }
       });
 
@@ -465,7 +485,7 @@ export default function Dashboard() {
         
         // Extract game name from description (e.g., "Game Purchase: Karaoke")
         const gameName = tx.description.replace(/^Game Purchase: /, '');
-        const revenue = Math.abs(typeof tx.amount === 'string' ? parseFloat(tx.amount) : tx.amount);
+        const coinsSpent = Math.abs(getCoinAmount(tx));
         
         // Find matching game in database
         const gameInDb = allGames?.find(g => g.name.toLowerCase() === gameName.toLowerCase());
@@ -477,14 +497,14 @@ export default function Dashboard() {
               studio: gameInDb.studio,
               available: gameInDb.available,
               total_quantity: 0,
-              total_revenue: 0,
+              total_coins_spent: 0,
               processed_transactions: new Set()
             });
           }
           
           const existing = gameSalesMap.get(gameInDb.id)!;
           existing.total_quantity += 1;
-          existing.total_revenue += revenue;
+          existing.total_coins_spent += coinsSpent;
           existing.processed_transactions.add(tx.id);
         }
       });
@@ -497,7 +517,7 @@ export default function Dashboard() {
             studio: game.studio,
             available: game.available,
             total_quantity: 0,
-            total_revenue: 0,
+            total_coins_spent: 0,
             processed_transactions: new Set()
           });
         }
@@ -511,7 +531,7 @@ export default function Dashboard() {
           studio: data.studio,
           available: data.available,
           total_quantity: data.total_quantity,
-          total_revenue: data.total_revenue
+          total_coins_spent: data.total_coins_spent
         }))
         .sort((a, b) => b.total_quantity - a.total_quantity);
 
@@ -541,15 +561,15 @@ export default function Dashboard() {
         .insert({
           name: itemForm.name,
           description: itemForm.description || null,
-          price: parseFloat(itemForm.price),
+          price: toIntegerCoins(itemForm.price),
           studio: itemForm.category === 'games' ? 'General' : 'General'
         });
 
       if (error) throw error;
 
       toast({
-        title: "Item Added Successfully",
-        description: `${itemForm.name} has been added to the system`,
+      title: "Item Added Successfully",
+      description: `${itemForm.name} has been added with a Pink'D Coin price`,
       });
 
       // Reset form
@@ -799,16 +819,30 @@ export default function Dashboard() {
       color: "text-primary"
     },
     {
-      title: "Total Balance",
-      value: isLoading ? "..." : `₹${stats.totalBalance.toFixed(2)}`,
-      change: stats.totalBalance > 0 ? "Available in wallets" : "No funds loaded",
+      title: "Coin Balance",
+      value: isLoading ? "..." : formatCoins(stats.totalCoinBalance),
+      change: stats.totalCoinBalance > 0 ? "Available in wallets" : "No coins loaded",
       icon: Wallet,
       color: "text-success"
     },
     {
-      title: "Total Sales",
-      value: isLoading ? "..." : `₹${stats.totalSales.toFixed(2)}`,
-      change: stats.totalSales > 0 ? "Total revenue generated" : "No transactions yet",
+      title: "INR Collected",
+      value: isLoading ? "..." : formatInr(stats.totalInrCollected),
+      change: stats.totalInrCollected > 0 ? "Real payments collected" : "No top-ups yet",
+      icon: DollarSign,
+      color: "text-primary"
+    },
+    {
+      title: "Coins Issued",
+      value: isLoading ? "..." : formatCoins(stats.totalCoinsIssued),
+      change: stats.totalCoinsIssued > 0 ? "Credited through top-ups" : "No coin credits yet",
+      icon: Coins,
+      color: "text-accent"
+    },
+    {
+      title: "Coins Spent",
+      value: isLoading ? "..." : formatCoins(stats.totalCoinsSpent),
+      change: stats.totalCoinsSpent > 0 ? "Deducted through POS" : "No POS sales yet",
       icon: TrendingUp,
       color: "text-accent",
       clickable: true
@@ -831,7 +865,7 @@ export default function Dashboard() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-6">
         {statsConfig.map((stat) => {
           const Icon = stat.icon;
           return (
@@ -864,6 +898,18 @@ export default function Dashboard() {
 
       {/* Staff Management Section */}
       <StaffManagement />
+
+      {/* Pink'D Coin Package and Pricing Management */}
+      <CoinPackageManagement />
+
+      {/* Event Landing Package Sales and Availability */}
+      <EventPackageManagement />
+
+      {/* Universal Event Payment Gateway */}
+      <PaymentGatewaySettings />
+
+      {/* Event Landing Page Booking Report */}
+      <EventBookingReport />
 
       {/* Studio Sales Breakdown - Always Visible */}
       <Card className="shadow-card">
@@ -915,9 +961,9 @@ export default function Dashboard() {
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="font-bold text-lg text-success">₹{studioData.totalSales.toFixed(2)}</div>
+                      <div className="font-bold text-lg text-success">{formatCoins(studioData.totalCoinsSpent)}</div>
                       <div className="text-xs text-muted-foreground">
-                        {stats.totalSales > 0 ? `${((studioData.totalSales / stats.totalSales) * 100).toFixed(1)}%` : '0%'} of total
+                        {stats.totalCoinsSpent > 0 ? `${((studioData.totalCoinsSpent / stats.totalCoinsSpent) * 100).toFixed(1)}%` : '0%'} of coins spent
                       </div>
                     </div>
                   </div>
@@ -987,13 +1033,13 @@ export default function Dashboard() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="price">Price (₹)</Label>
+                <Label htmlFor="price">Price (Pink'D Coins)</Label>
                 <Input
                   id="price"
                   type="number"
                   value={itemForm.price}
                   onChange={(e) => setItemForm(prev => ({ ...prev, price: e.target.value }))}
-                  placeholder="Enter price"
+                  placeholder="Enter coin price"
                 />
               </div>
               <div className="flex space-x-2 pt-4">
@@ -1091,7 +1137,7 @@ export default function Dashboard() {
                       </div>
                       <div className="flex items-center space-x-4">
                         <div className="text-right">
-                          <div className="font-bold text-lg text-success">₹{gameData.total_revenue.toFixed(2)}</div>
+                          <div className="font-bold text-lg text-success">{formatCoins(gameData.total_coins_spent)}</div>
                           <div className="text-xs text-muted-foreground">
                             Qty: {gameData.total_quantity}
                           </div>
@@ -1131,7 +1177,7 @@ export default function Dashboard() {
                 {foodSales.length > 0 && (
                   <div className="text-right">
                     <div className="font-bold text-lg text-success">
-                      ₹{foodSales.reduce((total, sale) => total + sale.amount, 0).toFixed(2)}
+                      {formatCoins(foodSales.reduce((total, sale) => total + sale.coinAmount, 0))}
                     </div>
                     <div className="text-xs text-muted-foreground">
                       {foodSales.length} items sold
@@ -1156,7 +1202,7 @@ export default function Dashboard() {
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="font-medium text-sm">₹{sale.amount}</p>
+                        <p className="font-medium text-sm">{formatCoins(sale.coinAmount)}</p>
                         <p className="text-xs text-muted-foreground">Qty: {sale.quantity}</p>
                       </div>
                     </div>
@@ -1180,7 +1226,7 @@ export default function Dashboard() {
                 {drinksSales.length > 0 && (
                   <div className="text-right">
                     <div className="font-bold text-lg text-success">
-                      ₹{drinksSales.reduce((total, sale) => total + sale.amount, 0).toFixed(2)}
+                      {formatCoins(drinksSales.reduce((total, sale) => total + sale.coinAmount, 0))}
                     </div>
                     <div className="text-xs text-muted-foreground">
                       {drinksSales.length} items sold
@@ -1205,7 +1251,7 @@ export default function Dashboard() {
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="font-medium text-sm">₹{sale.amount}</p>
+                        <p className="font-medium text-sm">{formatCoins(sale.coinAmount)}</p>
                         <p className="text-xs text-muted-foreground">Qty: {sale.quantity}</p>
                       </div>
                     </div>
@@ -1257,18 +1303,18 @@ export default function Dashboard() {
                 </div>
               ) : (
                 recentTransactions.map((transaction) => {
-                  const amount = typeof transaction.amount === 'string' ? parseFloat(transaction.amount) : transaction.amount;
-                  const walletBalance = typeof transaction.wallet.balance === 'string' ? parseFloat(transaction.wallet.balance) : transaction.wallet.balance;
-                  
+                  const isDebit = ['spend', 'food', 'drinks', 'games'].includes(transaction.type) || transaction.coinAmount < 0;
+                  const badgeLabel = isDebit ? "Sale" : transaction.type === "coin_purchase" ? "Coin Purchase" : transaction.type;
+
                   return (
                     <div key={transaction.id} className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
                       <div className="flex-1">
                         <div className="flex items-center space-x-2">
                           <Badge 
-                            variant={transaction.type === "spend" ? "destructive" : "default"}
+                            variant={isDebit ? "destructive" : "default"}
                             className="text-xs"
                           >
-                            {transaction.type === "spend" ? "Sale" : transaction.type}
+                            {badgeLabel}
                           </Badge>
                           <span className="text-sm font-medium">{transaction.wallet.attendee_name}</span>
                         </div>
@@ -1279,12 +1325,17 @@ export default function Dashboard() {
                       <div className="text-right">
                         <div className={cn(
                           "font-medium",
-                          amount > 0 ? "text-success" : "text-destructive"
+                          !isDebit ? "text-success" : "text-destructive"
                         )}>
-                          {amount > 0 ? "+" : ""}₹{Math.abs(amount).toFixed(2)}
+                          {!isDebit ? "+" : "-"}{formatCoins(Math.abs(transaction.coinAmount))}
                         </div>
+                        {transaction.inrAmount ? (
+                          <div className="text-xs text-muted-foreground">
+                            Paid {formatInr(transaction.inrAmount)}
+                          </div>
+                        ) : null}
                         <div className="text-xs text-muted-foreground">
-                          Balance: ₹{walletBalance.toFixed(2)}
+                          Balance: {formatCoins(transaction.wallet.coin_balance)}
                         </div>
                       </div>
                     </div>
@@ -1295,12 +1346,12 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Low Balance Alerts */}
+        {/* Low Pink'D Coin Alerts */}
         <Card className="shadow-card">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
               <AlertTriangle className="w-5 h-5 text-warning" />
-              <span>Low Balance Alerts</span>
+              <span>Low Pink'D Coin Alerts</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -1328,8 +1379,8 @@ export default function Dashboard() {
                 </div>
               ) : (
                 lowBalanceAlerts.map((alert) => {
-                  const balance = typeof alert.balance === 'string' ? parseFloat(alert.balance) : alert.balance;
-                  
+                  const coinBalance = getCoinBalance(alert);
+
                   return (
                     <div key={alert.id} className="flex items-center justify-between p-3 border border-warning/20 bg-warning/5 rounded-lg">
                       <div>
@@ -1337,9 +1388,9 @@ export default function Dashboard() {
                         <div className="text-sm text-muted-foreground">{alert.tag_id} • {alert.attendee_phone}</div>
                       </div>
                       <div className="text-right">
-                        <div className="font-medium text-warning">₹{balance.toFixed(2)}</div>
+                        <div className="font-medium text-warning">{formatCoins(coinBalance)}</div>
                         <Badge variant="outline" className="text-xs border-warning text-warning">
-                          Low Balance
+                          Low Coins
                         </Badge>
                       </div>
                     </div>
@@ -1549,8 +1600,8 @@ export default function Dashboard() {
                           </Badge>
                         </div>
                         <div className="text-right">
-                          <div className="text-sm font-medium text-muted-foreground">Balance</div>
-                          <div className="font-bold">₹{typeof foundWallet.balance === 'string' ? parseFloat(foundWallet.balance).toFixed(2) : foundWallet.balance.toFixed(2)}</div>
+                          <div className="text-sm font-medium text-muted-foreground">Pink'D Coins</div>
+                          <div className="font-bold">{formatCoins(getCoinBalance(foundWallet))}</div>
                         </div>
                       </div>
                     </div>
@@ -1619,7 +1670,7 @@ export default function Dashboard() {
                       <div className="text-right">
                         <div className="text-sm font-medium text-destructive">Blocked</div>
                         <div className="text-xs text-muted-foreground">
-                          ₹{typeof wallet.balance === 'string' ? parseFloat(wallet.balance).toFixed(2) : wallet.balance.toFixed(2)}
+                          {formatCoins(getCoinBalance(wallet))}
                         </div>
                       </div>
                     </div>

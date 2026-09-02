@@ -10,19 +10,26 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "13.0.4"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
       bookings: {
         Row: {
           amount: number
+          amount_inr: number
           booking_date: string | null
+          booking_source: string
           created_at: string | null
           id: string
+          package_category: string
+          package_key: string | null
           package_name: string | null
+          pax: number | null
           payment_id: string | null
+          payment_reference: string | null
           payment_status: string | null
+          quantity: number
           studio_location: string
           updated_at: string | null
           user_email: string | null
@@ -31,12 +38,19 @@ export type Database = {
         }
         Insert: {
           amount: number
+          amount_inr: number
           booking_date?: string | null
+          booking_source?: string
           created_at?: string | null
           id?: string
+          package_category: string
+          package_key?: string | null
           package_name?: string | null
+          pax?: number | null
           payment_id?: string | null
+          payment_reference?: string | null
           payment_status?: string | null
+          quantity?: number
           studio_location: string
           updated_at?: string | null
           user_email?: string | null
@@ -45,12 +59,19 @@ export type Database = {
         }
         Update: {
           amount?: number
+          amount_inr?: number
           booking_date?: string | null
+          booking_source?: string
           created_at?: string | null
           id?: string
+          package_category?: string
+          package_key?: string | null
           package_name?: string | null
+          pax?: number | null
           payment_id?: string | null
+          payment_reference?: string | null
           payment_status?: string | null
+          quantity?: number
           studio_location?: string
           updated_at?: string | null
           user_email?: string | null
@@ -59,8 +80,263 @@ export type Database = {
         }
         Relationships: []
       }
+      event_order_items: {
+        Row: {
+          created_at: string
+          id: string
+          line_total_inr: number
+          order_id: string
+          package_category: string
+          package_key: string
+          package_name: string
+          pax: number | null
+          quantity: number
+          selected_time_slots: Json
+          unit_price_inr: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          line_total_inr: number
+          order_id: string
+          package_category: string
+          package_key: string
+          package_name: string
+          pax?: number | null
+          quantity: number
+          selected_time_slots?: Json
+          unit_price_inr: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          line_total_inr?: number
+          order_id?: string
+          package_category?: string
+          package_key?: string
+          package_name?: string
+          pax?: number | null
+          quantity?: number
+          selected_time_slots?: Json
+          unit_price_inr?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "event_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_packages: {
+        Row: {
+          active: boolean
+          category: string
+          created_at: string
+          description: string
+          display_order: number
+          featured: boolean
+          id: string
+          intensive_count: number | null
+          name: string
+          pax: number | null
+          price_inr: number
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          category: string
+          created_at?: string
+          description?: string
+          display_order?: number
+          featured?: boolean
+          id: string
+          intensive_count?: number | null
+          name: string
+          pax?: number | null
+          price_inr: number
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          category?: string
+          created_at?: string
+          description?: string
+          display_order?: number
+          featured?: boolean
+          id?: string
+          intensive_count?: number | null
+          name?: string
+          pax?: number | null
+          price_inr?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      event_orders: {
+        Row: {
+          booking_source: string
+          cashfree_cf_order_id: string | null
+          cashfree_order_id: string | null
+          cashfree_order_response: Json | null
+          cashfree_order_status: string | null
+          cashfree_payment_session_id: string | null
+          cashfree_payment_status: string | null
+          checkout_token_expires_at: string | null
+          checkout_token_hash: string | null
+          confirmation_email_error: string | null
+          confirmation_email_id: string | null
+          confirmation_email_sent_at: string | null
+          created_at: string
+          customer_email: string
+          customer_name: string
+          customer_phone: string
+          id: string
+          last_payment_verified_at: string | null
+          paid_at: string | null
+          payment_provider: string
+          payment_reference: string | null
+          payment_status: string
+          razorpay_order_id: string | null
+          razorpay_order_response: Json | null
+          razorpay_payment_id: string | null
+          razorpay_payment_response: Json | null
+          razorpay_payment_status: string | null
+          razorpay_signature: string | null
+          total_amount_inr: number
+          updated_at: string
+        }
+        Insert: {
+          booking_source?: string
+          cashfree_cf_order_id?: string | null
+          cashfree_order_id?: string | null
+          cashfree_order_response?: Json | null
+          cashfree_order_status?: string | null
+          cashfree_payment_session_id?: string | null
+          cashfree_payment_status?: string | null
+          checkout_token_expires_at?: string | null
+          checkout_token_hash?: string | null
+          confirmation_email_error?: string | null
+          confirmation_email_id?: string | null
+          confirmation_email_sent_at?: string | null
+          created_at?: string
+          customer_email: string
+          customer_name: string
+          customer_phone: string
+          id?: string
+          last_payment_verified_at?: string | null
+          paid_at?: string | null
+          payment_provider?: string
+          payment_reference?: string | null
+          payment_status?: string
+          razorpay_order_id?: string | null
+          razorpay_order_response?: Json | null
+          razorpay_payment_id?: string | null
+          razorpay_payment_response?: Json | null
+          razorpay_payment_status?: string | null
+          razorpay_signature?: string | null
+          total_amount_inr?: number
+          updated_at?: string
+        }
+        Update: {
+          booking_source?: string
+          cashfree_cf_order_id?: string | null
+          cashfree_order_id?: string | null
+          cashfree_order_response?: Json | null
+          cashfree_order_status?: string | null
+          cashfree_payment_session_id?: string | null
+          cashfree_payment_status?: string | null
+          checkout_token_expires_at?: string | null
+          checkout_token_hash?: string | null
+          confirmation_email_error?: string | null
+          confirmation_email_id?: string | null
+          confirmation_email_sent_at?: string | null
+          created_at?: string
+          customer_email?: string
+          customer_name?: string
+          customer_phone?: string
+          id?: string
+          last_payment_verified_at?: string | null
+          paid_at?: string | null
+          payment_provider?: string
+          payment_reference?: string | null
+          payment_status?: string
+          razorpay_order_id?: string | null
+          razorpay_order_response?: Json | null
+          razorpay_payment_id?: string | null
+          razorpay_payment_response?: Json | null
+          razorpay_payment_status?: string | null
+          razorpay_signature?: string | null
+          total_amount_inr?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      payment_gateway_settings: {
+        Row: {
+          active_provider: string
+          cashfree_mode: string
+          cashfree_enabled: boolean
+          id: string
+          razorpay_enabled: boolean
+          razorpay_key_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          active_provider?: string
+          cashfree_mode?: string
+          cashfree_enabled?: boolean
+          id?: string
+          razorpay_enabled?: boolean
+          razorpay_key_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active_provider?: string
+          cashfree_mode?: string
+          cashfree_enabled?: boolean
+          id?: string
+          razorpay_enabled?: boolean
+          razorpay_key_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      coin_packages: {
+        Row: {
+          active: boolean
+          coin_amount: number
+          created_at: string
+          display_order: number
+          id: string
+          inr_amount: number
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          coin_amount: number
+          created_at?: string
+          display_order?: number
+          id?: string
+          inr_amount: number
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          coin_amount?: number
+          created_at?: string
+          display_order?: number
+          id?: string
+          inr_amount?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       game_sales: {
         Row: {
+          coin_price: number
           created_at: string
           game_id: string | null
           id: string
@@ -69,6 +345,7 @@ export type Database = {
           transaction_id: string | null
         }
         Insert: {
+          coin_price?: number
           created_at?: string
           game_id?: string | null
           id?: string
@@ -77,6 +354,7 @@ export type Database = {
           transaction_id?: string | null
         }
         Update: {
+          coin_price?: number
           created_at?: string
           game_id?: string | null
           id?: string
@@ -130,6 +408,39 @@ export type Database = {
           name?: string
           price?: number
           studio?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      pos_items: {
+        Row: {
+          active: boolean
+          category: string
+          coin_price: number
+          created_at: string
+          display_order: number
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          category: string
+          coin_price?: number
+          created_at?: string
+          display_order?: number
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          category?: string
+          coin_price?: number
+          created_at?: string
+          display_order?: number
+          id?: string
+          name?: string
           updated_at?: string
         }
         Relationships: []
@@ -217,31 +528,46 @@ export type Database = {
       transactions: {
         Row: {
           amount: number
+          coin_amount: number
           created_at: string
           description: string
           game_id: string | null
           id: string
+          inr_amount: number | null
+          item_category: string | null
+          item_name: string | null
           reference: string | null
+          staff_user_id: string | null
           type: string
           wallet_id: string
         }
         Insert: {
           amount: number
+          coin_amount?: number
           created_at?: string
           description: string
           game_id?: string | null
           id?: string
+          inr_amount?: number | null
+          item_category?: string | null
+          item_name?: string | null
           reference?: string | null
+          staff_user_id?: string | null
           type: string
           wallet_id: string
         }
         Update: {
           amount?: number
+          coin_amount?: number
           created_at?: string
           description?: string
           game_id?: string | null
           id?: string
+          inr_amount?: number | null
+          item_category?: string | null
+          item_name?: string | null
           reference?: string | null
+          staff_user_id?: string | null
           type?: string
           wallet_id?: string
         }
@@ -251,6 +577,13 @@ export type Database = {
             columns: ["game_id"]
             isOneToOne: false
             referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_staff_user_id_fkey"
+            columns: ["staff_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
@@ -267,6 +600,7 @@ export type Database = {
           attendee_name: string
           attendee_phone: string
           balance: number
+          coin_balance: number
           created_at: string
           id: string
           status: string
@@ -278,6 +612,7 @@ export type Database = {
           attendee_name: string
           attendee_phone: string
           balance?: number
+          coin_balance?: number
           created_at?: string
           id?: string
           status?: string
@@ -289,6 +624,7 @@ export type Database = {
           attendee_name?: string
           attendee_phone?: string
           balance?: number
+          coin_balance?: number
           created_at?: string
           id?: string
           status?: string
@@ -303,6 +639,31 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_event_order: {
+        Args: {
+          p_cart_items: Json
+          p_customer_email: string
+          p_customer_name: string
+          p_customer_phone: string
+        }
+        Returns: {
+          order_id: string
+          total_amount_inr: number
+        }[]
+      }
+      create_event_order_checkout: {
+        Args: {
+          p_cart_items: Json
+          p_checkout_token_hash: string
+          p_customer_email: string
+          p_customer_name: string
+          p_customer_phone: string
+        }
+        Returns: {
+          order_id: string
+          total_amount_inr: number
+        }[]
+      }
       get_current_user_role: { Args: never; Returns: string }
       user_has_permission: {
         Args: { _game_id?: string; _permission_type: string; _user_id: string }

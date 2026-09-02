@@ -23,7 +23,7 @@ const navigation = [
   { name: "Issue Tag", href: "/issue-tag", icon: Nfc },
   { name: "Top Up", href: "/topup", icon: Wallet },
   { name: "POS Sale", href: "/pos", icon: ShoppingCart },
-  { name: "Check Balance", href: "/balance", icon: CreditCard },
+  { name: "Check Coins", href: "/balance", icon: CreditCard },
   { name: "Donation Progress", href: "/donation-progress", icon: TrendingUp },
 ];
 

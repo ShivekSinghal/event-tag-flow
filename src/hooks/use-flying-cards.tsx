@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import { FlyingCard } from "@/components/ui/flying-card";
+import { getCoinAmount } from "@/lib/coins";
 
 interface FlyingCardData {
   id: string;
@@ -51,7 +52,7 @@ export function useFlyingCards() {
         x,
         y,
         id: `existing-${transaction.id}`,
-        amount: Number(transaction.amount),
+        amount: getCoinAmount(transaction),
         name: walletData?.attendee_name || 'Anonymous',
         studio: walletData?.studio || 'Unknown'
       };
