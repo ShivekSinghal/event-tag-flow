@@ -11,6 +11,41 @@ import {
 import { validateCheckoutToken } from "../_shared/eventCheckout.ts";
 import { createRazorpayOrder, getRazorpayConfig } from "../_shared/razorpay.ts";
 
+type EventOrderItem = {
+  package_category: string;
+  package_name: string;
+  unit_price_inr: number | string;
+  quantity: number;
+  line_total_inr: number | string;
+  selected_time_slots?: unknown;
+};
+
+function toNumber(value: number | string) {
+  return typeof value === "number" ? value : Number(value || 0);
+}
+
+function getSelectedSlotSummary(value: unknown) {
+  if (!Array.isArray(value) || value.length === 0) return "";
+  return value.map((slot) => String(slot)).join(", ");
+}
+
+function makeOrderItemSummary(items: EventOrderItem[] = []) {
+  return items
+    .map((item) => {
+      const slotSummary = getSelectedSlotSummary(item.selected_time_slots);
+      const base = `${item.quantity} x ${item.package_name} @ INR ${toNumber(item.unit_price_inr).toFixed(2)} = INR ${toNumber(item.line_total_inr).toFixed(2)}`;
+      return slotSummary ? `${base} | slots: ${slotSummary}` : base;
+    })
+    .join("; ");
+}
+
+function makeCoinSummary(items: EventOrderItem[] = []) {
+  return items
+    .filter((item) => item.package_category === "coins")
+    .map((item) => `${item.quantity} x ${item.package_name} for INR ${toNumber(item.line_total_inr).toFixed(2)}`)
+    .join("; ");
+}
+
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -40,7 +75,7 @@ serve(async (req: Request) => {
 
     const { data: order, error: orderError } = await supabase
       .from("event_orders")
-      .select("id, customer_name, customer_phone, customer_email, total_amount_inr, payment_status, cashfree_order_id, cashfree_payment_session_id, razorpay_order_id, razorpay_order_response, checkout_token_hash, checkout_token_expires_at")
+      .select("id, customer_name, customer_phone, customer_email, total_amount_inr, payment_status, cashfree_order_id, cashfree_payment_session_id, razorpay_order_id, razorpay_order_response, checkout_token_hash, checkout_token_expires_at, event_order_items(package_category, package_name, unit_price_inr, quantity, line_total_inr, selected_time_slots)")
       .eq("id", event_order_id)
       .single();
 
@@ -61,6 +96,10 @@ serve(async (req: Request) => {
     if (!tokenValid) {
       return jsonResponse({ error: "Checkout session expired. Please create the booking again." }, 401);
     }
+
+    const orderItems = Array.isArray(order.event_order_items) ? order.event_order_items as EventOrderItem[] : [];
+    const itemsSummary = makeOrderItemSummary(orderItems);
+    const coinSummary = makeCoinSummary(orderItems);
 
     if (settings.active_provider === "razorpay") {
       if (order.razorpay_order_id && order.razorpay_order_response) {
@@ -86,6 +125,8 @@ serve(async (req: Request) => {
         customerName: order.customer_name,
         customerEmail: order.customer_email,
         customerPhone: order.customer_phone,
+        itemsSummary,
+        coinSummary,
         keyId: settings.razorpay_key_id,
       });
 

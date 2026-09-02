@@ -32,12 +32,20 @@ export function makeRazorpayReceipt(eventOrderId: string) {
   return `pinkd_${eventOrderId.replace(/-/g, "").slice(0, 26)}`;
 }
 
+function compactNote(value?: string | null, maxLength = 512) {
+  if (!value) return undefined;
+  const normalized = value.replace(/\s+/g, " ").trim();
+  return normalized.length > maxLength ? `${normalized.slice(0, maxLength - 3)}...` : normalized;
+}
+
 export async function createRazorpayOrder(params: {
   eventOrderId: string;
   amountInr: number;
   customerName: string;
   customerEmail: string;
   customerPhone: string;
+  itemsSummary?: string;
+  coinSummary?: string;
   keyId?: string | null;
 }) {
   const config = getRazorpayConfig(params.keyId);
@@ -58,6 +66,9 @@ export async function createRazorpayOrder(params: {
         customer_name: params.customerName,
         customer_email: params.customerEmail,
         customer_phone: params.customerPhone,
+        total_amount_inr: params.amountInr.toFixed(2),
+        items_bought: compactNote(params.itemsSummary),
+        pinkd_coins: compactNote(params.coinSummary, 256),
       },
     }),
   });

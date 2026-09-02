@@ -4,6 +4,7 @@ import { flushSync } from "react-dom";
 import {
   CheckCircle2,
   ChevronsUpDown,
+  Coins,
   CreditCard,
   Loader2,
   Mail,
@@ -53,12 +54,27 @@ import {
   getDefaultTimeSlots,
   normalizeEventPackage,
 } from "@/lib/eventPackages";
+import { formatCoins } from "@/lib/coins";
 
 type CartItem = {
   id: string;
   packageId: string;
   quantity: number;
   selectedTimeSlots: string[];
+};
+
+type CoinPackage = {
+  id: string;
+  inr_amount: number;
+  coin_amount: number;
+  active: boolean;
+  display_order: number;
+};
+
+type CoinCartItem = {
+  id: string;
+  coinPackageId: string;
+  quantity: number;
 };
 
 type CheckoutFormState = {
@@ -368,6 +384,7 @@ function makeCartLineId(packageId: string, selectedTimeSlots: string[]) {
 export default function EventLanding() {
   const { toast } = useToast();
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [coinCart, setCoinCart] = useState<CoinCartItem[]>([]);
   const [form, setForm] = useState<CheckoutFormState>(initialFormState);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [confirmedOrder, setConfirmedOrder] = useState<{
@@ -383,7 +400,9 @@ export default function EventLanding() {
   const [isPackageModalOpen, setIsPackageModalOpen] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [eventOptions, setEventOptions] = useState<EventPackageOption[]>(EVENT_PACKAGE_OPTIONS);
+  const [coinPackages, setCoinPackages] = useState<CoinPackage[]>([]);
   const [packagesLoading, setPackagesLoading] = useState(true);
+  const [coinPackagesLoading, setCoinPackagesLoading] = useState(true);
   const [paymentProvider, setPaymentProvider] = useState<PaymentProvider>("cashfree");
   const [paymentSettingsLoading, setPaymentSettingsLoading] = useState(true);
   const [isGatewayActive, setIsGatewayActive] = useState(false);
@@ -392,12 +411,18 @@ export default function EventLanding() {
   const fetchEventConfig = useCallback(async () => {
     try {
       setPackagesLoading(true);
+      setCoinPackagesLoading(true);
       setPaymentSettingsLoading(true);
 
-      const [packageResult, paymentSettingResult] = await Promise.all([
+      const [packageResult, coinPackageResult, paymentSettingResult] = await Promise.all([
         supabase
           .from("event_packages")
           .select("*")
+          .eq("active", true)
+          .order("display_order", { ascending: true }),
+        supabase
+          .from("coin_packages")
+          .select("id, inr_amount, coin_amount, active, display_order")
           .eq("active", true)
           .order("display_order", { ascending: true }),
         supabase
@@ -408,16 +433,26 @@ export default function EventLanding() {
       ]);
 
       if (packageResult.error) throw packageResult.error;
+      if (coinPackageResult.error) throw coinPackageResult.error;
       if (paymentSettingResult.error) throw paymentSettingResult.error;
 
       setEventOptions((packageResult.data || []).length > 0 ? packageResult.data.map(normalizeEventPackage) : EVENT_PACKAGE_OPTIONS);
+      setCoinPackages((coinPackageResult.data || []).map((coinPackage) => ({
+        id: coinPackage.id,
+        inr_amount: Number(coinPackage.inr_amount),
+        coin_amount: Number(coinPackage.coin_amount),
+        active: Boolean(coinPackage.active),
+        display_order: Number(coinPackage.display_order),
+      })));
       setPaymentProvider(paymentSettingResult.data?.active_provider === "razorpay" ? "razorpay" : "cashfree");
     } catch (error) {
       console.error("Event config load failed:", error);
       setEventOptions(EVENT_PACKAGE_OPTIONS);
+      setCoinPackages([]);
       setPaymentProvider("cashfree");
     } finally {
       setPackagesLoading(false);
+      setCoinPackagesLoading(false);
       setPaymentSettingsLoading(false);
     }
   }, []);
@@ -460,8 +495,30 @@ export default function EventLanding() {
     [cart, eventOptions],
   );
 
-  const cartCount = cartLines.reduce((sum, line) => sum + line.quantity, 0);
-  const grandTotal = cartLines.reduce((sum, line) => sum + line.lineTotal, 0);
+  const coinLines = useMemo(
+    () =>
+      coinCart
+        .map((item) => {
+          const option = coinPackages.find((coinPackage) => coinPackage.id === item.coinPackageId);
+          if (!option) return null;
+
+          return {
+            ...item,
+            option,
+            lineTotal: option.inr_amount * item.quantity,
+            coinTotal: option.coin_amount * item.quantity,
+          };
+        })
+        .filter(Boolean) as Array<CoinCartItem & { option: CoinPackage; lineTotal: number; coinTotal: number }>,
+    [coinCart, coinPackages],
+  );
+
+  const eventSubtotal = cartLines.reduce((sum, line) => sum + line.lineTotal, 0);
+  const coinSubtotal = coinLines.reduce((sum, line) => sum + line.lineTotal, 0);
+  const coinsToReceive = coinLines.reduce((sum, line) => sum + line.coinTotal, 0);
+  const cartCount = cartLines.reduce((sum, line) => sum + line.quantity, 0) + coinLines.reduce((sum, line) => sum + line.quantity, 0);
+  const grandTotal = eventSubtotal + coinSubtotal;
+  const hasCheckoutItems = cartLines.length > 0 || coinLines.length > 0;
 
   const openPackageModal = (option: EventPackageOption) => {
     setConfirmedOrder(null);
@@ -549,6 +606,43 @@ export default function EventLanding() {
     );
   };
 
+  const addCoinPackage = (coinPackageId: string) => {
+    setConfirmedOrder(null);
+    setCoinCart((current) => {
+      const existing = current.find((item) => item.coinPackageId === coinPackageId);
+      if (existing) {
+        return current.map((item) =>
+          item.coinPackageId === coinPackageId
+            ? { ...item, quantity: Math.min(item.quantity + 1, 100) }
+            : item,
+        );
+      }
+
+      return [
+        ...current,
+        {
+          id: `coin:${coinPackageId}`,
+          coinPackageId,
+          quantity: 1,
+        },
+      ];
+    });
+  };
+
+  const updateCoinQuantity = (cartItemId: string, quantity: number) => {
+    setConfirmedOrder(null);
+    setCoinCart((current) =>
+      current
+        .map((item) => (item.id === cartItemId ? { ...item, quantity: Math.max(0, Math.min(quantity, 100)) } : item))
+        .filter((item) => item.quantity > 0),
+    );
+  };
+
+  const removeCoinFromCart = (cartItemId: string) => {
+    setConfirmedOrder(null);
+    setCoinCart((current) => current.filter((item) => item.id !== cartItemId));
+  };
+
   const removeFromCart = (cartItemId: string) => {
     setConfirmedOrder(null);
     setCart((current) => current.filter((item) => item.id !== cartItemId));
@@ -562,10 +656,10 @@ export default function EventLanding() {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (cartLines.length === 0) {
+    if (!hasCheckoutItems) {
       toast({
         title: "Cart Is Empty",
-        description: "Add at least one Pink'D event option before checkout.",
+        description: "Add at least one Pink'D event option or coin package before checkout.",
         variant: "destructive",
       });
       return;
@@ -597,11 +691,21 @@ export default function EventLanding() {
           p_customer_phone: form.phone.trim(),
           p_customer_email: form.email.trim(),
           p_checkout_token_hash: checkoutTokenHash,
-          p_cart_items: cartLines.map((line) => ({
-            package_key: line.packageId,
-            quantity: line.quantity,
-            selected_time_slots: line.selectedTimeSlots,
-          })),
+          p_cart_items: [
+            ...cartLines.map((line) => ({
+              item_type: "event_package",
+              package_key: line.packageId,
+              quantity: line.quantity,
+              selected_time_slots: line.selectedTimeSlots,
+            })),
+            ...coinLines.map((line) => ({
+              item_type: "coin_package",
+              coin_package_id: line.coinPackageId,
+              package_key: `coin-package:${line.coinPackageId}`,
+              quantity: line.quantity,
+              selected_time_slots: [],
+            })),
+          ],
         })
         .single();
 
@@ -752,6 +856,7 @@ export default function EventLanding() {
       }
 
       setCart([]);
+      setCoinCart([]);
       setForm(initialFormState);
     } catch (error) {
       console.error("Event order creation failed:", error);
@@ -971,7 +1076,7 @@ export default function EventLanding() {
 
           <form onSubmit={handleSubmit} className="mt-5 flex flex-1 flex-col">
             <div className="space-y-3">
-              {cartLines.length === 0 ? (
+              {cartLines.length === 0 && coinLines.length === 0 ? (
                 <div className="rounded-lg border border-white/10 bg-white/[0.04] p-4 text-sm text-white/58">
                   Your cart is empty.
                 </div>
@@ -1031,11 +1136,142 @@ export default function EventLanding() {
                   </div>
                 ))
               )}
+
+              {coinLines.map((line) => (
+                <div key={line.id} className="rounded-lg border border-primary/25 bg-primary/10 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 font-semibold">
+                        <Coins className="h-4 w-4 text-primary" />
+                        {formatCoins(line.option.coin_amount)}
+                      </div>
+                      <div className="mt-1 text-xs text-white/58">
+                        {formatEventPrice(line.option.inr_amount)} each
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeCoinFromCart(line.id)}
+                      className="rounded-md p-1.5 text-white/45 transition hover:bg-white/10 hover:text-white"
+                      aria-label={`Remove ${formatCoins(line.option.coin_amount)}`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-between gap-3">
+                    <div className="flex h-9 items-center rounded-md border border-white/12 bg-black/35">
+                      <button
+                        type="button"
+                        onClick={() => updateCoinQuantity(line.id, line.quantity - 1)}
+                        className="grid h-9 w-9 place-items-center text-white/70 hover:text-white"
+                        aria-label={`Decrease ${formatCoins(line.option.coin_amount)}`}
+                      >
+                        <Minus className="h-4 w-4" />
+                      </button>
+                      <span className="w-9 text-center text-sm font-bold">{line.quantity}</span>
+                      <button
+                        type="button"
+                        onClick={() => updateCoinQuantity(line.id, line.quantity + 1)}
+                        className="grid h-9 w-9 place-items-center text-white/70 hover:text-white"
+                        aria-label={`Increase ${formatCoins(line.option.coin_amount)}`}
+                      >
+                        <Plus className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div className="font-black text-primary">{formatEventPrice(line.lineTotal)}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-5 rounded-lg border border-primary/30 bg-primary/10 p-4">
+              <div className="flex items-start gap-3">
+                <Coins className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+                <div>
+                  <div className="font-black">Say hi to your Pink'D currency</div>
+                  <p className="mt-1 text-sm leading-5 text-white/68">
+                    Pink'D Coins can be used to play games at the party. Pick a coin pack below and it will be added to your total payable.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-2">
+                {coinPackagesLoading ? (
+                  <div className="rounded-md border border-white/10 bg-black/25 px-3 py-2 text-sm text-white/58">
+                    Loading Pink'D Coin packs...
+                  </div>
+                ) : coinPackages.length === 0 ? (
+                  <div className="rounded-md border border-white/10 bg-black/25 px-3 py-2 text-sm text-white/58">
+                    Pink'D Coin packs are not available right now.
+                  </div>
+                ) : (
+                  coinPackages.map((coinPackage) => {
+                    const selectedCoinLine = coinLines.find((line) => line.coinPackageId === coinPackage.id);
+
+                    return (
+                      <div
+                        key={coinPackage.id}
+                        className="flex items-center justify-between gap-3 rounded-md border border-white/10 bg-black/25 px-3 py-2"
+                      >
+                        <div className="min-w-0">
+                          <div className="text-sm font-bold">{formatCoins(coinPackage.coin_amount)}</div>
+                          <div className="text-xs text-white/52">{formatEventPrice(coinPackage.inr_amount)}</div>
+                        </div>
+                        {selectedCoinLine ? (
+                          <div className="flex h-8 items-center rounded-md border border-white/12 bg-black/35">
+                            <button
+                              type="button"
+                              onClick={() => updateCoinQuantity(selectedCoinLine.id, selectedCoinLine.quantity - 1)}
+                              className="grid h-8 w-8 place-items-center text-white/70 hover:text-white"
+                              aria-label={`Decrease ${formatCoins(coinPackage.coin_amount)}`}
+                            >
+                              <Minus className="h-3.5 w-3.5" />
+                            </button>
+                            <span className="w-8 text-center text-xs font-bold">{selectedCoinLine.quantity}</span>
+                            <button
+                              type="button"
+                              onClick={() => updateCoinQuantity(selectedCoinLine.id, selectedCoinLine.quantity + 1)}
+                              className="grid h-8 w-8 place-items-center text-white/70 hover:text-white"
+                              aria-label={`Increase ${formatCoins(coinPackage.coin_amount)}`}
+                            >
+                              <Plus className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={() => addCoinPackage(coinPackage.id)}
+                            className="h-8 bg-primary px-3 text-xs font-bold text-black hover:bg-primary/90"
+                          >
+                            Add
+                          </Button>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
             </div>
 
             <div className="mt-5 space-y-2 border-t border-white/10 pt-4 text-sm">
               <div className="flex items-center justify-between text-white/62">
-                <span>Subtotal</span>
+                <span>Event passes</span>
+                <span>{formatEventPrice(eventSubtotal)}</span>
+              </div>
+              <div className="flex items-center justify-between text-white/62">
+                <span>Pink'D Coins</span>
+                <span>{formatEventPrice(coinSubtotal)}</span>
+              </div>
+              {coinsToReceive > 0 ? (
+                <div className="flex items-center justify-between text-white/78">
+                  <span>Coins to receive</span>
+                  <span>{formatCoins(coinsToReceive)}</span>
+                </div>
+              ) : null}
+              <div className="flex items-center justify-between text-white/62">
+                <span>Total Payable</span>
                 <span>{formatEventPrice(grandTotal)}</span>
               </div>
               <div className="flex items-center justify-between text-lg font-black">
@@ -1088,12 +1324,12 @@ export default function EventLanding() {
             </div>
 
             <div className="mt-5 rounded-md border border-primary/25 bg-primary/10 p-3 text-sm text-white/72">
-              Payment is processed in INR with {getGatewayLabel(paymentProvider)}. This checkout never credits Pink'D Coins.
+              Payment is processed in INR with {getGatewayLabel(paymentProvider)}. Event booking revenue stays separate from NFC wallet balances.
             </div>
 
             <Button
               type="submit"
-              disabled={isSubmitting || cartLines.length === 0}
+              disabled={isSubmitting || !hasCheckoutItems}
               className="mt-5 h-12 w-full bg-primary text-base font-bold text-black hover:bg-primary/90"
             >
               <CreditCard className="mr-2 h-4 w-4" />
