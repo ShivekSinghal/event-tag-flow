@@ -13,6 +13,7 @@ import POS from "./pages/POS";
 import Balance from "./pages/Balance";
 import DonationProgress from "./pages/DonationProgress";
 import EventLanding from "./pages/EventLanding";
+import PolicyPage from "./pages/PolicyPages";
 import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
@@ -29,6 +30,9 @@ const App = () => (
           <Routes>
             <Route path="/" element={<EventLanding />} />
             <Route path="/event" element={<EventLanding />} />
+            <Route path="/contact-us" element={<PolicyPage type="contact" />} />
+            <Route path="/terms-and-conditions" element={<PolicyPage type="terms" />} />
+            <Route path="/refunds-cancellations" element={<PolicyPage type="refunds" />} />
             <Route path="/pinkd-login" element={<Auth />} />
             <Route path="/auth" element={<Navigate to="/pinkd-login" replace />} />
             <Route path="/reset-password" element={<ResetPassword />} />

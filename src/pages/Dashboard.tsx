@@ -32,6 +32,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { nfcManager } from "@/utils/nfc";
 import StaffManagement from "@/components/admin/StaffManagement";
 import CoinPackageManagement from "@/components/admin/CoinPackageManagement";
@@ -896,23 +897,36 @@ export default function Dashboard() {
         })}
       </div>
 
-      {/* Staff Management Section */}
-      <StaffManagement />
+      <Tabs defaultValue="event-bookings" className="space-y-6">
+        <div className="sticky top-16 z-20 -mx-1 overflow-x-auto bg-background/95 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+          <TabsList className="h-auto w-max min-w-full justify-start gap-1 p-1">
+            <TabsTrigger value="event-bookings" className="gap-2 px-4 py-2">
+              <Package className="h-4 w-4" />
+              <span>Event Bookings</span>
+            </TabsTrigger>
+            <TabsTrigger value="wallet-sales" className="gap-2 px-4 py-2">
+              <TrendingUp className="h-4 w-4" />
+              <span>Wallet Sales</span>
+            </TabsTrigger>
+            <TabsTrigger value="setup" className="gap-2 px-4 py-2">
+              <CreditCard className="h-4 w-4" />
+              <span>Setup</span>
+            </TabsTrigger>
+            <TabsTrigger value="security" className="gap-2 px-4 py-2">
+              <Shield className="h-4 w-4" />
+              <span>Security</span>
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
-      {/* Pink'D Coin Package and Pricing Management */}
-      <CoinPackageManagement />
+        <TabsContent value="event-bookings" className="space-y-6">
+          {/* Event Landing Page Booking Report */}
+          <EventBookingReport />
+        </TabsContent>
 
-      {/* Event Landing Package Sales and Availability */}
-      <EventPackageManagement />
-
-      {/* Universal Event Payment Gateway */}
-      <PaymentGatewaySettings />
-
-      {/* Event Landing Page Booking Report */}
-      <EventBookingReport />
-
-      {/* Studio Sales Breakdown - Always Visible */}
-      <Card className="shadow-card">
+        <TabsContent value="wallet-sales" className="space-y-6">
+          {/* Studio Sales Breakdown - Always Visible */}
+          <Card className="shadow-card">
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <TrendingUp className="w-5 h-5 text-primary" />
@@ -972,95 +986,95 @@ export default function Dashboard() {
             )}
           </div>
         </CardContent>
-      </Card>
+          </Card>
 
-      {/* Game Sales Section */}
-      <div className="flex justify-between items-center">
-        <h2 className="text-xl font-semibold text-foreground">Sales Analytics & Item Management</h2>
-        <Dialog open={isAddItemOpen} onOpenChange={setIsAddItemOpen}>
-          <DialogTrigger asChild>
-            <Button variant="outline" className="flex items-center space-x-2">
-              <Plus className="w-4 h-4" />
-              <span>Add Item</span>
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>Add New Item</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="category">Category</Label>
-                <Select
-                  value={itemForm.category}
-                  onValueChange={(value) => setItemForm(prev => ({ ...prev, category: value }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
-                   <SelectContent>
-                     <SelectItem value="games">
-                       <div className="flex items-center space-x-2">
-                         <Package className="w-4 h-4" />
-                         <span>Games</span>
-                       </div>
-                     </SelectItem>
-                     <SelectItem value="general">
-                       <div className="flex items-center space-x-2">
-                         <Utensils className="w-4 h-4" />
-                         <span>General Items</span>
-                       </div>
-                     </SelectItem>
-                   </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="name">Name</Label>
-                <Input
-                  id="name"
-                  value={itemForm.name}
-                  onChange={(e) => setItemForm(prev => ({ ...prev, name: e.target.value }))}
-                  placeholder="Enter item name"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
-                <Textarea
-                  id="description"
-                  value={itemForm.description}
-                  onChange={(e) => setItemForm(prev => ({ ...prev, description: e.target.value }))}
-                  placeholder="Enter item description"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="price">Price (Pink'D Coins)</Label>
-                <Input
-                  id="price"
-                  type="number"
-                  value={itemForm.price}
-                  onChange={(e) => setItemForm(prev => ({ ...prev, price: e.target.value }))}
-                  placeholder="Enter coin price"
-                />
-              </div>
-              <div className="flex space-x-2 pt-4">
-                <Button onClick={handleAddItem} className="flex-1">
-                  Add Item
+          {/* Game Sales Section */}
+          <div className="flex justify-between items-center">
+            <h2 className="text-xl font-semibold text-foreground">Sales Analytics & Item Management</h2>
+            <Dialog open={isAddItemOpen} onOpenChange={setIsAddItemOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="flex items-center space-x-2">
+                  <Plus className="w-4 h-4" />
+                  <span>Add Item</span>
                 </Button>
-                <Button 
-                  variant="outline" 
-                  onClick={() => setIsAddItemOpen(false)}
-                  className="flex-1"
-                >
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-      </div>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                  <DialogTitle>Add New Item</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="category">Category</Label>
+                    <Select
+                      value={itemForm.category}
+                      onValueChange={(value) => setItemForm(prev => ({ ...prev, category: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select category" />
+                      </SelectTrigger>
+                       <SelectContent>
+                         <SelectItem value="games">
+                           <div className="flex items-center space-x-2">
+                             <Package className="w-4 h-4" />
+                             <span>Games</span>
+                           </div>
+                         </SelectItem>
+                         <SelectItem value="general">
+                           <div className="flex items-center space-x-2">
+                             <Utensils className="w-4 h-4" />
+                             <span>General Items</span>
+                           </div>
+                         </SelectItem>
+                       </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Name</Label>
+                    <Input
+                      id="name"
+                      value={itemForm.name}
+                      onChange={(e) => setItemForm(prev => ({ ...prev, name: e.target.value }))}
+                      placeholder="Enter item name"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="description">Description</Label>
+                    <Textarea
+                      id="description"
+                      value={itemForm.description}
+                      onChange={(e) => setItemForm(prev => ({ ...prev, description: e.target.value }))}
+                      placeholder="Enter item description"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="price">Price (Pink'D Coins)</Label>
+                    <Input
+                      id="price"
+                      type="number"
+                      value={itemForm.price}
+                      onChange={(e) => setItemForm(prev => ({ ...prev, price: e.target.value }))}
+                      placeholder="Enter coin price"
+                    />
+                  </div>
+                  <div className="flex space-x-2 pt-4">
+                    <Button onClick={handleAddItem} className="flex-1">
+                      Add Item
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setIsAddItemOpen(false)}
+                      className="flex-1"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
 
       {/* Game Sales Breakdown - Always Visible */}
-      <Card className="shadow-card">
+          <Card className="shadow-card">
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <DollarSign className="w-5 h-5 text-primary" />
@@ -1266,10 +1280,10 @@ export default function Dashboard() {
             </div>
           </div>
         </CardContent>
-      </Card>
+          </Card>
 
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Recent Transactions */}
         <Card className="shadow-card">
           <CardHeader>
@@ -1525,10 +1539,57 @@ export default function Dashboard() {
             </div>
           </CardContent>
         </Card>
-      </div>
+          </div>
+        </TabsContent>
 
-      {/* Block Tag Section */}
-      <Card className="shadow-card border-destructive/20">
+        <TabsContent value="setup" className="space-y-6">
+          <Tabs defaultValue="event-packages" className="space-y-5">
+            <div className="overflow-x-auto">
+              <TabsList className="h-auto w-max min-w-full justify-start gap-1 p-1">
+                <TabsTrigger value="event-packages" className="gap-2 px-4 py-2">
+                  <Package className="h-4 w-4" />
+                  <span>Event Packages</span>
+                </TabsTrigger>
+                <TabsTrigger value="coins-pos" className="gap-2 px-4 py-2">
+                  <Coins className="h-4 w-4" />
+                  <span>Coins & POS</span>
+                </TabsTrigger>
+                <TabsTrigger value="payments" className="gap-2 px-4 py-2">
+                  <CreditCard className="h-4 w-4" />
+                  <span>Payments</span>
+                </TabsTrigger>
+                <TabsTrigger value="staff" className="gap-2 px-4 py-2">
+                  <Users className="h-4 w-4" />
+                  <span>Staff Access</span>
+                </TabsTrigger>
+              </TabsList>
+            </div>
+
+            <TabsContent value="event-packages" className="space-y-5">
+              {/* Event Landing Package Sales and Availability */}
+              <EventPackageManagement />
+            </TabsContent>
+
+            <TabsContent value="coins-pos" className="space-y-5">
+              {/* Pink'D Coin Package and Pricing Management */}
+              <CoinPackageManagement />
+            </TabsContent>
+
+            <TabsContent value="payments" className="space-y-5">
+              {/* Universal Event Payment Gateway */}
+              <PaymentGatewaySettings />
+            </TabsContent>
+
+            <TabsContent value="staff" className="space-y-5">
+              {/* Staff Management Section */}
+              <StaffManagement />
+            </TabsContent>
+          </Tabs>
+        </TabsContent>
+
+        <TabsContent value="security" className="space-y-6">
+          {/* Block Tag Section */}
+          <Card className="shadow-card border-destructive/20">
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
@@ -1680,7 +1741,9 @@ export default function Dashboard() {
             )}
           </div>
         </CardContent>
-      </Card>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

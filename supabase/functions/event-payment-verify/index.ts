@@ -37,7 +37,7 @@ serve(async (req: Request) => {
     const supabase = getSupabaseAdmin();
     const { data: settings, error: settingsError } = await supabase
       .from("payment_gateway_settings")
-      .select("razorpay_key_id")
+      .select("razorpay_key_id, cashfree_mode")
       .eq("id", "event_bookings")
       .single();
 
@@ -127,7 +127,7 @@ serve(async (req: Request) => {
       return jsonResponse({ error: "Cashfree order id is required" }, 400);
     }
 
-    const cashfreeOrder = await fetchCashfreeOrder(expectedCashfreeOrderId);
+    const cashfreeOrder = await fetchCashfreeOrder(expectedCashfreeOrderId, settings?.cashfree_mode);
     const orderStatus = cashfreeOrder?.order_status || null;
     const paymentStatus = mapCashfreeOrderStatus(orderStatus);
     const now = new Date().toISOString();

@@ -12,15 +12,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 type PaymentGatewaySetting = Tables<"payment_gateway_settings">;
 type PaymentProvider = "cashfree" | "razorpay";
+type CashfreeMode = "sandbox" | "production";
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : undefined;
+}
+
+function isRazorpayKeyId(value: string) {
+  return /^rzp_(test|live)_[A-Za-z0-9]+$/.test(value.trim());
 }
 
 export default function PaymentGatewaySettings() {
   const { toast } = useToast();
   const [settings, setSettings] = useState<PaymentGatewaySetting | null>(null);
   const [activeProvider, setActiveProvider] = useState<PaymentProvider>("cashfree");
+  const [cashfreeMode, setCashfreeMode] = useState<CashfreeMode>("sandbox");
   const [razorpayKeyId, setRazorpayKeyId] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -38,6 +44,7 @@ export default function PaymentGatewaySettings() {
 
       setSettings(data);
       setActiveProvider(data.active_provider === "razorpay" ? "razorpay" : "cashfree");
+      setCashfreeMode(data.cashfree_mode === "production" ? "production" : "sandbox");
       setRazorpayKeyId(data.razorpay_key_id || "");
     } catch (error: unknown) {
       toast({
@@ -56,11 +63,21 @@ export default function PaymentGatewaySettings() {
 
   const saveSettings = async () => {
     try {
+      if (activeProvider === "razorpay" && !isRazorpayKeyId(razorpayKeyId)) {
+        toast({
+          title: "Invalid Razorpay Key",
+          description: "Razorpay Key ID must start with rzp_live_ or rzp_test_. Cashfree secrets should be saved only in Supabase Edge Function secrets.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       setIsSaving(true);
       const { error } = await supabase
         .from("payment_gateway_settings")
         .update({
           active_provider: activeProvider,
+          cashfree_mode: cashfreeMode,
           razorpay_key_id: razorpayKeyId.trim() || null,
         })
         .eq("id", "event_bookings");
@@ -69,7 +86,10 @@ export default function PaymentGatewaySettings() {
 
       toast({
         title: "Payment Gateway Updated",
-        description: `Event bookings now use ${activeProvider === "cashfree" ? "Cashfree" : "Razorpay"}.`,
+        description:
+          activeProvider === "cashfree"
+            ? `Event bookings now use Cashfree ${cashfreeMode}.`
+            : "Event bookings now use Razorpay.",
       });
       await fetchSettings();
     } catch (error: unknown) {
@@ -98,7 +118,7 @@ export default function PaymentGatewaySettings() {
           ) : null}
         </CardTitle>
       </CardHeader>
-      <CardContent className="grid gap-4 lg:grid-cols-[1fr_1fr_auto] lg:items-end">
+      <CardContent className="grid gap-4 xl:grid-cols-[1fr_1fr_1fr_auto] xl:items-end">
         <div className="space-y-2">
           <Label>Gateway for Landing Page Checkout</Label>
           <Select
@@ -119,6 +139,28 @@ export default function PaymentGatewaySettings() {
           </p>
         </div>
         <div className="space-y-2">
+          <Label>Cashfree Mode</Label>
+          <Select
+            value={cashfreeMode}
+            onValueChange={(value) => setCashfreeMode(value as CashfreeMode)}
+            disabled={isLoading}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select Cashfree mode" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="production">Production</SelectItem>
+              <SelectItem value="sandbox">Sandbox</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-sm text-muted-foreground">
+            Production uses Cashfree live APIs. Credentials still stay in Supabase Edge Function secrets.
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Required secrets: CASHFREE_CLIENT_ID and CASHFREE_CLIENT_SECRET.
+          </p>
+        </div>
+        <div className="space-y-2">
           <Label>Razorpay Key ID</Label>
           <Input
             value={razorpayKeyId}
@@ -129,6 +171,11 @@ export default function PaymentGatewaySettings() {
           <p className="text-sm text-muted-foreground">
             Public checkout key only. Keep the Razorpay secret in Supabase Edge Function secrets.
           </p>
+          {razorpayKeyId.trim().startsWith("cf") ? (
+            <p className="text-xs font-medium text-destructive">
+              This looks like a Cashfree key. Razorpay Key ID should start with rzp_live_ or rzp_test_.
+            </p>
+          ) : null}
         </div>
         <Button onClick={saveSettings} disabled={isLoading || isSaving}>
           <Save className="mr-2 h-4 w-4" />

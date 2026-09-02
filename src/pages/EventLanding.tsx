@@ -1,6 +1,7 @@
 import type { FormEvent } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { flushSync } from "react-dom";
+import { Link } from "react-router-dom";
 import {
   CheckCircle2,
   ChevronsUpDown,
@@ -327,10 +328,18 @@ function getGatewayLabel(provider: PaymentProvider) {
   return provider === "razorpay" ? "Razorpay" : "Cashfree";
 }
 
-function getPaymentErrorMessage(error: unknown) {
+function getPaymentErrorMessage(error: unknown, provider?: PaymentProvider) {
   if (error && typeof error === "object" && "message" in error && typeof error.message === "string") {
     if (/authentication failed/i.test(error.message)) {
-      return "Razorpay authentication failed. Update the Supabase RAZORPAY_KEY_SECRET so it matches the active Razorpay key id in the admin payment settings.";
+      if (provider === "cashfree") {
+        return "Cashfree authentication failed. Check that Supabase CASHFREE_CLIENT_ID and CASHFREE_CLIENT_SECRET are the correct Payment Gateway keys for the selected Cashfree mode.";
+      }
+
+      if (provider === "razorpay") {
+        return "Razorpay authentication failed. Update the Supabase RAZORPAY_KEY_SECRET so it matches the active Razorpay key id in the admin payment settings.";
+      }
+
+      return "Payment gateway authentication failed. Check that the selected gateway's Supabase secrets match the active payment settings.";
     }
 
     return error.message;
@@ -731,11 +740,17 @@ export default function EventLanding() {
 
       const orderId = data.order_id;
       const orderTotal = Number(data.total_amount_inr);
+      let paymentFlowCompleted = false;
+      let attemptedPaymentProvider = paymentProvider;
 
       try {
         const { data: paymentData, error: paymentError } = await supabase.functions.invoke("event-payment-create", {
           body: { event_order_id: orderId, checkout_token: checkoutToken },
         });
+
+        if (paymentData?.provider === "cashfree" || paymentData?.provider === "razorpay") {
+          attemptedPaymentProvider = paymentData.provider;
+        }
 
         if (paymentError) throw new Error(await getFunctionErrorMessage(paymentError, paymentData));
 
@@ -803,6 +818,7 @@ export default function EventLanding() {
                 : `Your Pink'D event booking is confirmed.${confirmationEmailError ? ` Email could not be sent: ${confirmationEmailError}` : ""}`
               : "Your order is saved, but Razorpay has not confirmed capture yet.",
           });
+          paymentFlowCompleted = true;
         } else {
           const paymentSessionId = paymentData?.payment_session_id as string | undefined;
           const cashfreeOrderId = paymentData?.cashfree_order_id as string | undefined;
@@ -863,19 +879,24 @@ export default function EventLanding() {
                 : `Your Pink'D event booking is confirmed.${confirmationEmailError ? ` Email could not be sent: ${confirmationEmailError}` : ""}`
               : "Your order is saved, but Cashfree has not confirmed payment yet.",
           });
+          paymentFlowCompleted = true;
         }
       } catch (paymentError) {
         console.error("Event payment setup failed:", paymentError);
         setConfirmedOrder({ id: orderId, total: orderTotal, status: "pending", customerEmail: form.email.trim() });
+        setIsCartOpen(true);
         toast({
-          title: "Order Saved",
-          description: getPaymentErrorMessage(paymentError),
+          title: "Payment Setup Failed",
+          description: getPaymentErrorMessage(paymentError, attemptedPaymentProvider),
+          variant: "destructive",
         });
       }
 
-      setCart([]);
-      setCoinCart([]);
-      setForm(initialFormState);
+      if (paymentFlowCompleted) {
+        setCart([]);
+        setCoinCart([]);
+        setForm(initialFormState);
+      }
     } catch (error) {
       console.error("Event order creation failed:", error);
       toast({
@@ -1408,6 +1429,22 @@ export default function EventLanding() {
           </div>
         </div>
       ) : null}
+
+      <footer className="border-t border-white/10 bg-black/30">
+        <div className="mx-auto grid max-w-7xl gap-5 px-5 py-7 text-sm text-white/58 sm:px-8 lg:grid-cols-[1.2fr_1fr] lg:px-10">
+          <div>
+            <div className="font-bold text-white">Pink'D event bookings</div>
+            <p className="mt-2 max-w-2xl leading-6">
+              Products and services are listed on this page with pricing in INR. Event passes, party entries, group bookings, and Pink'D Coin packs are billed in INR and remain separate from the NFC wallet ledger.
+            </p>
+          </div>
+          <nav className="flex flex-wrap items-center gap-x-5 gap-y-2 lg:justify-end" aria-label="Policy links">
+            <Link className="transition hover:text-primary" to="/contact-us">Contact Us</Link>
+            <Link className="transition hover:text-primary" to="/terms-and-conditions">Terms & Conditions</Link>
+            <Link className="transition hover:text-primary" to="/refunds-cancellations">Refunds & Cancellations</Link>
+          </nav>
+        </div>
+      </footer>
 
       <button
         type="button"

@@ -65,7 +65,7 @@ serve(async (req: Request) => {
     const supabase = getSupabaseAdmin();
     const { data: settings, error: settingsError } = await supabase
       .from("payment_gateway_settings")
-      .select("active_provider, razorpay_key_id")
+      .select("active_provider, razorpay_key_id, cashfree_mode")
       .eq("id", "event_bookings")
       .single();
 
@@ -161,7 +161,7 @@ serve(async (req: Request) => {
       });
     }
 
-    const config = getCashfreeConfig();
+    const config = getCashfreeConfig(settings.cashfree_mode);
     const cashfreeOrderId = order.cashfree_order_id || makeCashfreeOrderId(order.id);
 
     if (order.cashfree_payment_session_id) {

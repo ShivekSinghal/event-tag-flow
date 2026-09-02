@@ -35,14 +35,52 @@ export function getSupabaseAdmin() {
   });
 }
 
-export function getCashfreeConfig() {
-  const clientId = Deno.env.get("CASHFREE_CLIENT_ID");
-  const clientSecret = Deno.env.get("CASHFREE_CLIENT_SECRET");
-  const env = (Deno.env.get("CASHFREE_ENV") || "sandbox").toLowerCase();
-  const mode = env === "production" ? "production" : "sandbox";
+export type CashfreeMode = "sandbox" | "production";
+
+export function normalizeCashfreeMode(mode?: string | null): CashfreeMode {
+  return mode?.toLowerCase() === "production" ? "production" : "sandbox";
+}
+
+const CASHFREE_CLIENT_ID_KEYS = [
+  "CASHFREE_CLIENT_ID",
+  "CASHFREE_APP_ID",
+  "CASHFREE_API_KEY",
+  "CASHFREE_PROD_ID",
+  "CASHFREE_PROD_CLIENT_ID",
+  "CASHFREE_PRODUCTION_CLIENT_ID",
+  "CASHFREE_API_CLIENT_ID",
+  "CASHFREE_X_CLIENT_ID",
+];
+
+const CASHFREE_CLIENT_SECRET_KEYS = [
+  "CASHFREE_CLIENT_SECRET",
+  "CASHFREE_SECRET",
+  "CASHFREE_SECRET_KEY",
+  "CASHFREE_API_SECRET",
+  "CASHFREE_CLIENT_SECRET_KEY",
+  "CASHFREE_PROD_SECRET",
+  "CASHFREE_PROD_CLIENT_SECRET",
+  "CASHFREE_PRODUCTION_CLIENT_SECRET",
+  "CASHFREE_API_CLIENT_SECRET",
+  "CASHFREE_X_CLIENT_SECRET",
+];
+
+function readFirstSecret(keys: string[]) {
+  return keys.map((key) => Deno.env.get(key)?.trim()).find(Boolean) || null;
+}
+
+export function getCashfreeConfig(modeOverride?: string | null) {
+  const clientId = readFirstSecret(CASHFREE_CLIENT_ID_KEYS);
+  const clientSecret = readFirstSecret(CASHFREE_CLIENT_SECRET_KEYS);
+  const mode = normalizeCashfreeMode(modeOverride || Deno.env.get("CASHFREE_ENV"));
 
   if (!clientId || !clientSecret) {
-    throw new Error("Cashfree credentials are not configured");
+    const missing = [
+      !clientId ? `client id (${CASHFREE_CLIENT_ID_KEYS.join(" or ")})` : null,
+      !clientSecret ? `client secret (${CASHFREE_CLIENT_SECRET_KEYS.join(" or ")})` : null,
+    ].filter(Boolean).join(" and ");
+
+    throw new Error(`Cashfree credentials are not configured. Missing ${missing}. Add them in Supabase Edge Function Secrets.`);
   }
 
   return {
@@ -74,8 +112,8 @@ export function mapCashfreeOrderStatus(orderStatus: string | null | undefined) {
   return "pending";
 }
 
-export async function fetchCashfreeOrder(cashfreeOrderId: string) {
-  const config = getCashfreeConfig();
+export async function fetchCashfreeOrder(cashfreeOrderId: string, modeOverride?: string | null) {
+  const config = getCashfreeConfig(modeOverride);
   const response = await fetch(`${config.baseUrl}/orders/${encodeURIComponent(cashfreeOrderId)}`, {
     method: "GET",
     headers: {
