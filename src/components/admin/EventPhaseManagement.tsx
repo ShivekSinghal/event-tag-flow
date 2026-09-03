@@ -129,7 +129,6 @@ export default function EventPhaseManagement() {
           .update({
             active: limit.active,
             capacity: Number(limit.capacity),
-            display_registration_boost: Number(limit.display_registration_boost),
             price_inr: Number(limit.price_inr),
           })
           .eq("id", limit.id),
@@ -141,7 +140,7 @@ export default function EventPhaseManagement() {
 
       toast({
         title: "Phase Controls Saved",
-        description: "Landing page urgency, phase pricing, and capacities are updated.",
+        description: "Phase pricing, capacities, and availability are updated.",
       });
       await fetchPhaseConfig();
     } catch (error: unknown) {
@@ -169,7 +168,7 @@ export default function EventPhaseManagement() {
         <CardTitle className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <span className="flex items-center gap-2">
             <TicketPercent className="h-5 w-5 text-primary" />
-            Event Phase Pricing & Urgency
+            Event Phase Pricing & Capacity
           </span>
           <Button onClick={savePhaseConfig} disabled={isSaving} size="sm">
             <Save className="mr-2 h-4 w-4" />
@@ -194,7 +193,7 @@ export default function EventPhaseManagement() {
                     {currentPhase ? <Badge variant="outline">Current live phase</Badge> : null}
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    Edit the timer window, prices, capacity, availability, and visible registration boost for every package.
+                    Edit the timer window, prices, capacity, and availability for every package.
                   </p>
                 </div>
                 <label className="flex items-center gap-2 text-sm">
@@ -239,13 +238,12 @@ export default function EventPhaseManagement() {
               </div>
 
               <div className="mt-4 overflow-x-auto">
-                <div className="min-w-[58rem] rounded-lg border">
-                  <div className="grid grid-cols-[1.35fr_7rem_7rem_7rem_7rem_6rem_6rem] gap-3 border-b bg-muted/40 px-3 py-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                <div className="min-w-[48rem] rounded-lg border">
+                  <div className="grid grid-cols-[1.35fr_7rem_7rem_7rem_6rem_6rem] gap-3 border-b bg-muted/40 px-3 py-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
                     <span>Package</span>
                     <span>Price</span>
                     <span>Capacity</span>
-                    <span>Display Boost</span>
-                    <span>Visible Count</span>
+                    <span>Sold</span>
                     <span>Held</span>
                     <span>Active</span>
                   </div>
@@ -258,13 +256,12 @@ export default function EventPhaseManagement() {
                     const stat = statMap.get(`${phase.id}:${eventPackage.id}`);
                     const confirmed = Number(stat?.confirmed_quantity || 0);
                     const pending = Number(stat?.pending_quantity || 0);
-                    const visible = confirmed + Number(limit.display_registration_boost || 0);
                     const heldRemaining = Math.max(Number(limit.capacity || 0) - confirmed - pending, 0);
 
                     return (
                       <div
                         key={limit.id}
-                        className="grid grid-cols-[1.35fr_7rem_7rem_7rem_7rem_6rem_6rem] items-center gap-3 border-b px-3 py-3 last:border-b-0"
+                        className="grid grid-cols-[1.35fr_7rem_7rem_7rem_6rem_6rem] items-center gap-3 border-b px-3 py-3 last:border-b-0"
                       >
                         <div className="min-w-0">
                           <div className="truncate font-semibold">{eventPackage.name}</div>
@@ -286,22 +283,13 @@ export default function EventPhaseManagement() {
                           value={Number(limit.capacity)}
                           onChange={(event) => updateLimit(limit.id, { capacity: Number(event.target.value) })}
                         />
-                        <Input
-                          type="number"
-                          min="0"
-                          step="1"
-                          value={Number(limit.display_registration_boost)}
-                          onChange={(event) =>
-                            updateLimit(limit.id, { display_registration_boost: Number(event.target.value) })
-                          }
-                        />
                         <div className="text-sm">
-                          <div className="font-bold">{visible} / {limit.capacity}</div>
-                          <div className="text-xs text-muted-foreground">real {confirmed}</div>
+                          <div className="font-bold">{confirmed} / {limit.capacity}</div>
+                          <div className="text-xs text-muted-foreground">{heldRemaining} left</div>
                         </div>
                         <div className="text-sm">
                           <div className="font-bold">{pending}</div>
-                          <div className="text-xs text-muted-foreground">{heldRemaining} left</div>
+                          <div className="text-xs text-muted-foreground">temporary holds</div>
                         </div>
                         <Checkbox
                           checked={limit.active}
