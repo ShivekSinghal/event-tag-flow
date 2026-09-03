@@ -46,7 +46,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRole 
           <Gamepad2 className="h-12 w-12 mx-auto mb-4 text-primary" />
           <h1 className="text-xl font-black">Dashboard access is taking too long</h1>
           <p className="mt-2 text-sm leading-6 text-white/62">
-            Your session or staff profile did not finish loading. Refresh the page, or log in again from the Pink'D admin login.
+            Your session or staff profile did not finish loading. Refresh the page, or log in again from the Pink'd admin login.
           </p>
           <div className="mt-5 grid gap-2 sm:grid-cols-2">
             <Button type="button" onClick={() => window.location.reload()} className="bg-primary font-bold text-black hover:bg-primary/90">

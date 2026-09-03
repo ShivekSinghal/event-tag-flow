@@ -85,7 +85,7 @@ export default function POS() {
       if (error) {
         toast({
           title: "Item Prices Unavailable",
-          description: "Could not load Pink'D Coin item prices.",
+          description: "Could not load Pink'd Coin item prices.",
           variant: "destructive",
         });
         return;
@@ -353,7 +353,7 @@ export default function POS() {
   ) => {
     if (price > wallet.currentBalance) {
       toast({
-        title: "Insufficient Pink'D Coins",
+        title: "Insufficient Pink'd Coins",
         description: `Balance: ${formatCoins(wallet.currentBalance)} | Required: ${formatCoins(price)}`,
         variant: "destructive",
       });
@@ -469,7 +469,7 @@ export default function POS() {
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Point of Sale</h1>
         </div>
         <p className="text-sm sm:text-base text-muted-foreground mt-2">
-          Tap items, scan NFC tag, deduct Pink'D Coins instantly
+          Tap items, scan NFC tag, deduct Pink'd Coins instantly
         </p>
       </div>
 
@@ -878,7 +878,7 @@ export default function POS() {
                         {showCustomAmountInput && selectedCustomItem && (
                           <Card className="border-primary/20">
                             <CardHeader>
-                              <CardTitle className="text-lg">Enter Pink'D Coins for {selectedCustomItem.name}</CardTitle>
+                              <CardTitle className="text-lg">Enter Pink'd Coins for {selectedCustomItem.name}</CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-4">
                               {/* Predefined Amount Buttons for Games */}
@@ -908,7 +908,7 @@ export default function POS() {
                                 <div className="flex-1">
                                   <Input
                                     type="number"
-                                    placeholder="Enter Pink'D Coins"
+                                    placeholder="Enter Pink'd Coins"
                                     value={customAmount}
                                     onChange={(e) => setCustomAmount(e.target.value)}
                                     min="0"
@@ -977,7 +977,7 @@ export default function POS() {
                         {showCustomAmountInput && selectedCustomItem && (
                           <Card className="border-primary/20">
                             <CardHeader>
-                              <CardTitle className="text-lg">Enter Pink'D Coins for {selectedCustomItem.name}</CardTitle>
+                              <CardTitle className="text-lg">Enter Pink'd Coins for {selectedCustomItem.name}</CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-4">
                               {/* Predefined Amount Buttons for Games */}
@@ -1007,7 +1007,7 @@ export default function POS() {
                                 <div className="flex-1">
                                   <Input
                                     type="number"
-                                    placeholder="Enter Pink'D Coins"
+                                    placeholder="Enter Pink'd Coins"
                                     value={customAmount}
                                     onChange={(e) => setCustomAmount(e.target.value)}
                                     min="0"
@@ -1050,7 +1050,7 @@ export default function POS() {
                           <div className="text-xs sm:text-sm text-muted-foreground mb-3">
                             {selectedGame?.description ||
                               selectedDrink?.category ||
-                              `${selectedCustomItem?.type} - Pink'D Coin price`}
+                              `${selectedCustomItem?.type} - Pink'd Coin price`}
                           </div>
                           <div className="flex items-center justify-between pt-3 border-t border-primary/20">
                             <span className="text-xs sm:text-sm font-medium text-muted-foreground">Price</span>

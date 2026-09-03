@@ -668,7 +668,7 @@ export default function Dashboard() {
 
       toast({
       title: "Item Added Successfully",
-      description: `${itemForm.name} has been added with a Pink'D Coin price`,
+      description: `${itemForm.name} has been added with a Pink'd Coin price`,
       });
 
       // Reset form
@@ -1145,7 +1145,7 @@ export default function Dashboard() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="price">Price (Pink'D Coins)</Label>
+                    <Label htmlFor="price">Price (Pink'd Coins)</Label>
                     <Input
                       id="price"
                       type="number"
@@ -1458,12 +1458,12 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Low Pink'D Coin Alerts */}
+        {/* Low Pink'd Coin Alerts */}
         <Card className="shadow-card">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
               <AlertTriangle className="w-5 h-5 text-warning" />
-              <span>Low Pink'D Coin Alerts</span>
+              <span>Low Pink'd Coin Alerts</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -1650,7 +1650,7 @@ export default function Dashboard() {
                 </TabsTrigger>
                 <TabsTrigger value="event-phases" className="gap-2 px-4 py-2">
                   <CalendarCheck className="h-4 w-4" />
-                  <span>Phases</span>
+                  <span>Party Phase & Seats</span>
                 </TabsTrigger>
                 <TabsTrigger value="coins-pos" className="gap-2 px-4 py-2">
                   <Coins className="h-4 w-4" />
@@ -1678,7 +1678,7 @@ export default function Dashboard() {
             </TabsContent>
 
             <TabsContent value="coins-pos" className="space-y-5">
-              {/* Pink'D Coin Package and Pricing Management */}
+              {/* Pink'd Coin Package and Pricing Management */}
               <CoinPackageManagement />
             </TabsContent>
 
@@ -1768,7 +1768,7 @@ export default function Dashboard() {
                           </Badge>
                         </div>
                         <div className="text-right">
-                          <div className="text-sm font-medium text-muted-foreground">Pink'D Coins</div>
+                          <div className="text-sm font-medium text-muted-foreground">Pink'd Coins</div>
                           <div className="font-bold">{formatCoins(getCoinBalance(foundWallet))}</div>
                         </div>
                       </div>

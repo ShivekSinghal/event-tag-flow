@@ -11,7 +11,7 @@ import {
 import { validateCheckoutToken } from "../_shared/eventCheckout.ts";
 import { createRazorpayOrder, getRazorpayConfig } from "../_shared/razorpay.ts";
 
-const BRAND_NAME = "PINK'D";
+const BRAND_NAME = "Pink'd";
 const BRAND_COLOR = "#ff007f";
 
 type EventOrderItem = {
@@ -201,11 +201,11 @@ serve(async (req: Request) => {
         order_meta: {
           return_url: `${siteUrl}/?event_order_id=${order.id}&cashfree_order_id=${cashfreeOrderId}`,
         },
-        order_note: "PINK'D event booking",
+        order_note: "Pink'd event booking",
         order_tags: {
           brand_name: BRAND_NAME,
           brand_color: BRAND_COLOR,
-          checkout_context: "PINK'D event booking",
+          checkout_context: "Pink'd event booking",
         },
       }),
     });

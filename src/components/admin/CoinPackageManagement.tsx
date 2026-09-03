@@ -65,7 +65,7 @@ export default function CoinPackageManagement() {
     } catch (error: unknown) {
       toast({
         title: "Pricing Load Failed",
-        description: getErrorMessage(error) || "Could not load Pink'D Coin pricing.",
+        description: getErrorMessage(error) || "Could not load Pink'd Coin pricing.",
         variant: "destructive",
       });
     } finally {
@@ -118,7 +118,7 @@ export default function CoinPackageManagement() {
       const results = await Promise.all(updates);
       const failed = results.find((result) => result.error);
       if (failed?.error) throw failed.error;
-      toast({ title: "Game Prices Saved", description: "Game prices now use Pink'D Coins." });
+      toast({ title: "Game Prices Saved", description: "Game prices now use Pink'd Coins." });
     } catch (error: unknown) {
       toast({
         title: "Save Failed",
@@ -161,7 +161,7 @@ export default function CoinPackageManagement() {
   if (isLoading) {
     return (
       <Card className="shadow-card">
-        <CardContent className="py-8 text-center text-muted-foreground">Loading Pink'D Coin controls...</CardContent>
+        <CardContent className="py-8 text-center text-muted-foreground">Loading Pink'd Coin controls...</CardContent>
       </Card>
     );
   }
@@ -171,7 +171,7 @@ export default function CoinPackageManagement() {
       <CardHeader>
         <CardTitle className="flex items-center space-x-2">
           <Coins className="w-5 h-5 text-primary" />
-          <span>Pink'D Coin Admin Console</span>
+          <span>Pink'd Coin Admin Console</span>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-8">
@@ -183,6 +183,10 @@ export default function CoinPackageManagement() {
               Save Packages
             </Button>
           </div>
+          <p className="rounded-md border bg-secondary/20 px-3 py-2 text-sm text-muted-foreground">
+            Confirmed ladder: ₹2,000 → 2,000 · ₹5,000 → 6,000 · ₹10,000 → 14,000 · ₹20,000 → 30,000. Inactive tiers are
+            hidden from /coins.
+          </p>
           <div className="grid grid-cols-1 gap-3">
             {packages.map((pkg) => (
               <div key={pkg.id} className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1fr_auto] gap-3 items-end p-3 border rounded-lg">

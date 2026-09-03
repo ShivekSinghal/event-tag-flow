@@ -1,4 +1,4 @@
-export const COIN_LABEL = "Pink'D Coins";
+export const COIN_LABEL = "Pink'd Coins";
 export const LOW_COIN_BALANCE_THRESHOLD = 50;
 
 export function toIntegerCoins(value: unknown): number {
@@ -16,7 +16,7 @@ export function getCoinAmount(transaction: { coin_amount?: number | string | nul
 }
 
 export function formatCoins(value: unknown): string {
-  return `${toIntegerCoins(value).toLocaleString("en-IN")} Pink'D Coins`;
+  return `${toIntegerCoins(value).toLocaleString("en-IN")} Pink'd Coins`;
 }
 
 export function formatInr(value: unknown): string {

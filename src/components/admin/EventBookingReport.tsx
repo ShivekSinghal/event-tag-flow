@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CalendarDays, CheckCircle, Download, FileSpreadsheet, Filter, RefreshCw, Save, Ticket, Users } from "lucide-react";
+import { CalendarDays, CheckCircle, Coins, Download, FileSpreadsheet, Filter, RefreshCw, Save, Ticket, Timer, Users } from "lucide-react";
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json, Tables } from "@/integrations/supabase/types";
-import { EVENT_CATEGORY_LABELS, EVENT_PACKAGE_OPTIONS, formatEventPrice } from "@/lib/eventPackages";
+import { EVENT_CATEGORY_LABELS, formatEventPrice } from "@/lib/eventPackages";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,9 +13,17 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type EventOrderItem = Tables<"event_order_items">;
+// `event_order_attendees` is being added alongside this change; its generated type
+// lands in types.ts later, so the relation is typed loosely here.
+type EventOrderAttendee = { position: number; attendee_name: string; attendee_phone: string };
 type EventOrder = Tables<"event_orders"> & {
   event_order_items: EventOrderItem[] | null;
+  event_order_attendees?: EventOrderAttendee[] | null;
 };
+
+const COINS_SOURCE = "coins_page";
+const ORDER_SELECT_WITH_ATTENDEES = "*, event_order_items(*), event_order_attendees(*)";
+const ORDER_SELECT_BASIC = "*, event_order_items(*)";
 
 const ALL_PACKAGES = "all-packages";
 const ALL_STATUSES = "all-statuses";
@@ -35,7 +43,32 @@ function statusVariant(status: string | null): "default" | "secondary" | "destru
 }
 
 function getPackageCategoryLabel(category: string) {
+  if (category === "coins") return "Pink'd Coins";
   return EVENT_CATEGORY_LABELS[category as keyof typeof EVENT_CATEGORY_LABELS] || category || "Event";
+}
+
+function shortRef(id: string | null | undefined) {
+  return id ? id.slice(0, 8).toUpperCase() : "";
+}
+
+function isPartyItem(item: EventOrderItem) {
+  return item.package_category === "party";
+}
+
+function formatPhaseCharged(item: EventOrderItem) {
+  if (!isPartyItem(item) || !item.phase_name) return "";
+  const price = item.phase_price_inr === null || item.phase_price_inr === undefined ? "" : ` ₹${Number(item.phase_price_inr)}`;
+  return `${item.phase_name}${price}`;
+}
+
+function getAttendees(order: EventOrder) {
+  return [...(order.event_order_attendees || [])].sort((a, b) => a.position - b.position);
+}
+
+function formatAttendees(order: EventOrder) {
+  return getAttendees(order)
+    .map((attendee) => `${attendee.attendee_name} (${attendee.attendee_phone})`)
+    .join("; ");
 }
 
 function getOrderItems(order: EventOrder) {
@@ -83,6 +116,7 @@ export default function EventBookingReport() {
   const [orders, setOrders] = useState<EventOrder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
+  const [isExpiring, setIsExpiring] = useState(false);
   const [packageFilter, setPackageFilter] = useState(ALL_PACKAGES);
   const [statusFilter, setStatusFilter] = useState(ALL_STATUSES);
   const [dateFrom, setDateFrom] = useState("");
@@ -91,13 +125,26 @@ export default function EventBookingReport() {
   const fetchOrders = useCallback(async () => {
     try {
       setIsLoading(true);
-      const { data, error } = await supabase
+      const primary = await supabase
         .from("event_orders")
-        .select("*, event_order_items(*)")
+        .select(ORDER_SELECT_WITH_ATTENDEES)
         .order("created_at", { ascending: false });
 
-      if (error) throw error;
-      setOrders((data || []) as EventOrder[]);
+      let rows: unknown = primary.data;
+      let queryError = primary.error;
+
+      if (primary.error) {
+        // The attendees relation may not be deployed yet; fall back to the plain select.
+        const fallback = await supabase
+          .from("event_orders")
+          .select(ORDER_SELECT_BASIC)
+          .order("created_at", { ascending: false });
+        rows = fallback.data;
+        queryError = fallback.error;
+      }
+
+      if (queryError) throw queryError;
+      setOrders((rows as EventOrder[] | null) || []);
     } catch (error) {
       console.error("Event order report failed:", error);
       toast({
@@ -114,14 +161,41 @@ export default function EventBookingReport() {
     fetchOrders();
   }, [fetchOrders]);
 
-  const packageOptions = useMemo(
-    () =>
-      EVENT_PACKAGE_OPTIONS.map((option) => ({
-        id: option.id,
-        name: option.name,
-      })),
-    [],
-  );
+  const expireStaleHolds = async () => {
+    try {
+      setIsExpiring(true);
+      const { data, error } = await supabase.rpc("expire_stale_event_orders");
+      if (error) throw error;
+      const cancelled = Number(data ?? 0);
+      toast({
+        title: "Stale Holds Expired",
+        description: `Cancelled ${cancelled} abandoned checkout${cancelled === 1 ? "" : "s"}`,
+      });
+      await fetchOrders();
+    } catch (error) {
+      console.error("Expire stale holds failed:", error);
+      toast({
+        title: "Expire Failed",
+        description: error instanceof Error ? error.message : "Could not expire stale checkouts.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExpiring(false);
+    }
+  };
+
+  // Build the package filter from what was actually sold, so coin packs and every real key appear.
+  const packageOptions = useMemo(() => {
+    const seen = new Map<string, string>();
+    orders.forEach((order) => {
+      getOrderItems(order).forEach((item) => {
+        if (!seen.has(item.package_key)) seen.set(item.package_key, item.package_name || item.package_key);
+      });
+    });
+    return Array.from(seen.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [orders]);
 
   const filteredOrders = useMemo(() => {
     return orders.filter((order) => {
@@ -137,8 +211,12 @@ export default function EventBookingReport() {
   }, [dateFrom, dateTo, orders, packageFilter, statusFilter]);
 
   const stats = useMemo(() => {
-    const packageMap = new Map<string, { category: string; quantity: number; revenue: number; value: number }>();
-    let totalRevenue = 0;
+    const packageMap = new Map<
+      string,
+      { name: string; category: string; quantity: number; revenue: number; value: number }
+    >();
+    let ticketRevenue = 0;
+    let coinRevenue = 0;
     let pendingPayments = 0;
     let successfulPayments = 0;
 
@@ -147,7 +225,11 @@ export default function EventBookingReport() {
       const orderIsSuccessful = SUCCESS_STATUSES.has(status);
 
       if (orderIsSuccessful) {
-        totalRevenue += Number(order.total_amount_inr || 0);
+        if (order.booking_source === COINS_SOURCE) {
+          coinRevenue += Number(order.total_amount_inr || 0);
+        } else {
+          ticketRevenue += Number(order.total_amount_inr || 0);
+        }
         successfulPayments += 1;
       } else if (PENDING_STATUSES.has(status)) {
         pendingPayments += 1;
@@ -155,6 +237,7 @@ export default function EventBookingReport() {
 
       getOrderItems(order).forEach((item) => {
         const existing = packageMap.get(item.package_key) || {
+          name: item.package_name || item.package_key,
           category: item.package_category,
           quantity: 0,
           revenue: 0,
@@ -171,29 +254,35 @@ export default function EventBookingReport() {
 
     return {
       totalOrders: filteredOrders.length,
-      totalRevenue,
+      ticketRevenue,
+      coinRevenue,
       pendingPayments,
       successfulPayments,
       packageStats: Array.from(packageMap.entries())
-        .map(([packageKey, packageData]) => {
-          const option = EVENT_PACKAGE_OPTIONS.find((item) => item.id === packageKey);
-          return {
-            packageKey,
-            packageName: option?.name || packageKey,
-            ...packageData,
-          };
-        })
+        .map(([packageKey, packageData]) => ({
+          packageKey,
+          packageName: packageData.name,
+          ...packageData,
+        }))
         .sort((a, b) => b.value - a.value),
     };
   }, [filteredOrders]);
 
   const exportHeaders = [
     "Order ID",
+    "Order Ref",
+    "Source",
+    "Parent Order Ref",
     "Name",
     "Phone",
     "Email",
     "Studio",
     "Cart Items",
+    "Packages",
+    "Quantities",
+    "Sessions",
+    "Phase Price Charged",
+    "Attendees",
     "Time Slots",
     "Total INR",
     "Payment Provider",
@@ -215,11 +304,28 @@ export default function EventBookingReport() {
     () =>
       filteredOrders.map((order) => [
         order.id,
+        shortRef(order.id),
+        order.booking_source || "",
+        shortRef(order.parent_order_id),
         order.customer_name,
         order.customer_phone,
         order.customer_email,
         order.customer_studio || "",
         getItemsSummary(order),
+        getOrderItems(order)
+          .map((item) => item.package_name || item.package_key)
+          .join(" | "),
+        getOrderItems(order)
+          .map((item) => String(item.quantity))
+          .join(" | "),
+        getOrderItems(order)
+          .map((item) => formatTimeSlots(item.selected_time_slots))
+          .join(" | "),
+        getOrderItems(order)
+          .map(formatPhaseCharged)
+          .filter(Boolean)
+          .join(" | "),
+        formatAttendees(order),
         getOrderItems(order)
           .map((item) => formatTimeSlots(item.selected_time_slots))
           .filter(Boolean)
@@ -324,7 +430,7 @@ export default function EventBookingReport() {
             <Ticket className="h-5 w-5 text-primary" />
             Event Bookings / Landing Page Report
           </span>
-          <span className="text-sm font-normal text-muted-foreground">INR event revenue, separate from Pink'D Coins</span>
+          <span className="text-sm font-normal text-muted-foreground">INR event revenue · ticket and Pink'd Coin orders</span>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -376,6 +482,10 @@ export default function EventBookingReport() {
             <RefreshCw className="mr-2 h-4 w-4" />
             Refresh
           </Button>
+          <Button variant="outline" size="sm" onClick={expireStaleHolds} disabled={isExpiring || isLoading}>
+            <Timer className="mr-2 h-4 w-4" />
+            Expire stale holds
+          </Button>
           <Button variant="outline" size="sm" onClick={handleExportCsv} disabled={filteredOrders.length === 0}>
             <Download className="mr-2 h-4 w-4" />
             CSV
@@ -386,10 +496,11 @@ export default function EventBookingReport() {
           </Button>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           {[
             { label: "Total Orders", value: stats.totalOrders.toString(), icon: Users },
-            { label: "Total INR Revenue", value: formatEventPrice(stats.totalRevenue), icon: Ticket },
+            { label: "Ticket revenue", value: formatEventPrice(stats.ticketRevenue), icon: Ticket },
+            { label: "Coin revenue", value: formatEventPrice(stats.coinRevenue), icon: Coins },
             { label: "Pending Payments", value: stats.pendingPayments.toString(), icon: Filter },
             { label: "Successful Payments", value: stats.successfulPayments.toString(), icon: CheckCircle },
           ].map((item) => {
@@ -452,6 +563,12 @@ export default function EventBookingReport() {
                       {order.customer_studio ? (
                         <div className="mt-1 text-sm font-medium text-primary">{order.customer_studio}</div>
                       ) : null}
+                      {order.parent_order_id ? (
+                        <Badge variant="secondary" className="mt-2 gap-1 font-normal">
+                          <Coins className="h-3 w-3" />
+                          Coins · for order {shortRef(order.parent_order_id)}
+                        </Badge>
+                      ) : null}
                       <div className="mt-2 space-y-1 text-sm">
                         {getOrderItems(order).map((item) => (
                           <div key={item.id} className="rounded-md bg-background/55 px-2 py-1">
@@ -459,6 +576,14 @@ export default function EventBookingReport() {
                               <span className="truncate">{item.quantity} x {item.package_name}</span>
                               <span className="shrink-0 font-semibold">{formatEventPrice(Number(item.line_total_inr || 0))}</span>
                             </div>
+                            {isPartyItem(item) && item.phase_name ? (
+                              <div className="mt-1 text-xs text-muted-foreground">
+                                {item.phase_name}
+                                {item.phase_price_inr !== null && item.phase_price_inr !== undefined
+                                  ? ` · ${formatEventPrice(Number(item.phase_price_inr))} each`
+                                  : ""}
+                              </div>
+                            ) : null}
                             {getTimeSlots(item.selected_time_slots).length > 0 ? (
                               <div className="mt-1 text-xs text-muted-foreground">
                                 {formatTimeSlots(item.selected_time_slots)}
@@ -504,7 +629,7 @@ export default function EventBookingReport() {
                     </div>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
-                    <span>{order.id.slice(0, 8).toUpperCase()}</span>
+                    <span>{shortRef(order.id)}</span>
                     <span>{order.booking_source}</span>
                     {order.payment_reference ? <span>Ref {order.payment_reference}</span> : null}
                     {order.razorpay_order_id ? <span>Razorpay {order.razorpay_order_id}</span> : null}

@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Pink'D Wallet Design System - Black & Pink Theme */
+/* Pink'd Wallet Design System - Black & Pink Theme */
 
 @layer base {
   :root {
@@ -1683,5 +1683,49 @@
   100% {
     opacity: 0;
     transform: scale(1.12);
+  }
+}
+
+/* Live availability notes (seat caps + party meter) */
+@layer components {
+  .pinkd-handoff-page .live-dot.off {
+    background: #8b7e8c;
+    box-shadow: none;
+    animation: none;
+  }
+  .pinkd-handoff-page .seat-notes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+  }
+  .pinkd-handoff-page .seat-note {
+    display: inline-block;
+    margin-top: 4px;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    color: #ffc857;
+  }
+  .pinkd-handoff-page .seat-notes .seat-note {
+    margin-top: 0;
+    padding: 4px 9px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 200, 87, 0.35);
+    background: rgba(255, 200, 87, 0.08);
+  }
+  .pinkd-handoff-page .seat-note.soldout {
+    color: #ff5a3c;
+    border-color: rgba(255, 90, 60, 0.4);
+    background: rgba(255, 90, 60, 0.1);
+  }
+  .pinkd-handoff-page .slot small.seat-note {
+    display: block;
+  }
+  .pinkd-handoff-page .btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
   }
 }

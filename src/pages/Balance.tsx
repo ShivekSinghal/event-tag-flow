@@ -116,7 +116,7 @@ export default function Balance() {
     <div className="max-w-4xl mx-auto space-y-8">
       {/* Header */}
       <div className="text-center">
-        <h1 className="text-3xl font-bold text-foreground">Check Pink'D Coins</h1>
+        <h1 className="text-3xl font-bold text-foreground">Check Pink'd Coins</h1>
         <p className="text-muted-foreground mt-2">View NFC wallet coin balance and transaction history</p>
       </div>
 
@@ -196,7 +196,7 @@ export default function Balance() {
                   <div className="text-center space-y-4">
                     <Wallet className="w-12 h-12 text-primary mx-auto" />
                     <div>
-                      <div className="text-sm text-muted-foreground mb-1">Current Pink'D Coin Balance</div>
+                      <div className="text-sm text-muted-foreground mb-1">Current Pink'd Coin Balance</div>
                       <div className="text-4xl font-bold text-primary">
                         {formatCoins(walletData.currentBalance)}
                       </div>

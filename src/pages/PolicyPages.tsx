@@ -12,9 +12,9 @@ type PolicyPageProps = {
 const policyContent = {
   contact: {
     eyebrow: "Contact Us",
-    title: "Pink'D Event Support",
+    title: "Pink'd Event Support",
     description:
-      "For booking, payment, event pass, or Pink'D Coin queries, reach out to the Pink'D event support team.",
+      "For booking, payment, event pass, or Pink'd Coin queries, reach out to the Pink'd event support team.",
     sections: [
       {
         title: "Support Email",
@@ -26,7 +26,7 @@ const policyContent = {
       },
       {
         title: "Support Scope",
-        body: "We can help with event bookings, payment status, package selection, NFC wallet questions, Pink'D Coins, and manual payment follow-ups.",
+        body: "We can help with event bookings, payment status, package selection, NFC wallet questions, Pink'd Coins, and manual payment follow-ups.",
       },
       {
         title: "Response Time",
@@ -36,21 +36,21 @@ const policyContent = {
   },
   terms: {
     eyebrow: "Terms & Conditions",
-    title: "Pink'D Event Booking Terms",
+    title: "Pink'd Event Booking Terms",
     description:
-      "These terms apply to Pink'D event pass, intensive, party entry, group booking, and Pink'D Coin purchases made through this website.",
+      "These terms apply to Pink'd event pass, intensive, party entry, group booking, and Pink'd Coin purchases made through this website.",
     sections: [
       {
         title: "Products And Pricing",
-        body: "All event packages, services, and Pink'D Coin packs are displayed on the booking page with prices in INR. Prices may change only when updated by the event admin before purchase.",
+        body: "All event packages, services, and Pink'd Coin packs are displayed on the booking page with prices in INR. Prices may change only when updated by the event admin before purchase.",
       },
       {
         title: "Booking Confirmation",
-        body: "A booking is treated as confirmed only after successful payment verification or manual confirmation by the Pink'D team. Pending orders are not final confirmations.",
+        body: "A booking is treated as confirmed only after successful payment verification or manual confirmation by the Pink'd team. Pending orders are not final confirmations.",
       },
       {
-        title: "Pink'D Coins",
-        body: "Pink'D Coins are event-use credits for eligible games and activities at the party. Event booking revenue and NFC wallet Pink'D Coins remain separate in the system.",
+        title: "Pink'd Coins",
+        body: "Pink'd Coins are event-use credits for eligible games and activities at the party. Event booking revenue and NFC wallet Pink'd Coins remain separate in the system.",
       },
       {
         title: "Customer Details",
@@ -58,7 +58,7 @@ const policyContent = {
       },
       {
         title: "Event Rules",
-        body: "Entry and participation are subject to venue rules, event capacity, package eligibility, and instructions shared by the Pink'D event team.",
+        body: "Entry and participation are subject to venue rules, event capacity, package eligibility, and instructions shared by the Pink'd event team.",
       },
     ],
   },
@@ -66,7 +66,7 @@ const policyContent = {
     eyebrow: "Refunds & Cancellations",
     title: "Refund And Cancellation Policy",
     description:
-      "This policy explains how Pink'D event booking cancellations, refunds, and payment issues are handled.",
+      "This policy explains how Pink'd event booking cancellations, refunds, and payment issues are handled.",
     sections: [
       {
         title: "Cancellation Requests",
@@ -82,7 +82,7 @@ const policyContent = {
       },
       {
         title: "No Duplicate Credits",
-        body: "If an order includes Pink'D Coins, refunds or cancellations will be checked against any coin usage before approval. Used benefits may be adjusted from the refund amount.",
+        body: "If an order includes Pink'd Coins, refunds or cancellations will be checked against any coin usage before approval. Used benefits may be adjusted from the refund amount.",
       },
       {
         title: "Failed Payments",
@@ -105,7 +105,7 @@ export default function PolicyPage({ type }: PolicyPageProps) {
       <section className="border-b border-white/10">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-5 py-5 sm:px-8">
           <Link to="/" className="inline-flex items-center gap-3">
-            <img src={logoImage} alt="Pink'D" className="h-10 w-auto max-w-[9rem] object-contain" />
+            <img src={logoImage} alt="Pink'd" className="h-10 w-auto max-w-[9rem] object-contain" />
           </Link>
           <Button asChild variant="outline" className="border-white/15 bg-white/[0.06] text-white hover:bg-white/10 hover:text-white">
             <Link to="/">

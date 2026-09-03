@@ -21,6 +21,16 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import {
+  createCheckoutToken,
+  getGatewayLabel,
+  getPaymentErrorMessage,
+  runGatewayPayment,
+  sha256Hex,
+  waitForSheetCloseAnimation,
+  type PaymentProvider,
+} from "@/lib/checkoutGateway";
+import { getSessionAvailability, usePartyStatus, type PartyPhaseStatus, type SessionAvailability } from "@/lib/partyStatus";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -57,7 +67,6 @@ import {
   getDefaultTimeSlots,
   normalizeEventPackage,
 } from "@/lib/eventPackages";
-import { formatCoins } from "@/lib/coins";
 import {
   captureLandingAttribution,
   getLandingAttribution,
@@ -73,39 +82,6 @@ type CartItem = {
   packageId: string;
   quantity: number;
   selectedTimeSlots: string[];
-};
-
-type CoinPackage = {
-  id: string;
-  inr_amount: number;
-  coin_amount: number;
-  active: boolean;
-  display_order: number;
-};
-
-type CoinCartItem = {
-  id: string;
-  coinPackageId: string;
-  quantity: number;
-};
-
-type EventPricingPhase = {
-  id: string;
-  phase_key: string;
-  name: string;
-  active: boolean;
-  starts_at: string | null;
-  ends_at: string | null;
-  display_order: number;
-};
-
-type EventPackagePhaseLimit = {
-  id: string;
-  phase_id: string;
-  package_id: string;
-  capacity: number;
-  price_inr: number;
-  active: boolean;
 };
 
 type CheckoutFormState = {
@@ -141,15 +117,11 @@ const logoImage = "/media/pinkd-logo.png";
 const heroVideo = "/media/hero-reel.mp4";
 const heroPoster = "/media/hero-poster.jpg";
 const partyCardImage = "/media/party-card.jpg";
-const brandName = "PINK'D";
-const brandColor = "#ff007f";
 const eventDateLabel = "11 SEPTEMBER";
 const intensiveVenueLabel = "#HASHTAG RAJOURI GARDEN";
 const intensiveDirectionsUrl = "https://share.google/YFUUQ85X3WYy0wVLE";
 const partyVenueLabel = "GLASS VILLA, GURGAON";
 const partyDirectionsUrl = "https://www.google.com/maps/search/?api=1&query=Glass%20Villa%20Gurgaon";
-const cashfreeScriptId = "cashfree-checkout-js";
-const razorpayScriptId = "razorpay-checkout-js";
 
 const facultyCards = [
   {
@@ -179,11 +151,11 @@ const facultyCards = [
 ];
 
 const legacyImages = [
-  ["/media/legacy-2025.jpg", "Pink'D 2025"],
-  ["/media/legacy-2024.jpg", "Pink'D 2024"],
-  ["/media/legacy-2023.jpg", "Pink'D 2023"],
-  ["/media/legacy-2022.jpg", "Pink'D 2022"],
-  ["/media/legacy-2021.jpg", "Pink'D 2021"],
+  ["/media/legacy-2025.jpg", "Pink'd 2025"],
+  ["/media/legacy-2024.jpg", "Pink'd 2024"],
+  ["/media/legacy-2023.jpg", "Pink'd 2023"],
+  ["/media/legacy-2022.jpg", "Pink'd 2022"],
+  ["/media/legacy-2021.jpg", "Pink'd 2021"],
 ];
 
 const galleryImages = Array.from({ length: 12 }, (_, index) => {
@@ -191,276 +163,6 @@ const galleryImages = Array.from({ length: 12 }, (_, index) => {
   return `/media/gallery-${number}.jpg`;
 });
 
-type CashfreeMode = "sandbox" | "production";
-type PaymentProvider = "cashfree" | "razorpay";
-
-type CashfreeCheckout = {
-  checkout: (options: { paymentSessionId: string; redirectTarget: "_modal" | "_self" | "_blank" | "_top" }) => Promise<unknown>;
-};
-
-type RazorpayCheckoutResponse = {
-  razorpay_order_id: string;
-  razorpay_payment_id: string;
-  razorpay_signature: string;
-};
-
-type RazorpayCheckoutOptions = {
-  key: string;
-  amount: number;
-  currency: string;
-  name: string;
-  description: string;
-  order_id: string;
-  prefill: {
-    name: string;
-    email: string;
-    contact: string;
-  };
-  theme: {
-    color: string;
-  };
-  handler: (response: RazorpayCheckoutResponse) => void;
-  modal: {
-    ondismiss: () => void;
-  };
-};
-
-type RazorpayCheckout = {
-  open: () => void;
-};
-
-declare global {
-  interface Window {
-    Cashfree?: (options: { mode: CashfreeMode }) => CashfreeCheckout;
-    Razorpay?: new (options: RazorpayCheckoutOptions) => RazorpayCheckout;
-  }
-}
-
-function loadCashfreeSdk() {
-  if (window.Cashfree) return Promise.resolve();
-
-  return new Promise<void>((resolve, reject) => {
-    const existingScript = document.getElementById(cashfreeScriptId) as HTMLScriptElement | null;
-
-    if (existingScript) {
-      existingScript.addEventListener("load", () => resolve(), { once: true });
-      existingScript.addEventListener("error", () => reject(new Error("Cashfree checkout could not load")), {
-        once: true,
-      });
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.id = cashfreeScriptId;
-    script.src = "https://sdk.cashfree.com/js/v3/cashfree.js";
-    script.async = true;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error("Cashfree checkout could not load"));
-    document.head.appendChild(script);
-  });
-}
-
-function loadRazorpaySdk() {
-  if (window.Razorpay) return Promise.resolve();
-
-  return new Promise<void>((resolve, reject) => {
-    const existingScript = document.getElementById(razorpayScriptId) as HTMLScriptElement | null;
-
-    if (existingScript) {
-      existingScript.addEventListener("load", () => resolve(), { once: true });
-      existingScript.addEventListener("error", () => reject(new Error("Razorpay checkout could not load")), {
-        once: true,
-      });
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.id = razorpayScriptId;
-    script.src = "https://checkout.razorpay.com/v1/checkout.js";
-    script.async = true;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error("Razorpay checkout could not load"));
-    document.head.appendChild(script);
-  });
-}
-
-function openRazorpayCheckout(paymentData: {
-  key_id: string;
-  amount_paise: number;
-  currency: string;
-  razorpay_order_id: string;
-  customer: {
-    name: string;
-    email: string;
-    phone: string;
-  };
-}, onCheckoutSurfaceVisible?: () => void) {
-  return new Promise<RazorpayCheckoutResponse | null>((resolve, reject) => {
-    if (!window.Razorpay) {
-      reject(new Error("Razorpay checkout is unavailable"));
-      return;
-    }
-
-    const checkout = new window.Razorpay({
-      key: paymentData.key_id,
-      amount: paymentData.amount_paise,
-      currency: paymentData.currency,
-      name: brandName,
-      description: "PINK'D event booking",
-      order_id: paymentData.razorpay_order_id,
-      prefill: {
-        name: paymentData.customer.name,
-        email: paymentData.customer.email,
-        contact: paymentData.customer.phone,
-      },
-      theme: {
-        color: brandColor,
-      },
-      handler: (response) => resolve(response),
-      modal: {
-        ondismiss: () => resolve(null),
-      },
-    });
-
-    checkout.open();
-    waitForCheckoutSurface("razorpay").then((isVisible) => {
-      if (isVisible) onCheckoutSurfaceVisible?.();
-    });
-  });
-}
-
-function checkoutSurfaceSelector(provider: PaymentProvider) {
-  if (provider === "razorpay") {
-    return [
-      ".razorpay-container",
-      ".razorpay-backdrop",
-      ".razorpay-checkout-frame",
-      "[class*='razorpay']",
-      "[id*='razorpay']",
-      "iframe[src*='razorpay.com']",
-      "iframe[src*='checkout.razorpay.com']",
-    ].join(",");
-  }
-
-  return [
-    "[class*='cashfree']",
-    "[id*='cashfree']",
-    "iframe[src*='cashfree.com']",
-    "iframe[src*='payments.cashfree.com']",
-  ].join(",");
-}
-
-function isVisibleCheckoutElement(element: Element) {
-  const styles = window.getComputedStyle(element);
-  const rect = element.getBoundingClientRect();
-  return styles.display !== "none" && styles.visibility !== "hidden" && rect.width > 40 && rect.height > 40;
-}
-
-function waitForCheckoutSurface(provider: PaymentProvider, timeoutMs = 12000) {
-  return new Promise<boolean>((resolve) => {
-    const selector = checkoutSurfaceSelector(provider);
-
-    const findSurface = () => Array.from(document.querySelectorAll(selector)).some(isVisibleCheckoutElement);
-
-    if (findSurface()) {
-      resolve(true);
-      return;
-    }
-
-    const observer = new MutationObserver(() => {
-      if (findSurface()) {
-        cleanup();
-        resolve(true);
-      }
-    });
-
-    const timeout = window.setTimeout(() => {
-      cleanup();
-      resolve(false);
-    }, timeoutMs);
-
-    const cleanup = () => {
-      observer.disconnect();
-      window.clearTimeout(timeout);
-    };
-
-    observer.observe(document.body, {
-      attributes: true,
-      childList: true,
-      subtree: true,
-      attributeFilter: ["class", "id", "src", "style"],
-    });
-  });
-}
-
-function waitForNextFrame() {
-  return new Promise<void>((resolve) => {
-    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-  });
-}
-
-function waitForSheetCloseAnimation() {
-  return new Promise<void>((resolve) => window.setTimeout(resolve, 360));
-}
-
-function getGatewayLabel(provider: PaymentProvider) {
-  return provider === "razorpay" ? "Razorpay" : "Cashfree";
-}
-
-function getPaymentErrorMessage(error: unknown, provider?: PaymentProvider) {
-  if (error && typeof error === "object" && "message" in error && typeof error.message === "string") {
-    if (/authentication failed/i.test(error.message)) {
-      if (provider === "cashfree") {
-        return "Cashfree authentication failed. Check that Supabase CASHFREE_CLIENT_ID and CASHFREE_CLIENT_SECRET are the correct Payment Gateway keys for the selected Cashfree mode.";
-      }
-
-      if (provider === "razorpay") {
-        return "Razorpay authentication failed. Update the Supabase RAZORPAY_KEY_SECRET so it matches the active Razorpay key id in the admin payment settings.";
-      }
-
-      return "Payment gateway authentication failed. Check that the selected gateway's Supabase secrets match the active payment settings.";
-    }
-
-    return error.message;
-  }
-
-  return "Payment could not be completed. The booking is pending for manual follow-up.";
-}
-
-async function getFunctionErrorMessage(error: unknown, data: unknown) {
-  if (data && typeof data === "object" && "error" in data && typeof data.error === "string") {
-    return data.error;
-  }
-
-  const context = error && typeof error === "object" && "context" in error ? error.context : null;
-  if (context instanceof Response) {
-    try {
-      const payload = await context.clone().json();
-      if (payload?.error) return String(payload.error);
-    } catch {
-      // Fall back to the Supabase client error message below.
-    }
-  }
-
-  if (error && typeof error === "object" && "message" in error && typeof error.message === "string") {
-    return error.message;
-  }
-
-  return "Payment setup failed";
-}
-
-function createCheckoutToken() {
-  const bytes = new Uint8Array(32);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
-async function sha256Hex(value: string) {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
-  return Array.from(new Uint8Array(digest))
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
-}
 
 function getCategoryTone(category: EventPackageOption["category"]) {
   switch (category) {
@@ -488,21 +190,46 @@ function getCategoryAnchor(category: EventPackageOption["category"]) {
   }
 }
 
-function findCurrentPhase(phases: EventPricingPhase[]) {
-  const now = Date.now();
-  return phases.find((phase) => {
-    if (!phase.active) return false;
-    const startsAt = phase.starts_at ? new Date(phase.starts_at).getTime() : -Infinity;
-    const endsAt = phase.ends_at ? new Date(phase.ends_at).getTime() : Infinity;
-    return startsAt <= now && now < endsAt;
-  }) || null;
-}
-
 function getSlotSummary(selectedTimeSlots: string[], intensiveCount?: number) {
   if (!intensiveCount) return "No slot selection needed";
-  if (selectedTimeSlots.length === 0) return "Select time slots";
-  if (selectedTimeSlots.length === EVENT_TIME_SLOTS.length) return "All 4 slots selected";
-  return `${selectedTimeSlots.length} selected`;
+  if (selectedTimeSlots.length === 0) return intensiveCount === 1 ? "Pick your session" : `Pick ${intensiveCount} sessions`;
+  if (selectedTimeSlots.length === EVENT_TIME_SLOTS.length) return "All 4 sessions";
+  return `${selectedTimeSlots.length} of ${intensiveCount} selected`;
+}
+
+function getSeatNote(session: SessionAvailability | undefined) {
+  if (!session) return null;
+  if (session.soldOut) return "Sold out";
+  if (session.warning) return `Only ${session.remaining} seat${session.remaining === 1 ? "" : "s"} left`;
+  return null;
+}
+
+function shortSlotLabel(slot: string) {
+  const day = slot.startsWith("Wednesday") ? "Wed" : slot.startsWith("Thursday") ? "Thu" : slot.split(",")[0];
+  const time = slot.split("@")[1]?.trim() || "";
+  return `${day} · ${time}`;
+}
+
+function getPartyMeter(phase: PartyPhaseStatus | null) {
+  if (!phase) return null;
+  const phaseSize = phase.next_min_party_count !== null ? phase.next_min_party_count - phase.min_party_count : null;
+  const remaining = phase.remaining_in_phase;
+  const remainingLine = remaining !== null && phaseSize
+    ? `${remaining} of ${phaseSize} ${phase.name} spots left`
+    : `${phase.name} · final price`;
+  const soldOutLine = phase.number > 1 ? `Phase ${phase.number - 1} sold out — now ${formatEventPrice(phase.price_inr)}` : null;
+  const nextLine = phase.next_price_inr !== null ? `Then ${formatEventPrice(phase.next_price_inr)}` : null;
+  const stickyLine = remaining !== null && phaseSize
+    ? `${phase.name} · ${remaining} party spot${remaining === 1 ? "" : "s"} left at ${formatEventPrice(phase.price_inr)}`
+    : `${phase.name} · party entry ${formatEventPrice(phase.price_inr)}`;
+  return { remainingLine, soldOutLine, nextLine, stickyLine };
+}
+
+function getOrderErrorMessage(error: unknown) {
+  if (error && typeof error === "object" && "message" in error && typeof error.message === "string" && error.message.trim()) {
+    return error.message;
+  }
+  return "Could not reserve this cart. Please try again.";
 }
 
 function makeCartLineId(packageId: string, selectedTimeSlots: string[]) {
@@ -520,7 +247,6 @@ function packageIncludesParty(option: EventPackageOption) {
 export default function EventLanding() {
   const { toast } = useToast();
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [coinCart, setCoinCart] = useState<CoinCartItem[]>([]);
   const [form, setForm] = useState<CheckoutFormState>(initialFormState);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [confirmedOrder, setConfirmedOrder] = useState<{
@@ -533,6 +259,7 @@ export default function EventLanding() {
     includesParty?: boolean;
     confirmationEmailSent?: boolean;
     confirmationEmailError?: string | null;
+    needsAttendeeForm?: boolean;
   } | null>(null);
   const [selectedPackage, setSelectedPackage] = useState<EventPackageOption | null>(null);
   const [pendingSlots, setPendingSlots] = useState<string[]>([]);
@@ -540,11 +267,8 @@ export default function EventLanding() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [showBottomSticker, setShowBottomSticker] = useState(false);
   const [eventOptions, setEventOptions] = useState<EventPackageOption[]>(EVENT_PACKAGE_OPTIONS);
-  const [coinPackages, setCoinPackages] = useState<CoinPackage[]>([]);
-  const [pricingPhases, setPricingPhases] = useState<EventPricingPhase[]>([]);
-  const [phaseLimits, setPhaseLimits] = useState<EventPackagePhaseLimit[]>([]);
   const [packagesLoading, setPackagesLoading] = useState(true);
-  const [coinPackagesLoading, setCoinPackagesLoading] = useState(true);
+  const { status: partyStatus, isLive: partyStatusLive, refresh: refreshPartyStatus } = usePartyStatus();
   const [paymentProvider, setPaymentProvider] = useState<PaymentProvider>("cashfree");
   const [paymentSettingsLoading, setPaymentSettingsLoading] = useState(true);
   const [isGatewayActive, setIsGatewayActive] = useState(false);
@@ -555,18 +279,12 @@ export default function EventLanding() {
   const fetchEventConfig = useCallback(async () => {
     try {
       setPackagesLoading(true);
-      setCoinPackagesLoading(true);
       setPaymentSettingsLoading(true);
 
-      const [packageResult, coinPackageResult, paymentSettingResult, phaseResult, limitResult] = await Promise.all([
+      const [packageResult, paymentSettingResult] = await Promise.all([
         supabase
           .from("event_packages")
           .select("*")
-          .eq("active", true)
-          .order("display_order", { ascending: true }),
-        supabase
-          .from("coin_packages")
-          .select("id, inr_amount, coin_amount, active, display_order")
           .eq("active", true)
           .order("display_order", { ascending: true }),
         supabase
@@ -574,59 +292,19 @@ export default function EventLanding() {
           .select("active_provider")
           .eq("id", "event_bookings")
           .single(),
-        supabase
-          .from("event_pricing_phases")
-          .select("id, phase_key, name, active, starts_at, ends_at, display_order")
-          .eq("active", true)
-          .order("display_order", { ascending: true }),
-        supabase
-          .from("event_package_phase_limits")
-          .select("id, phase_id, package_id, capacity, price_inr, active")
-          .eq("active", true),
       ]);
 
       if (packageResult.error) throw packageResult.error;
-      if (coinPackageResult.error) throw coinPackageResult.error;
       if (paymentSettingResult.error) throw paymentSettingResult.error;
-      if (phaseResult.error) throw phaseResult.error;
-      if (limitResult.error) throw limitResult.error;
 
       setEventOptions((packageResult.data || []).length > 0 ? packageResult.data.map(normalizeEventPackage) : EVENT_PACKAGE_OPTIONS);
-      setCoinPackages((coinPackageResult.data || []).map((coinPackage) => ({
-        id: coinPackage.id,
-        inr_amount: Number(coinPackage.inr_amount),
-        coin_amount: Number(coinPackage.coin_amount),
-        active: Boolean(coinPackage.active),
-        display_order: Number(coinPackage.display_order),
-      })));
-      setPricingPhases((phaseResult.data || []).map((phase) => ({
-        id: phase.id,
-        phase_key: phase.phase_key,
-        name: phase.name,
-        active: Boolean(phase.active),
-        starts_at: phase.starts_at,
-        ends_at: phase.ends_at,
-        display_order: Number(phase.display_order),
-      })));
-      setPhaseLimits((limitResult.data || []).map((limit) => ({
-        id: limit.id,
-        phase_id: limit.phase_id,
-        package_id: limit.package_id,
-        capacity: Number(limit.capacity),
-        price_inr: Number(limit.price_inr),
-        active: Boolean(limit.active),
-      })));
       setPaymentProvider(paymentSettingResult.data?.active_provider === "razorpay" ? "razorpay" : "cashfree");
     } catch (error) {
       console.error("Event config load failed:", error);
       setEventOptions(EVENT_PACKAGE_OPTIONS);
-      setCoinPackages([]);
-      setPricingPhases([]);
-      setPhaseLimits([]);
       setPaymentProvider("cashfree");
     } finally {
       setPackagesLoading(false);
-      setCoinPackagesLoading(false);
       setPaymentSettingsLoading(false);
     }
   }, []);
@@ -654,26 +332,33 @@ export default function EventLanding() {
     };
   }, []);
 
-  const activePhase = useMemo(() => findCurrentPhase(pricingPhases), [pricingPhases]);
-  const activePhaseLimits = useMemo(
-    () => phaseLimits.filter((limit) => activePhase && limit.phase_id === activePhase.id && limit.active),
-    [activePhase, phaseLimits],
+  // Live phase + seat availability. The server prices the party entry at the
+  // moment Pay is clicked; everything shown here is display only.
+  const partyPhase = partyStatus?.phase ?? null;
+  const partyMeter = useMemo(() => getPartyMeter(partyPhase), [partyPhase]);
+  const sessionAvailability = useMemo(() => getSessionAvailability(partyStatus), [partyStatus]);
+  const soldOutSlots = useMemo(
+    () => new Set(sessionAvailability.filter((session) => session.soldOut).map((session) => session.label)),
+    [sessionAvailability],
   );
-  const activePhaseLimitMap = useMemo(() => {
-    const map = new Map<string, EventPackagePhaseLimit>();
-    activePhaseLimits.forEach((limit) => map.set(limit.package_id, limit));
-    return map;
-  }, [activePhaseLimits]);
+  const anySessionSoldOut = soldOutSlots.size > 0;
+  const allSessionsSoldOut = soldOutSlots.size >= EVENT_TIME_SLOTS.length;
+  const isOptionSoldOut = useCallback(
+    (option: EventPackageOption | null | undefined) => {
+      if (!option) return false;
+      const intensives = option.intensiveCount || 0;
+      if (intensives >= EVENT_TIME_SLOTS.length) return anySessionSoldOut;
+      if (intensives > 0) return allSessionsSoldOut || EVENT_TIME_SLOTS.length - soldOutSlots.size < intensives;
+      return false;
+    },
+    [allSessionsSoldOut, anySessionSoldOut, soldOutSlots],
+  );
   const displayEventOptions = useMemo(
     () =>
-      eventOptions
-        .map((option) => {
-          const phaseLimit = activePhaseLimitMap.get(option.id);
-          if (activePhase && !phaseLimit) return null;
-          return phaseLimit ? { ...option, priceInr: phaseLimit.price_inr } : option;
-        })
-        .filter(Boolean) as EventPackageOption[],
-    [activePhase, activePhaseLimitMap, eventOptions],
+      eventOptions.map((option) =>
+        option.category === "party" && partyPhase ? { ...option, priceInr: partyPhase.price_inr } : option,
+      ),
+    [eventOptions, partyPhase],
   );
 
   const groupedOptions = useMemo(
@@ -724,56 +409,24 @@ export default function EventLanding() {
     [cart, displayEventOptions],
   );
 
-  const coinLines = useMemo(
-    () =>
-      coinCart
-        .map((item) => {
-          const option = coinPackages.find((coinPackage) => coinPackage.id === item.coinPackageId);
-          if (!option) return null;
-
-          return {
-            ...item,
-            option,
-            lineTotal: option.inr_amount * item.quantity,
-            coinTotal: option.coin_amount * item.quantity,
-          };
-        })
-        .filter(Boolean) as Array<CoinCartItem & { option: CoinPackage; lineTotal: number; coinTotal: number }>,
-    [coinCart, coinPackages],
-  );
-
   const eventSubtotal = cartLines.reduce((sum, line) => sum + line.lineTotal, 0);
-  const coinSubtotal = coinLines.reduce((sum, line) => sum + line.lineTotal, 0);
-  const coinsToReceive = coinLines.reduce((sum, line) => sum + line.coinTotal, 0);
-  const cartCount = cartLines.reduce((sum, line) => sum + line.quantity, 0) + coinLines.reduce((sum, line) => sum + line.quantity, 0);
-  const grandTotal = eventSubtotal + coinSubtotal;
-  const hasCheckoutItems = cartLines.length > 0 || coinLines.length > 0;
+  const cartCount = cartLines.reduce((sum, line) => sum + line.quantity, 0);
+  const grandTotal = eventSubtotal;
+  const hasCheckoutItems = cartLines.length > 0;
   const purchasedItemsSummary = useMemo(
-    () =>
-      [
-        ...cartLines.map((line) => `${line.quantity} x ${line.option.name}`),
-        ...coinLines.map((line) => `${line.quantity} x ${formatCoins(line.option.coin_amount)}`),
-      ].join(", "),
-    [cartLines, coinLines],
+    () => cartLines.map((line) => `${line.quantity} x ${line.option.name}`).join(", "),
+    [cartLines],
   );
   const trackingItems = useMemo<TrackingCartItem[]>(
-    () => [
-      ...cartLines.map((line) => ({
+    () =>
+      cartLines.map((line) => ({
         item_id: line.packageId,
         item_name: line.option.name,
         item_category: line.option.category,
         price: line.option.priceInr,
         quantity: line.quantity,
       })),
-      ...coinLines.map((line) => ({
-        item_id: `coin-package:${line.coinPackageId}`,
-        item_name: `${line.option.coin_amount} Pink'D Coins`,
-        item_category: "coins",
-        price: line.option.inr_amount,
-        quantity: line.quantity,
-      })),
-    ],
-    [cartLines, coinLines],
+    [cartLines],
   );
 
   useEffect(() => {
@@ -802,16 +455,30 @@ export default function EventLanding() {
   const togglePendingSlot = (slot: string) => {
     if (!selectedPackage?.intensiveCount || selectedPackage.intensiveCount >= EVENT_TIME_SLOTS.length) return;
 
+    if (soldOutSlots.has(slot)) {
+      toast({
+        title: "Session Sold Out",
+        description: `${shortSlotLabel(slot)} has hit its 120-seat cap. Pick another session.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     const selected = pendingSlots.includes(slot);
     if (selected) {
       setPendingSlots((current) => current.filter((timeSlot) => timeSlot !== slot));
       return;
     }
 
+    if (selectedPackage.intensiveCount === 1) {
+      setPendingSlots([slot]);
+      return;
+    }
+
     if (pendingSlots.length >= selectedPackage.intensiveCount) {
       toast({
-        title: "Too Many Time Slots",
-        description: `This package allows ${selectedPackage.intensiveCount} time slot${selectedPackage.intensiveCount === 1 ? "" : "s"}. Please adjust your selection or upgrade your package.`,
+        title: "That's Your Limit",
+        description: `This pass covers ${selectedPackage.intensiveCount} sessions. Deselect one first, or book 4 Intensives to attend everything.`,
         variant: "destructive",
       });
       return;
@@ -823,22 +490,24 @@ export default function EventLanding() {
   const confirmAddToCart = () => {
     if (!selectedPackage) return;
 
-    const allowedSlots = selectedPackage.intensiveCount || 0;
-    const selectedTimeSlots = allowedSlots >= EVENT_TIME_SLOTS.length ? EVENT_TIME_SLOTS : pendingSlots;
-
-    if (allowedSlots === 1 && selectedTimeSlots.length !== 1) {
+    if (isOptionSoldOut(selectedPackage)) {
       toast({
-        title: "Select 1 Time Slot",
-        description: "This package needs exactly 1 time slot. Please adjust your selection or upgrade your package.",
+        title: "Sold Out",
+        description: "One of the sessions this pass includes is full, so it can't be booked any more.",
         variant: "destructive",
       });
       return;
     }
 
-    if (allowedSlots === 2 && (selectedTimeSlots.length < 1 || selectedTimeSlots.length > 2)) {
+    const allowedSlots = selectedPackage.intensiveCount || 0;
+    const selectedTimeSlots = allowedSlots >= EVENT_TIME_SLOTS.length ? EVENT_TIME_SLOTS : pendingSlots;
+
+    if (allowedSlots > 0 && allowedSlots < EVENT_TIME_SLOTS.length && selectedTimeSlots.length !== allowedSlots) {
       toast({
-        title: "Adjust Time Slots",
-        description: "This package allows up to 2 time slots. Please adjust your selection or upgrade your package.",
+        title: allowedSlots === 1 ? "Pick Your Session" : `Pick ${allowedSlots} Sessions`,
+        description: allowedSlots === 1
+          ? "Choose the one session you want to attend."
+          : `This pass needs exactly ${allowedSlots} sessions — you have ${selectedTimeSlots.length} selected.`,
         variant: "destructive",
       });
       return;
@@ -878,43 +547,6 @@ export default function EventLanding() {
     );
   };
 
-  const addCoinPackage = (coinPackageId: string) => {
-    setConfirmedOrder(null);
-    setCoinCart((current) => {
-      const existing = current.find((item) => item.coinPackageId === coinPackageId);
-      if (existing) {
-        return current.map((item) =>
-          item.coinPackageId === coinPackageId
-            ? { ...item, quantity: Math.min(item.quantity + 1, 100) }
-            : item,
-        );
-      }
-
-      return [
-        ...current,
-        {
-          id: `coin:${coinPackageId}`,
-          coinPackageId,
-          quantity: 1,
-        },
-      ];
-    });
-  };
-
-  const updateCoinQuantity = (cartItemId: string, quantity: number) => {
-    setConfirmedOrder(null);
-    setCoinCart((current) =>
-      current
-        .map((item) => (item.id === cartItemId ? { ...item, quantity: Math.max(0, Math.min(quantity, 100)) } : item))
-        .filter((item) => item.quantity > 0),
-    );
-  };
-
-  const removeCoinFromCart = (cartItemId: string) => {
-    setConfirmedOrder(null);
-    setCoinCart((current) => current.filter((item) => item.id !== cartItemId));
-  };
-
   const removeFromCart = (cartItemId: string) => {
     setConfirmedOrder(null);
     setCart((current) => current.filter((item) => item.id !== cartItemId));
@@ -931,7 +563,7 @@ export default function EventLanding() {
     if (!hasCheckoutItems) {
       toast({
         title: "Cart Is Empty",
-        description: "Add at least one Pink'D event option or coin package before checkout.",
+        description: "Add at least one pass before checkout.",
         variant: "destructive",
       });
       return;
@@ -956,10 +588,17 @@ export default function EventLanding() {
 
     const orderIncludesIntensives = cartLines.some((line) => packageIncludesIntensives(line.option));
     const orderIncludesParty = cartLines.some((line) => packageIncludesParty(line.option));
+    const orderPartyEntries = cartLines.reduce(
+      (sum, line) => (packageIncludesParty(line.option) ? sum + Math.max(line.option.pax || 1, 1) * line.quantity : sum),
+      0,
+    );
+    const orderNeedsAttendeeForm = orderPartyEntries > 1;
+    const pricingPhase = partyPhase?.key || partyPhase?.name;
 
     try {
       const checkoutToken = createCheckoutToken();
       const checkoutTokenHash = await sha256Hex(checkoutToken);
+      // The server decides every price (party phase, seat caps); the cart only sends keys and quantities.
       const { data, error } = await supabase
         .rpc("create_event_order_checkout", {
           p_customer_name: form.name.trim(),
@@ -968,21 +607,12 @@ export default function EventLanding() {
           p_customer_studio: form.studio,
           p_checkout_token_hash: checkoutTokenHash,
           p_attribution: getLandingAttribution(),
-          p_cart_items: [
-            ...cartLines.map((line) => ({
-              item_type: "event_package",
-              package_key: line.packageId,
-              quantity: line.quantity,
-              selected_time_slots: line.selectedTimeSlots,
-            })),
-            ...coinLines.map((line) => ({
-              item_type: "coin_package",
-              coin_package_id: line.coinPackageId,
-              package_key: `coin-package:${line.coinPackageId}`,
-              quantity: line.quantity,
-              selected_time_slots: [],
-            })),
-          ],
+          p_cart_items: cartLines.map((line) => ({
+            item_type: "event_package",
+            package_key: line.packageId,
+            quantity: line.quantity,
+            selected_time_slots: line.selectedTimeSlots,
+          })),
         })
         .single();
 
@@ -991,192 +621,71 @@ export default function EventLanding() {
       const orderId = data.order_id;
       const orderTotal = Number(data.total_amount_inr);
       let paymentFlowCompleted = false;
-      let attemptedPaymentProvider = paymentProvider;
+      let attemptedPaymentProvider: PaymentProvider = paymentProvider;
+
+      trackInitiateCheckout({
+        orderId,
+        value: orderTotal,
+        items: trackingItems,
+        paymentProvider: attemptedPaymentProvider,
+        pricingPhase,
+      });
 
       try {
-        const { data: paymentData, error: paymentError } = await supabase.functions.invoke("event-payment-create", {
-          body: { event_order_id: orderId, checkout_token: checkoutToken },
-        });
-
-        if (paymentData?.provider === "cashfree" || paymentData?.provider === "razorpay") {
-          attemptedPaymentProvider = paymentData.provider;
-        }
-
-        trackInitiateCheckout({
+        const result = await runGatewayPayment({
           orderId,
-          value: orderTotal,
-          items: trackingItems,
-          paymentProvider: attemptedPaymentProvider,
-          pricingPhase: activePhase?.phase_key || activePhase?.name,
+          checkoutToken,
+          fallbackCustomer: {
+            name: form.name.trim(),
+            email: form.email.trim(),
+            phone: form.phone.trim(),
+          },
+          description: "Pink'd event booking",
+          onProviderKnown: (provider) => {
+            attemptedPaymentProvider = provider;
+          },
+          onGatewayVisible: () => setIsGatewayOpening(false),
         });
 
-        if (paymentError) throw new Error(await getFunctionErrorMessage(paymentError, paymentData));
+        setConfirmedOrder({
+          id: orderId,
+          total: orderTotal,
+          status: result.isPaid ? "paid" : "pending",
+          customerEmail: form.email.trim(),
+          purchasedItems: purchasedItemsSummary,
+          includesIntensives: orderIncludesIntensives,
+          includesParty: orderIncludesParty,
+          confirmationEmailSent: result.confirmationEmailSent,
+          confirmationEmailError: result.confirmationEmailError,
+          needsAttendeeForm: orderNeedsAttendeeForm,
+        });
 
-        if (paymentData?.provider === "razorpay") {
-          const razorpayOrderId = paymentData?.razorpay_order_id as string | undefined;
-          const keyId = paymentData?.key_id as string | undefined;
-          const amountPaise = paymentData?.amount_paise as number | undefined;
-
-          if (!razorpayOrderId || !keyId || !amountPaise) {
-            throw new Error("Razorpay did not return a checkout order");
-          }
-
-          await waitForNextFrame();
-          await loadRazorpaySdk();
-          const checkoutResponse = await openRazorpayCheckout({
-            key_id: keyId,
-            amount_paise: amountPaise,
-            currency: paymentData?.currency || "INR",
-            razorpay_order_id: razorpayOrderId,
-            customer: paymentData?.customer || {
-              name: form.name.trim(),
-              email: form.email.trim(),
-              phone: form.phone.trim(),
-            },
-          }, () => setIsGatewayOpening(false));
-
-          if (!checkoutResponse) {
-            throw new Error("Razorpay checkout was closed before payment completed");
-          }
-
-          const { data: verificationData, error: verificationError } = await supabase.functions.invoke(
-            "event-payment-verify",
-            {
-              body: {
-                provider: "razorpay",
-                event_order_id: orderId,
-                checkout_token: checkoutToken,
-                razorpay_order_id: checkoutResponse.razorpay_order_id,
-                razorpay_payment_id: checkoutResponse.razorpay_payment_id,
-                razorpay_signature: checkoutResponse.razorpay_signature,
-              },
-            },
-          );
-
-          if (verificationError) throw new Error(await getFunctionErrorMessage(verificationError, verificationData));
-
-          const isPaid = verificationData?.payment_status === "paid";
-          const confirmationEmailSent = Boolean(verificationData?.confirmation_email_sent);
-          const confirmationEmailError = verificationData?.confirmation_email_error
-            ? String(verificationData.confirmation_email_error)
-            : null;
-          setConfirmedOrder({
-            id: orderId,
-            total: orderTotal,
-            status: isPaid ? "paid" : "pending",
-            customerEmail: form.email.trim(),
-            purchasedItems: purchasedItemsSummary,
-            includesIntensives: orderIncludesIntensives,
-            includesParty: orderIncludesParty,
-            confirmationEmailSent,
-            confirmationEmailError,
+        if (result.isPaid) {
+          trackPurchaseOnce({
+            orderId,
+            value: orderTotal,
+            items: trackingItems,
+            paymentProvider: result.provider,
+            pricingPhase,
           });
-          if (isPaid) {
-            trackPurchaseOnce({
-              orderId,
-              value: orderTotal,
-              items: trackingItems,
-              paymentProvider: "razorpay",
-              pricingPhase: activePhase?.phase_key || activePhase?.name,
-            });
-            trackLeadOnce({
-              orderId,
-              value: orderTotal,
-              items: trackingItems,
-              paymentProvider: "razorpay",
-              pricingPhase: activePhase?.phase_key || activePhase?.name,
-            });
-          }
-          toast({
-            title: isPaid ? "Payment Confirmed" : "Payment Pending",
-            description: isPaid
-              ? confirmationEmailSent
-                ? `Your Pink'D event booking is confirmed. Confirmation email sent to ${form.email.trim()}.`
-                : `Your Pink'D event booking is confirmed.${confirmationEmailError ? ` Email could not be sent: ${confirmationEmailError}` : ""}`
-              : "Your order is saved, but Razorpay has not confirmed capture yet.",
+          trackLeadOnce({
+            orderId,
+            value: orderTotal,
+            items: trackingItems,
+            paymentProvider: result.provider,
+            pricingPhase,
           });
-          paymentFlowCompleted = true;
-        } else {
-          const paymentSessionId = paymentData?.payment_session_id as string | undefined;
-          const cashfreeOrderId = paymentData?.cashfree_order_id as string | undefined;
-          const mode = (paymentData?.mode === "production" ? "production" : "sandbox") as CashfreeMode;
-
-          if (!paymentSessionId || !cashfreeOrderId) {
-            throw new Error("Cashfree did not return a payment session");
-          }
-
-          await waitForNextFrame();
-          await loadCashfreeSdk();
-          const cashfree = window.Cashfree?.({ mode });
-
-          if (!cashfree) {
-            throw new Error("Cashfree checkout is unavailable");
-          }
-
-          waitForCheckoutSurface("cashfree").then((isVisible) => {
-            if (isVisible) setIsGatewayOpening(false);
-          });
-          await cashfree.checkout({
-            paymentSessionId,
-            redirectTarget: "_modal",
-          });
-
-          const { data: verificationData, error: verificationError } = await supabase.functions.invoke(
-            "event-payment-verify",
-            {
-              body: {
-                provider: "cashfree",
-                event_order_id: orderId,
-                checkout_token: checkoutToken,
-                cashfree_order_id: cashfreeOrderId,
-              },
-            },
-          );
-
-          if (verificationError) throw new Error(await getFunctionErrorMessage(verificationError, verificationData));
-
-          const isPaid = verificationData?.payment_status === "paid";
-          const confirmationEmailSent = Boolean(verificationData?.confirmation_email_sent);
-          const confirmationEmailError = verificationData?.confirmation_email_error
-            ? String(verificationData.confirmation_email_error)
-            : null;
-          setConfirmedOrder({
-            id: orderId,
-            total: orderTotal,
-            status: isPaid ? "paid" : "pending",
-            customerEmail: form.email.trim(),
-            purchasedItems: purchasedItemsSummary,
-            includesIntensives: orderIncludesIntensives,
-            includesParty: orderIncludesParty,
-            confirmationEmailSent,
-            confirmationEmailError,
-          });
-          if (isPaid) {
-            trackPurchaseOnce({
-              orderId,
-              value: orderTotal,
-              items: trackingItems,
-              paymentProvider: "cashfree",
-              pricingPhase: activePhase?.phase_key || activePhase?.name,
-            });
-            trackLeadOnce({
-              orderId,
-              value: orderTotal,
-              items: trackingItems,
-              paymentProvider: "cashfree",
-              pricingPhase: activePhase?.phase_key || activePhase?.name,
-            });
-          }
-          toast({
-            title: isPaid ? "Payment Confirmed" : "Payment Pending",
-            description: isPaid
-              ? confirmationEmailSent
-                ? `Your Pink'D event booking is confirmed. Confirmation email sent to ${form.email.trim()}.`
-                : `Your Pink'D event booking is confirmed.${confirmationEmailError ? ` Email could not be sent: ${confirmationEmailError}` : ""}`
-              : "Your order is saved, but Cashfree has not confirmed payment yet.",
-          });
-          paymentFlowCompleted = true;
         }
+
+        toast({
+          title: result.isPaid ? "Payment Confirmed" : "Payment Pending",
+          description: result.isPaid
+            ? result.confirmationEmailSent
+              ? `Your Pink'd booking is confirmed. Confirmation email sent to ${form.email.trim()}.`
+              : `Your Pink'd booking is confirmed.${result.confirmationEmailError ? ` Email could not be sent: ${result.confirmationEmailError}` : ""}`
+            : `Your order is saved, but ${getGatewayLabel(result.provider)} has not confirmed payment yet.`,
+        });
+        paymentFlowCompleted = true;
       } catch (paymentError) {
         console.error("Event payment setup failed:", paymentError);
         setConfirmedOrder({
@@ -1187,6 +696,7 @@ export default function EventLanding() {
           purchasedItems: purchasedItemsSummary,
           includesIntensives: orderIncludesIntensives,
           includesParty: orderIncludesParty,
+          needsAttendeeForm: orderNeedsAttendeeForm,
         });
         setIsCartOpen(true);
         toast({
@@ -1199,14 +709,16 @@ export default function EventLanding() {
       if (paymentFlowCompleted) {
         setIsCartOpen(true);
         setCart([]);
-        setCoinCart([]);
         setForm(initialFormState);
       }
+      refreshPartyStatus();
     } catch (error) {
       console.error("Event order creation failed:", error);
+      refreshPartyStatus();
+      setIsCartOpen(true);
       toast({
         title: "Order Failed",
-        description: "Could not reserve this cart. Please try again.",
+        description: getOrderErrorMessage(error),
         variant: "destructive",
       });
     } finally {
@@ -1220,7 +732,7 @@ export default function EventLanding() {
     (sum, line) => sum + Math.max(line.option.pax || 1, 1) * line.quantity,
     0,
   );
-  const totalCartItems = cartLines.length + coinLines.length;
+  const totalCartItems = cartLines.length;
   const firstCartLine = cartLines[0] || null;
   const cartBannerTitle = totalCartItems === 0
     ? "Pick a pass"
@@ -1229,7 +741,7 @@ export default function EventLanding() {
       : `${totalCartItems} items selected`;
   const cartBannerSub = totalCartItems === 0
     ? "All passes are billed in INR"
-    : `${attendeeCount || cartCount} ${attendeeCount === 1 ? "attendee" : "attendees"}${coinsToReceive ? ` · ${formatCoins(coinsToReceive)}` : ""}`;
+    : `${attendeeCount || cartCount} ${attendeeCount === 1 ? "attendee" : "attendees"}`;
   const crewTenOption = groupedOptions.group.find((option) => option.id === "ten-pax-four-intensives-party" || option.pax === 10);
   const crewSixOption = groupedOptions.group.find((option) => option.id === "six-pax-four-intensives-party" || option.pax === 6);
   const primaryGroupOption = crewTenOption || selectedGroupOption;
@@ -1238,12 +750,15 @@ export default function EventLanding() {
     ? `Bring your crew · from ${formatEventPrice(Math.round(primaryGroupOption.priceInr / primaryGroupOption.pax))} per head`
     : "Bring your crew";
   const fourIntensivesOption = groupedOptions.intensives.find((option) => option.id === "four-intensives") || fourIntensiveOption;
-  const oneOrTwoIntensiveOptions = groupedOptions.intensives.filter((option) => option.id !== fourIntensivesOption?.id);
+  const oneOrTwoIntensiveOptions = groupedOptions.intensives
+    .filter((option) => option.id !== fourIntensivesOption?.id)
+    .sort((a, b) => (a.intensiveCount || 0) - (b.intensiveCount || 0));
+  // Order matters: 1 → 2 → 4 intensives, then the full pass, then party entry.
   const individualPassOptions = [
+    ...oneOrTwoIntensiveOptions,
     fourIntensivesOption,
     fullPassOption,
     partyOption,
-    ...oneOrTwoIntensiveOptions,
   ].filter((option, index, options): option is EventPackageOption =>
     Boolean(option) && options.findIndex((candidate) => candidate?.id === option.id) === index,
   );
@@ -1255,10 +770,65 @@ export default function EventLanding() {
     : 0;
   const stickySubText = hasCheckoutItems
     ? cartBannerSub
-    : primaryGroupOption?.pax
-      ? `Crews from ${formatEventPrice(Math.round(primaryGroupOption.priceInr / primaryGroupOption.pax))} per head`
-      : "Crews from ₹4,800 per head";
+    : partyMeter
+      ? partyMeter.stickyLine
+      : primaryGroupOption?.pax
+        ? `Crews from ${formatEventPrice(Math.round(primaryGroupOption.priceInr / primaryGroupOption.pax))} per head`
+        : "Crews from ₹4,800 per head";
+  const crewSoldOut = isOptionSoldOut(primaryGroupOption);
+  const renderSessionNotes = () => {
+    const notes = sessionAvailability.map((session) => ({ session, note: getSeatNote(session) })).filter((entry) => entry.note);
+    if (notes.length === 0) return null;
+    return (
+      <div className="seat-notes">
+        {notes.map(({ session, note }) => (
+          <span className={`seat-note ${session.soldOut ? "soldout" : ""}`} key={session.key}>
+            {shortSlotLabel(session.label)} · {note}
+          </span>
+        ))}
+      </div>
+    );
+  };
+
   const renderIndividualPassDetails = (option: EventPackageOption) => {
+    const soldOut = isOptionSoldOut(option);
+
+    if (option.id === "one-intensive" || option.intensiveCount === 1) {
+      return (
+        <>
+          <div>
+            <h3>1 Intensive</h3>
+            <div className="sub">Pick any one session</div>
+          </div>
+          <div className="price">{formatEventPrice(option.priceInr)}</div>
+          <ul className="incl">
+            <li><CheckCircle2 />One 90-minute session, Rajouri Garden</li>
+            <li><CheckCircle2 />You choose the day and time — styles drop closer to the date</li>
+            <li className="dim">No party entry</li>
+          </ul>
+          {renderSessionNotes()}
+        </>
+      );
+    }
+
+    if (option.id === "two-intensives" || option.intensiveCount === 2) {
+      return (
+        <>
+          <div>
+            <h3>2 Intensives</h3>
+            <div className="sub">Pick any two sessions</div>
+          </div>
+          <div className="price">{formatEventPrice(option.priceInr)}</div>
+          <ul className="incl">
+            <li><CheckCircle2 />Two sessions, either evening or one each</li>
+            <li><CheckCircle2 />You choose the days and times</li>
+            <li className="dim">No party entry</li>
+          </ul>
+          {renderSessionNotes()}
+        </>
+      );
+    }
+
     if (option.id === "four-intensives") {
       return (
         <>
@@ -1271,6 +841,7 @@ export default function EventLanding() {
             <li><CheckCircle2 />Intensives 1 - 4, Rajouri Garden</li>
             <li className="dim">No party entry</li>
           </ul>
+          {soldOut ? <div className="seat-notes"><span className="seat-note soldout">A session is full — this pass is sold out</span></div> : renderSessionNotes()}
         </>
       );
     }
@@ -1288,6 +859,7 @@ export default function EventLanding() {
             <li><CheckCircle2 />Party entry · band · welcome drink · 4 free games</li>
             <li><CheckCircle2 />Flat price — saves {formatEventPrice(fullPassSavings)} vs buying separately</li>
           </ul>
+          {soldOut ? <div className="seat-notes"><span className="seat-note soldout">A session is full — this pass is sold out</span></div> : null}
           <p className="u18">Party night is 18+ with valid ID at the gate. Under 18? Book 4 Intensives instead — the party portion of a full pass is forfeited, no refund.</p>
         </>
       );
@@ -1303,14 +875,17 @@ export default function EventLanding() {
           <div className="price">{formatEventPrice(option.priceInr)}</div>
           <div className="phase">
             <div className="row">
-              <span>{activePhase ? activePhase.name : "Live phase"}</span>
+              <span>{partyPhase ? partyPhase.name : "Live phase"}</span>
               <b>{formatEventPrice(option.priceInr)}</b>
             </div>
-            <small>Your price is held for 15 min at checkout.</small>
+            <small>
+              {partyMeter ? `${partyMeter.remainingLine}${partyMeter.nextLine ? ` · ${partyMeter.nextLine.toLowerCase()}` : ""}. ` : ""}
+              Your price is held for 15 min once you hit Pay.
+            </small>
           </div>
           <ul className="incl">
             <li><CheckCircle2 />Entry · wristband · welcome drink · Beer Pong · Jamaal Challenge · Red Flag Green Flag · Squid Games</li>
-            <li><CheckCircle2 />Bringing friends? Add one entry each — names can be managed after payment</li>
+            <li><CheckCircle2 />Bringing friends? Add one entry each — names can be added after payment</li>
           </ul>
         </>
       );
@@ -1323,18 +898,25 @@ export default function EventLanding() {
           <div className="sub">{option.description}</div>
         </div>
         <div className="price">{formatEventPrice(option.priceInr)}</div>
-        <ul className="incl">
-          <li><CheckCircle2 />Stored as a full cart order in Supabase</li>
-        </ul>
       </>
     );
+  };
+
+  const getPassButtonLabel = (option: EventPackageOption) => {
+    if (isOptionSoldOut(option)) return "Sold out";
+    if (option.id === "four-intensives") return "Reserve intensives";
+    if (option.id === "four-intensives-party") return "Book full pass";
+    if (option.id === "party-entry") return "Add party entry";
+    if ((option.intensiveCount || 0) === 1) return "Pick your session";
+    if ((option.intensiveCount || 0) === 2) return "Pick two sessions";
+    return "Add to cart";
   };
 
   return (
     <main className="pinkd-handoff-page">
       <nav className="nav">
         <div className="wrap">
-          <a href="#top" className="nav-logo" aria-label="Pink'D home">
+          <a href="#top" className="nav-logo" aria-label="Pink'd home">
             <img src={logoImage} alt="Pink'd" />
           </a>
           <div className="nav-links">
@@ -1367,7 +949,7 @@ export default function EventLanding() {
         <div className="wrap">
           <div>
             <span className="kicker kicker-hero">A <em>FUN'draiser</em> by Hashtag For Dance · 7 years of Pink'd</span>
-            <img className="hero-logo" src={logoImage} alt="PINK'D" />
+            <img className="hero-logo" src={logoImage} alt="Pink'd" />
             <h1>Two nights of <em>intensives.</em><br />One night that <em>doesn't end.</em></h1>
             <div className="meta">
               <span><i />9 - 11 September 2026</span>
@@ -1398,22 +980,34 @@ export default function EventLanding() {
                 <p>4 intensives + party for ten. Save versus ten full passes.</p>
                 <div className="row">
                   <span className="save">Saves {formatEventPrice(primaryGroupSavings)}</span>
-                  <button type="button" className="btn btn-pink btn-sm" onClick={() => openPackageModal(primaryGroupOption)}>
-                    Book crew of {primaryGroupOption.pax || 10}
+                  <button type="button" className="btn btn-pink btn-sm" onClick={() => openPackageModal(primaryGroupOption)} disabled={crewSoldOut}>
+                    {crewSoldOut ? "Sold out" : `Book crew of ${primaryGroupOption.pax || 10}`}
                   </button>
                 </div>
               </div>
             ) : null}
             {partyOption ? (
               <div className="hero-card">
-                <span className="kicker">Party · {activePhase ? `${activePhase.name} live` : "Live pricing"}</span>
+                <span className="kicker">Party · {partyPhase ? `${partyPhase.name} live` : "Live pricing"}</span>
                 <div className="big">
                   {formatEventPrice(partyOption.priceInr)}
-                  <small>{activePhase ? `${activePhase.name} pricing live` : "live pricing"}</small>
+                  <small>{partyPhase ? `${partyPhase.name} pricing` : "live pricing"}</small>
                 </div>
-                <p>Your price is held for 15 minutes once you proceed to payment.</p>
+                <p>
+                  {partyMeter ? (
+                    <>
+                      <b>{partyMeter.soldOutLine || partyMeter.remainingLine}</b>
+                      {partyMeter.soldOutLine ? ` · ${partyMeter.remainingLine}` : ""}
+                      {partyMeter.nextLine ? ` · ${partyMeter.nextLine}` : ""}
+                      {partyPhase && partyPhase.number === 1 ? " · Last call ₹2,999" : ""}
+                      . Welcome drink + 4 free games included.
+                    </>
+                  ) : (
+                    "Then ₹2,499 · Last call ₹2,999. Welcome drink + 4 free games included."
+                  )}
+                </p>
                 <div className="row">
-                  <span className="live-line"><i className="live-dot" />Live checkout pricing</span>
+                  <span className="live-line"><i className={`live-dot ${partyStatusLive ? "" : "off"}`} />{partyStatusLive ? "Live" : "Last known"} · price held 15 min at checkout</span>
                   <button type="button" className="btn btn-ghost btn-sm" onClick={() => openPackageModal(partyOption)}>
                     Add party
                   </button>
@@ -1457,8 +1051,8 @@ export default function EventLanding() {
                 title: "September",
                 images: ["/media/faculty-01.jpg", "/media/faculty-02.jpg"],
                 slots: [
-                  ["6:00 - 7:30 PM", "Intensive 1", "Shivek & Priyanshi"],
-                  ["8:00 - 9:30 PM", "Intensive 2", "Tarun, Dhriti & Divija"],
+                  ["6:00 - 7:30 PM", "Intensive 1", "Shivek & Priyanshi", "1"],
+                  ["8:00 - 9:30 PM", "Intensive 2", "Tarun, Dhriti & Divija", "2"],
                 ],
                 venue: `${intensiveVenueLabel} · Styles announced closer to the date`,
                 venueUrl: intensiveDirectionsUrl,
@@ -1469,8 +1063,8 @@ export default function EventLanding() {
                 title: "September",
                 images: ["/media/faculty-03.jpg", "/media/faculty-04.jpg"],
                 slots: [
-                  ["6:00 - 7:30 PM", "Intensive 3", "Jahnvi & Rubani"],
-                  ["8:00 - 9:30 PM", "Intensive 4", "Manas, Jhilmil & Ayushi"],
+                  ["6:00 - 7:30 PM", "Intensive 3", "Jahnvi & Rubani", "3"],
+                  ["8:00 - 9:30 PM", "Intensive 4", "Manas, Jhilmil & Ayushi", "4"],
                 ],
                 venue: `${intensiveVenueLabel} · 120 seats per session`,
                 venueUrl: intensiveDirectionsUrl,
@@ -1478,8 +1072,8 @@ export default function EventLanding() {
               {
                 date: "11",
                 day: "Friday",
-                title: "The Pink'D party",
-                slots: [["9 PM - Late", "All-night party at Glass Villa", "DJ · Karaoke · Pool · Welcome drink + games"]],
+                title: "The Pink'd party",
+                slots: [["9 PM - Late", "All-night party at Glass Villa", "DJ · Karaoke · Pool · Welcome drink + 4 free games on entry"]],
                 venue: "Glass Villa, Sector 58, Baliawas, Gurugram · Entry includes wristband",
                 venueUrl: partyDirectionsUrl,
                 party: true,
@@ -1500,15 +1094,20 @@ export default function EventLanding() {
                   <div>{day.day}<em>{day.title}</em></div>
                 </div>
                 <div className="slots">
-                  {day.slots.map(([time, title, faculty]) => (
-                    <div className="slot" key={`${day.date}-${time}`}>
-                      <time>{time}</time>
-                      <div>
-                        <b>{title}</b>
-                        <small>{faculty}</small>
+                  {day.slots.map(([time, title, faculty, sessionKey]) => {
+                    const session = sessionKey ? sessionAvailability.find((entry) => entry.key === sessionKey) : undefined;
+                    const seatNote = getSeatNote(session);
+                    return (
+                      <div className="slot" key={`${day.date}-${time}`}>
+                        <time>{time}</time>
+                        <div>
+                          <b>{title}</b>
+                          <small>{faculty}</small>
+                          {seatNote ? <small className={`seat-note ${session?.soldOut ? "soldout" : ""}`}>{seatNote}</small> : null}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
                 {day.party ? (
                   <div className="tags">
@@ -1555,7 +1154,7 @@ export default function EventLanding() {
         <div className="wrap">
           <div>
             <span className="kicker">#DanceForACause</span>
-            <blockquote>Dancers shouldn't perform for free. <em>Pink'D exists so the next ones don't have to.</em></blockquote>
+            <blockquote>Dancers shouldn't perform for free. <em>Pink'd exists so the next ones don't have to.</em></blockquote>
             <p className="lead">
               Seven years of Pink'd have funded full scholarships at Hashtag — training across five forms for dancers who couldn't otherwise afford it. Your pass is the fee. The party is the thank-you.
             </p>
@@ -1634,8 +1233,8 @@ export default function EventLanding() {
                     <li><CheckCircle2 />Seats held together across all four sessions</li>
                   </ul>
                   <div className="crew-actions">
-                    <button type="button" className="btn btn-pink" onClick={() => openPackageModal(primaryGroupOption)}>
-                      Book crew of {primaryGroupOption.pax || 10} · {formatEventPrice(primaryGroupOption.priceInr)}
+                    <button type="button" className="btn btn-pink" onClick={() => openPackageModal(primaryGroupOption)} disabled={crewSoldOut}>
+                      {crewSoldOut ? "Sold out — a session is full" : `Book crew of ${primaryGroupOption.pax || 10} · ${formatEventPrice(primaryGroupOption.priceInr)}`}
                     </button>
                     <a className="btn btn-ghost btn-wa" href="https://wa.me/919205488417?text=Hi%2C%20I%27m%20booking%20a%20crew%20of%2010%20for%20Pink%27d" target="_blank" rel="noopener noreferrer">Talk to us first</a>
                   </div>
@@ -1667,8 +1266,8 @@ export default function EventLanding() {
                     <li><CheckCircle2 />Flat price, phase-proof</li>
                   </ul>
                   <div className="crew-actions">
-                    <button type="button" className="btn btn-pink" onClick={() => openPackageModal(secondaryGroupOption)}>
-                      Book crew of {secondaryGroupOption.pax || 6} · {formatEventPrice(secondaryGroupOption.priceInr)}
+                    <button type="button" className="btn btn-pink" onClick={() => openPackageModal(secondaryGroupOption)} disabled={isOptionSoldOut(secondaryGroupOption)}>
+                      {isOptionSoldOut(secondaryGroupOption) ? "Sold out — a session is full" : `Book crew of ${secondaryGroupOption.pax || 6} · ${formatEventPrice(secondaryGroupOption.priceInr)}`}
                     </button>
                   </div>
                 </div>
@@ -1686,8 +1285,13 @@ export default function EventLanding() {
               <article className={`solo ${option.featured ? "rec" : ""}`} key={option.id}>
                 {option.featured ? <span className="ribbon">Most popular</span> : null}
                 {renderIndividualPassDetails(option)}
-                <button type="button" className={`btn ${option.featured ? "btn-pink" : "btn-ghost"}`} onClick={() => openPackageModal(option)}>
-                  {option.id === "four-intensives" ? "Reserve intensives" : option.id === "four-intensives-party" ? "Book full pass" : option.id === "party-entry" ? "Add party entry" : "Add to cart"}
+                <button
+                  type="button"
+                  className={`btn ${option.featured ? "btn-pink" : "btn-ghost"}`}
+                  onClick={() => openPackageModal(option)}
+                  disabled={isOptionSoldOut(option)}
+                >
+                  {getPassButtonLabel(option)}
                 </button>
               </article>
             ))}
@@ -1709,7 +1313,7 @@ export default function EventLanding() {
               <div className="bg-black/55 p-5">
                 <img
                   src={posterImage}
-                  alt="Pink'D event poster"
+                  alt="Pink'd event poster"
                   className="mx-auto aspect-square w-32 rounded-lg object-contain sm:w-full"
                 />
               </div>
@@ -1726,7 +1330,7 @@ export default function EventLanding() {
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <div className="text-sm text-white/56">
-                        {activePhase ? `${activePhase.name} price` : "Package price"}
+                        {selectedPackage.category === "party" && partyPhase ? `${partyPhase.name} price` : "Price"}
                       </div>
                       <div className="mt-1 text-3xl font-black text-primary">{formatEventPrice(selectedPackage.priceInr)}</div>
                     </div>
@@ -1754,17 +1358,19 @@ export default function EventLanding() {
                         <DropdownMenuContent align="start" className="w-72">
                           <DropdownMenuLabel>
                             {selectedPackage.intensiveCount === 1
-                              ? "Select exactly 1 slot"
-                              : `Select up to ${selectedPackage.intensiveCount} slots`}
+                              ? "Pick exactly 1 session"
+                              : `Pick exactly ${selectedPackage.intensiveCount} sessions`}
                           </DropdownMenuLabel>
-                          {EVENT_TIME_SLOTS.map((slot) => (
+                          {sessionAvailability.map((session) => (
                             <DropdownMenuCheckboxItem
-                              key={slot}
-                              checked={pendingSlots.includes(slot)}
-                              onCheckedChange={() => togglePendingSlot(slot)}
+                              key={session.label}
+                              checked={pendingSlots.includes(session.label)}
+                              onCheckedChange={() => togglePendingSlot(session.label)}
                               onSelect={(event) => event.preventDefault()}
+                              disabled={session.soldOut}
                             >
-                              {slot}
+                              {session.label}
+                              {session.soldOut ? " · Sold out" : session.warning ? ` · ${session.remaining} left` : ""}
                             </DropdownMenuCheckboxItem>
                           ))}
                         </DropdownMenuContent>
@@ -1773,15 +1379,21 @@ export default function EventLanding() {
                       {selectedPackage.intensiveCount >= EVENT_TIME_SLOTS.length ? (
                         <div className="space-y-2">
                           <div className="rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white/62">
-                            All 4 slots are pre-selected and locked for this package.
+                            All 4 sessions are included and locked for this pass.
                           </div>
                           <div className="space-y-1">
                             {pendingSlots.map((slot) => (
-                              <div key={slot} className="rounded-md bg-white/[0.05] px-3 py-2 text-sm text-white/72">
-                                {slot}
+                              <div key={slot} className="flex items-center justify-between gap-3 rounded-md bg-white/[0.05] px-3 py-2 text-sm text-white/72">
+                                <span>{slot}</span>
+                                {soldOutSlots.has(slot) ? <span className="text-xs font-bold uppercase text-[#ff5a3c]">Sold out</span> : null}
                               </div>
                             ))}
                           </div>
+                          {isOptionSoldOut(selectedPackage) ? (
+                            <div className="rounded-md border border-[#ff5a3c]/40 bg-[#ff5a3c]/10 px-3 py-2 text-sm text-white/80">
+                              One of these sessions is full, so this pass can't be booked. Pick 1 or 2 Intensives for the sessions that still have seats.
+                            </div>
+                          ) : null}
                         </div>
                       ) : pendingSlots.length > 0 ? (
                         <div className="space-y-1">
@@ -1792,7 +1404,9 @@ export default function EventLanding() {
                           ))}
                         </div>
                       ) : (
-                        <div className="text-sm text-white/52">Choose your preferred intensive time slot.</div>
+                        <div className="text-sm text-white/52">
+                          {selectedPackage.intensiveCount === 1 ? "Choose the session you want to attend." : `Choose ${selectedPackage.intensiveCount} sessions to attend.`}
+                        </div>
                       )}
                     </>
                   ) : (
@@ -1806,9 +1420,10 @@ export default function EventLanding() {
                   <Button
                     type="button"
                     onClick={confirmAddToCart}
+                    disabled={isOptionSoldOut(selectedPackage)}
                     className="h-11 w-full bg-primary font-bold text-black hover:bg-primary/90 sm:w-auto"
                   >
-                    Confirm & Add to Cart
+                    {isOptionSoldOut(selectedPackage) ? "Sold out" : "Confirm & Add to Cart"}
                   </Button>
                 </DialogFooter>
               </div>
@@ -1864,6 +1479,20 @@ export default function EventLanding() {
                   </a>
                 ) : null}
               </div>
+              {confirmedOrder.status === "paid" && confirmedOrder.needsAttendeeForm ? (
+                <a
+                  href={`/attendees?ref=${confirmedOrder.id.slice(0, 8).toUpperCase()}`}
+                  className="mt-2 inline-flex items-center gap-1 rounded-md bg-success/20 px-3 py-2 font-semibold text-success underline-offset-4 hover:underline"
+                >
+                  Add a name + phone for each wristband
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </a>
+              ) : null}
+              {confirmedOrder.status === "paid" && confirmedOrder.includesParty ? (
+                <div className="mt-2 text-success/85">
+                  Want Pink'd Coins for the games? Your confirmation email has the link.
+                </div>
+              ) : null}
               {confirmedOrder.status === "paid" ? (
                 <div className="mt-1 text-success/85">
                   {confirmedOrder.confirmationEmailSent
@@ -1878,7 +1507,7 @@ export default function EventLanding() {
 
           <form onSubmit={handleSubmit} className="mt-5 flex flex-1 flex-col">
             <div className="space-y-3">
-              {cartLines.length === 0 && coinLines.length === 0 ? (
+              {cartLines.length === 0 ? (
                 <div className="rounded-lg border border-white/10 bg-white/[0.04] p-4 text-sm text-white/58">
                   Your cart is empty.
                 </div>
@@ -1891,7 +1520,11 @@ export default function EventLanding() {
                         <div className="mt-1 text-xs text-white/52">
                           {formatEventPrice(line.option.priceInr)} each
                           {line.option.pax ? ` · ${line.option.pax} pax` : ""}
+                          {line.option.category === "party" && partyPhase ? ` · ${partyPhase.name}` : ""}
                         </div>
+                        {line.selectedTimeSlots.length > 0 && line.selectedTimeSlots.length < EVENT_TIME_SLOTS.length ? (
+                          <div className="mt-1 text-xs text-white/52">{line.selectedTimeSlots.map(shortSlotLabel).join(" · ")}</div>
+                        ) : null}
                       </div>
                       <button
                         type="button"
@@ -1929,142 +1562,12 @@ export default function EventLanding() {
                 ))
               )}
 
-              {coinLines.map((line) => (
-                <div key={line.id} className="rounded-lg border border-primary/25 bg-primary/10 p-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 font-semibold">
-                        <Coins className="h-4 w-4 text-primary" />
-                        {formatCoins(line.option.coin_amount)}
-                      </div>
-                      <div className="mt-1 text-xs text-white/58">
-                        {formatEventPrice(line.option.inr_amount)} each
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => removeCoinFromCart(line.id)}
-                      className="rounded-md p-1.5 text-white/45 transition hover:bg-white/10 hover:text-white"
-                      aria-label={`Remove ${formatCoins(line.option.coin_amount)}`}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-
-                  <div className="mt-3 flex items-center justify-between gap-3">
-                    <div className="flex h-9 items-center rounded-md border border-white/12 bg-black/35">
-                      <button
-                        type="button"
-                        onClick={() => updateCoinQuantity(line.id, line.quantity - 1)}
-                        className="grid h-9 w-9 place-items-center text-white/70 hover:text-white"
-                        aria-label={`Decrease ${formatCoins(line.option.coin_amount)}`}
-                      >
-                        <Minus className="h-4 w-4" />
-                      </button>
-                      <span className="w-9 text-center text-sm font-bold">{line.quantity}</span>
-                      <button
-                        type="button"
-                        onClick={() => updateCoinQuantity(line.id, line.quantity + 1)}
-                        className="grid h-9 w-9 place-items-center text-white/70 hover:text-white"
-                        aria-label={`Increase ${formatCoins(line.option.coin_amount)}`}
-                      >
-                        <Plus className="h-4 w-4" />
-                      </button>
-                    </div>
-                    <div className="font-black text-primary">{formatEventPrice(line.lineTotal)}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-5 rounded-lg border border-primary/30 bg-primary/10 p-4">
-              <div className="flex items-start gap-3">
-                <Coins className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-                <div>
-                  <div className="font-black">Say hi to your Pink'D currency</div>
-                  <p className="mt-1 text-sm leading-5 text-white/68">
-                    Pink'D Coins can be used to play games at the party. Pick a coin pack below and it will be added to your total payable.
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-4 grid gap-2">
-                {coinPackagesLoading ? (
-                  <div className="rounded-md border border-white/10 bg-black/25 px-3 py-2 text-sm text-white/58">
-                    Loading Pink'D Coin packs...
-                  </div>
-                ) : coinPackages.length === 0 ? (
-                  <div className="rounded-md border border-white/10 bg-black/25 px-3 py-2 text-sm text-white/58">
-                    Pink'D Coin packs are not available right now.
-                  </div>
-                ) : (
-                  coinPackages.map((coinPackage) => {
-                    const selectedCoinLine = coinLines.find((line) => line.coinPackageId === coinPackage.id);
-
-                    return (
-                      <div
-                        key={coinPackage.id}
-                        className="flex items-center justify-between gap-3 rounded-md border border-white/10 bg-black/25 px-3 py-2"
-                      >
-                        <div className="min-w-0">
-                          <div className="text-sm font-bold">{formatCoins(coinPackage.coin_amount)}</div>
-                          <div className="text-xs text-white/52">{formatEventPrice(coinPackage.inr_amount)}</div>
-                        </div>
-                        {selectedCoinLine ? (
-                          <div className="flex h-8 items-center rounded-md border border-white/12 bg-black/35">
-                            <button
-                              type="button"
-                              onClick={() => updateCoinQuantity(selectedCoinLine.id, selectedCoinLine.quantity - 1)}
-                              className="grid h-8 w-8 place-items-center text-white/70 hover:text-white"
-                              aria-label={`Decrease ${formatCoins(coinPackage.coin_amount)}`}
-                            >
-                              <Minus className="h-3.5 w-3.5" />
-                            </button>
-                            <span className="w-8 text-center text-xs font-bold">{selectedCoinLine.quantity}</span>
-                            <button
-                              type="button"
-                              onClick={() => updateCoinQuantity(selectedCoinLine.id, selectedCoinLine.quantity + 1)}
-                              className="grid h-8 w-8 place-items-center text-white/70 hover:text-white"
-                              aria-label={`Increase ${formatCoins(coinPackage.coin_amount)}`}
-                            >
-                              <Plus className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        ) : (
-                          <Button
-                            type="button"
-                            size="sm"
-                            onClick={() => addCoinPackage(coinPackage.id)}
-                            className="h-8 bg-primary px-3 text-xs font-bold text-black hover:bg-primary/90"
-                          >
-                            Add
-                          </Button>
-                        )}
-                      </div>
-                    );
-                  })
-                )}
-              </div>
             </div>
 
             <div className="mt-5 space-y-2 border-t border-white/10 pt-4 text-sm">
               <div className="flex items-center justify-between text-white/62">
                 <span>Event passes</span>
                 <span>{formatEventPrice(eventSubtotal)}</span>
-              </div>
-              <div className="flex items-center justify-between text-white/62">
-                <span>Pink'D Coins</span>
-                <span>{formatEventPrice(coinSubtotal)}</span>
-              </div>
-              {coinsToReceive > 0 ? (
-                <div className="flex items-center justify-between text-white/78">
-                  <span>Coins to receive</span>
-                  <span>{formatCoins(coinsToReceive)}</span>
-                </div>
-              ) : null}
-              <div className="flex items-center justify-between text-white/62">
-                <span>Total Payable</span>
-                <span>{formatEventPrice(grandTotal)}</span>
               </div>
               <div className="flex items-center justify-between text-lg font-black">
                 <span>Grand Total</span>
@@ -2131,15 +1634,15 @@ export default function EventLanding() {
             </div>
 
             <div className="mt-5 rounded-md border border-primary/25 bg-primary/10 p-3 text-sm text-white/72">
-              Payment is processed in INR with {getGatewayLabel(paymentProvider)}. Event booking revenue stays separate from NFC wallet balances.
+              Secure payment via {getGatewayLabel(paymentProvider)} · UPI, cards and netbanking.
             </div>
 
             <div className="mt-3 rounded-md border border-white/12 bg-black/35 p-3 text-sm font-bold uppercase leading-6 text-white/78">
               <div className="flex items-start gap-2">
                 <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                 <div>
-                  <div>18+ event. Valid ID required at entry.</div>
-                  <div>All bookings are non-refundable.</div>
+                  <div>Party is 18+ · valid ID checked at the gate.</div>
+                  <div>No refunds · no transfers · any ticket.</div>
                 </div>
               </div>
             </div>
@@ -2195,15 +1698,19 @@ export default function EventLanding() {
             ],
             [
               "What's included in party entry?",
-              "Entry to Glass Villa on Friday 11 September, your Pink'd wristband, a welcome drink, and four games free: Beer Pong, the Jamaal Challenge, Red Flag Green Flag and Squid Games. Everything else on the night runs on Pink'D Coins, which you can add in cart or load onto the band at the venue.",
+              "Entry to Glass Villa on Friday 11 September, your Pink'd wristband, a welcome drink, and four games free: Beer Pong, the Jamaal Challenge, Red Flag Green Flag and Squid Games. Everything else on the night runs on Pink'd Coins, which you load onto the band at the venue.",
             ],
             [
               "Why does the party price change?",
-              "Admins control Early Bird, Phase 1, and Last Call prices from the dashboard. The active phase price is frozen on the order when checkout is created. When you hit Pay, your seat and phase price are held for 15 minutes.",
+              "Party entry is ₹2,000 for the first 50 spots, ₹2,499 for spots 51–150, and ₹2,999 after that. The price you see is locked for 15 minutes once you hit Pay.",
             ],
             [
               "Do I pick my intensive sessions?",
-              "A 4-intensive or full pass covers all four sessions across both evenings. For smaller intensive packs, the booking modal asks you to choose the eligible slots before checkout.",
+              "A 4-intensive or full pass covers all four sessions across both evenings. With 1 Intensive you pick any one session, with 2 Intensives any two — day and time only; styles are announced closer to the date. Each session is capped at 120 seats, and a full session is greyed out in the picker.",
+            ],
+            [
+              "How do I get Pink'd Coins for the games?",
+              "Coins aren't sold with tickets. Once you hold a paid party ticket, your confirmation email carries a private link where you can buy coin packs against your order; they're loaded onto your wristband at the gate. You can also top up at the venue.",
             ],
             [
               "Is there an age limit?",

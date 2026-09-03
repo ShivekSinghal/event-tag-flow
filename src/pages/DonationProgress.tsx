@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { CircularProgress } from "@/components/ui/circular-progress";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Maximize, Minimize, Download, FileText } from "lucide-react";
+import { Maximize, Minimize, Download, FileText, Sparkles, Music, Users, Lock } from "lucide-react";
 import { useFlyingCards } from "@/hooks/use-flying-cards";
 import { formatCoins, formatInr, getCoinAmount } from "@/lib/coins";
 import * as XLSX from 'xlsx';
@@ -16,11 +16,75 @@ interface DonationStats {
   percentage: number;
 }
 
+// Perks board: the public target is ₹1,00,000. Perks unlock as the total climbs.
+const PERKS_GOAL_INR = 100000;
+
+interface PerkMilestone {
+  amount: number;
+  title: string;
+  icon: typeof Sparkles;
+}
+
+const PERK_MILESTONES: PerkMilestone[] = [
+  { amount: 5000, title: "Instructor choreography", icon: Sparkles },
+  { amount: 7000, title: "Faculty song", icon: Music },
+  { amount: 50000, title: "Company-member performance", icon: Users },
+];
+
+const formatWholeInr = (value: number) => `₹${Math.round(value).toLocaleString("en-IN")}`;
+
+const PerkTile = ({
+  milestone,
+  totalRaised,
+  compact = false,
+}: {
+  milestone: PerkMilestone;
+  totalRaised: number;
+  compact?: boolean;
+}) => {
+  const unlocked = totalRaised >= milestone.amount;
+  const Icon = unlocked ? milestone.icon : Lock;
+  const progress = Math.min(100, Math.max(0, (totalRaised / milestone.amount) * 100));
+
+  return (
+    <Card
+      className={`text-center transition-all duration-500 ${
+        unlocked
+          ? "border-primary bg-primary/10 shadow-[0_0_30px_hsl(var(--primary)/0.35)]"
+          : "opacity-70"
+      }`}
+    >
+      <CardHeader className={compact ? "pb-2 pt-4" : "pb-2"}>
+        <div className="flex justify-center mb-1">
+          <Icon className={`${compact ? "w-6 h-6" : "w-7 h-7"} ${unlocked ? "text-primary" : "text-muted-foreground"}`} />
+        </div>
+        <CardTitle className={`${unlocked ? "text-primary" : "text-muted-foreground"} ${compact ? "text-base" : "text-lg"}`}>
+          {milestone.title}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className={compact ? "pt-0 pb-4" : "pt-0"}>
+        <div className={`${compact ? "text-xl" : "text-2xl"} font-bold`}>{formatWholeInr(milestone.amount)}</div>
+        <div className="text-xs text-muted-foreground mt-1">
+          {unlocked ? "Unlocked!" : `${Math.floor(progress)}% there`}
+        </div>
+        {!unlocked && (
+          <div className="mt-2 h-1.5 w-full rounded-full bg-muted overflow-hidden">
+            <div
+              className="h-full rounded-full bg-primary transition-all duration-500"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
 const DonationProgress = () => {
   const { addCard, FlyingCards, DonationDots, dotsCount, loadExistingTransactions } = useFlyingCards();
   const [stats, setStats] = useState<DonationStats>({
     totalRaised: 0,
-    goal: 1000000, // Real-money donation goal in INR
+    goal: PERKS_GOAL_INR, // Public perks-board target in INR
     percentage: 0
   });
   const [isLoading, setIsLoading] = useState(true);
@@ -89,10 +153,18 @@ const DonationProgress = () => {
           
           // Show different messages for top-ups vs payments
           if (latestTransaction.type === 'load' || latestTransaction.type === 'coin_purchase') {
-            toast.success(
-              `🙏 Thank you ${walletData?.attendee_name || 'Anonymous'} from ${walletData?.studio || 'Unknown'} for your contribution of ${formatInr(latestInr)}. ${formatCoins(latestCoins)} were credited.`,
-              { duration: 6000 }
-            );
+            if (latestInr > 0) {
+              toast.success(
+                `🙏 Thank you ${walletData?.attendee_name || 'Anonymous'} from ${walletData?.studio || 'Unknown'} for your contribution of ${formatInr(latestInr)}. ${formatCoins(latestCoins)} were credited.`,
+                { duration: 6000 }
+              );
+            } else {
+              // Prepaid online coins loaded at the gate: rupees were already counted as an event order.
+              toast.success(
+                `🎟️ ${walletData?.attendee_name || 'Anonymous'} from ${walletData?.studio || 'Unknown'} loaded ${formatCoins(latestCoins)} bought online.`,
+                { duration: 4000 }
+              );
+            }
           } else {
             toast.success(
               `💃 ${walletData?.attendee_name || 'Anonymous'} from ${walletData?.studio || 'Unknown'} spent ${formatCoins(Math.abs(latestCoins))}.`,
@@ -170,7 +242,7 @@ const DonationProgress = () => {
         'Date', 
         'Type',
         'INR Paid',
-        "Pink'D Coins",
+        "Pink'd Coins",
         'Description',
         'Reference',
         'Attendee Name',
@@ -179,7 +251,7 @@ const DonationProgress = () => {
         'Item Name',
         'Item Category',
         'Game Name',
-        "Game Price (Pink'D Coins)"
+        "Game Price (Pink'd Coins)"
       ];
 
       const data = filteredTransactions.map(transaction => {
@@ -515,40 +587,23 @@ const DonationProgress = () => {
             </div>
           </div>
 
-          {/* Stats Cards */}
-          <div className="grid grid-cols-3 gap-6 max-w-4xl w-full">
-            <Card className="text-center">
-              <CardHeader className="pb-3 pt-4">
+          {/* Total Raised + Perk Milestones */}
+          <div className="grid grid-cols-4 gap-6 max-w-5xl w-full">
+            <Card className="text-center border-primary/40">
+              <CardHeader className="pb-2 pt-4">
                 <CardTitle className="text-primary text-base">Total Raised</CardTitle>
               </CardHeader>
               <CardContent className="pt-0 pb-4">
                 <div className="text-2xl font-bold">
                   {formatInr(stats.totalRaised)}
                 </div>
+                <div className="text-xs text-muted-foreground mt-1">Perks unlock as we climb</div>
               </CardContent>
             </Card>
 
-            <Card className="text-center">
-              <CardHeader className="pb-3 pt-4">
-                <CardTitle className="text-primary text-base">Goal</CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0 pb-4">
-                <div className="text-2xl font-bold">
-                  {formatInr(stats.goal)}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="text-center">
-              <CardHeader className="pb-3 pt-4">
-                <CardTitle className="text-primary text-base">Remaining</CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0 pb-4">
-                <div className="text-2xl font-bold">
-                  {formatInr(Math.max(0, stats.goal - stats.totalRaised))}
-                </div>
-              </CardContent>
-            </Card>
+            {PERK_MILESTONES.map((milestone) => (
+              <PerkTile key={milestone.amount} milestone={milestone} totalRaised={stats.totalRaised} compact />
+            ))}
           </div>
         </div>
       </div>
@@ -601,7 +656,7 @@ const DonationProgress = () => {
             Donation <span className="text-primary">Progress</span>
           </h1>
           <p className="text-xl text-muted-foreground">
-            Help us reach our goal to support aspiring dancers
+            Every top-up unlocks a perk and supports aspiring dancers
           </p>
         </div>
       )}
@@ -642,40 +697,26 @@ const DonationProgress = () => {
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
-        <Card className="text-center">
+      {/* Total Raised */}
+      <div className="max-w-4xl mx-auto">
+        <Card className="text-center border-primary/40">
           <CardHeader>
             <CardTitle className="text-primary">Total Raised</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">
+            <div className="text-4xl font-bold">
               {formatInr(stats.totalRaised)}
             </div>
+            <div className="text-sm text-muted-foreground mt-2">Every top-up unlocks the next perk</div>
           </CardContent>
         </Card>
+      </div>
 
-        <Card className="text-center">
-          <CardHeader>
-            <CardTitle className="text-primary">Goal</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">
-              {formatInr(stats.goal)}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="text-center">
-          <CardHeader>
-            <CardTitle className="text-primary">Remaining</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">
-              {formatInr(Math.max(0, stats.goal - stats.totalRaised))}
-            </div>
-          </CardContent>
-        </Card>
+      {/* Perk Milestones */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+        {PERK_MILESTONES.map((milestone) => (
+          <PerkTile key={milestone.amount} milestone={milestone} totalRaised={stats.totalRaised} />
+        ))}
       </div>
 
       {/* Description */}
@@ -683,8 +724,8 @@ const DonationProgress = () => {
         <Card>
           <CardContent className="pt-6">
             <p className="text-muted-foreground leading-relaxed">
-              Every wallet top-up contributes to our goal of supporting aspiring dancers. 
-              Your contributions help provide resources, training, and opportunities for 
+              Every wallet top-up unlocks the next perk and supports aspiring dancers.
+              Your contributions help provide resources, training, and opportunities for
               talented individuals to pursue their passion for dance.
             </p>
           </CardContent>

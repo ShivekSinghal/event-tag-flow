@@ -14,6 +14,8 @@ import POS from "./pages/POS";
 import Balance from "./pages/Balance";
 import DonationProgress from "./pages/DonationProgress";
 import EventLanding from "./pages/EventLanding";
+import CoinsPage from "./pages/CoinsPage";
+import AttendeesPage from "./pages/AttendeesPage";
 import PolicyPage from "./pages/PolicyPages";
 import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
@@ -31,6 +33,8 @@ const App = () => (
           <Routes>
             <Route path="/" element={<EventLanding />} />
             <Route path="/event" element={<EventLanding />} />
+            <Route path="/coins" element={<CoinsPage />} />
+            <Route path="/attendees" element={<AttendeesPage />} />
             <Route path="/contact-us" element={<PolicyPage type="contact" />} />
             <Route path="/terms-and-conditions" element={<PolicyPage type="terms" />} />
             <Route path="/refunds-cancellations" element={<PolicyPage type="refunds" />} />

@@ -1,8 +1,12 @@
 User-agent: Googlebot
 Allow: /
+Disallow: /coins
+Disallow: /attendees
 
 User-agent: Bingbot
 Allow: /
+Disallow: /coins
+Disallow: /attendees
 
 User-agent: Twitterbot
 Allow: /
@@ -12,3 +16,5 @@ Allow: /
 
 User-agent: *
 Allow: /
+Disallow: /coins
+Disallow: /attendees

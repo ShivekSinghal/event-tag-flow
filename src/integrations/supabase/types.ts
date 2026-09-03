@@ -80,6 +80,86 @@ export type Database = {
         }
         Relationships: []
       }
+      event_order_attendees: {
+        Row: {
+          attendee_name: string
+          attendee_phone: string
+          created_at: string
+          id: string
+          order_id: string
+          position: number
+          updated_at: string
+        }
+        Insert: {
+          attendee_name: string
+          attendee_phone: string
+          created_at?: string
+          id?: string
+          order_id: string
+          position: number
+          updated_at?: string
+        }
+        Update: {
+          attendee_name?: string
+          attendee_phone?: string
+          created_at?: string
+          id?: string
+          order_id?: string
+          position?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_order_attendees_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "event_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_order_coin_credits: {
+        Row: {
+          coins: number
+          created_at: string
+          credited_by: string | null
+          id: string
+          parent_order_id: string
+          wallet_id: string
+        }
+        Insert: {
+          coins: number
+          created_at?: string
+          credited_by?: string | null
+          id?: string
+          parent_order_id: string
+          wallet_id: string
+        }
+        Update: {
+          coins?: number
+          created_at?: string
+          credited_by?: string | null
+          id?: string
+          parent_order_id?: string
+          wallet_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_order_coin_credits_parent_order_id_fkey"
+            columns: ["parent_order_id"]
+            isOneToOne: false
+            referencedRelation: "event_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_order_coin_credits_wallet_id_fkey"
+            columns: ["wallet_id"]
+            isOneToOne: false
+            referencedRelation: "wallets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_order_items: {
         Row: {
           created_at: string
@@ -251,6 +331,9 @@ export type Database = {
           id: string
           name: string
           phase_key: string
+          phase_number: number
+          min_party_count: number
+          party_price_inr: number
           starts_at: string | null
           updated_at: string
         }
@@ -262,6 +345,9 @@ export type Database = {
           id?: string
           name: string
           phase_key: string
+          phase_number?: number
+          min_party_count?: number
+          party_price_inr?: number
           starts_at?: string | null
           updated_at?: string
         }
@@ -273,6 +359,9 @@ export type Database = {
           id?: string
           name?: string
           phase_key?: string
+          phase_number?: number
+          min_party_count?: number
+          party_price_inr?: number
           starts_at?: string | null
           updated_at?: string
         }
@@ -301,6 +390,7 @@ export type Database = {
           id: string
           last_payment_verified_at: string | null
           paid_at: string | null
+          parent_order_id: string | null
           payment_provider: string
           payment_reference: string | null
           payment_status: string
@@ -335,6 +425,7 @@ export type Database = {
           id?: string
           last_payment_verified_at?: string | null
           paid_at?: string | null
+          parent_order_id?: string | null
           payment_provider?: string
           payment_reference?: string | null
           payment_status?: string
@@ -369,6 +460,7 @@ export type Database = {
           id?: string
           last_payment_verified_at?: string | null
           paid_at?: string | null
+          parent_order_id?: string | null
           payment_provider?: string
           payment_reference?: string | null
           payment_status?: string
@@ -379,6 +471,51 @@ export type Database = {
           razorpay_payment_status?: string | null
           razorpay_signature?: string | null
           total_amount_inr?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      event_party_phase_state: {
+        Row: {
+          highest_party_count: number
+          highest_phase_number: number
+          id: number
+          updated_at: string
+        }
+        Insert: {
+          highest_party_count?: number
+          highest_phase_number?: number
+          id?: number
+          updated_at?: string
+        }
+        Update: {
+          highest_party_count?: number
+          highest_phase_number?: number
+          id?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      event_sessions: {
+        Row: {
+          created_at: string
+          seat_cap: number
+          session_number: number
+          slot_label: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          seat_cap?: number
+          session_number: number
+          slot_label: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          seat_cap?: number
+          session_number?: number
+          slot_label?: string
           updated_at?: string
         }
         Relationships: []
@@ -784,6 +921,62 @@ export type Database = {
           pending_quantity: number
           phase_id: string
         }[]
+      }
+      create_coin_order_checkout: {
+        Args: {
+          p_attribution?: Json
+          p_cart_items: Json
+          p_checkout_token_hash: string
+          p_parent_order_id: string
+          p_proof: string
+        }
+        Returns: {
+          order_id: string
+          total_amount_inr: number
+        }[]
+      }
+      expire_stale_event_orders: { Args: never; Returns: number }
+      get_event_party_status: { Args: never; Returns: Json }
+      get_party_entry_counts: {
+        Args: never
+        Returns: {
+          booked: number
+          held: number
+        }[]
+      }
+      get_prepaid_coins_for_order: {
+        Args: { p_parent_order_id: string }
+        Returns: number
+      }
+      get_session_seat_counts: {
+        Args: never
+        Returns: {
+          booked: number
+          held: number
+          seat_cap: number
+          session_number: number
+          slot_label: string
+        }[]
+      }
+      lookup_party_order: {
+        Args: { p_contact: string; p_order_ref: string }
+        Returns: Json
+      }
+      lookup_order_attendee_slots: {
+        Args: { p_contact: string; p_order_ref: string }
+        Returns: Json
+      }
+      submit_order_attendees: {
+        Args: { p_attendees: Json; p_contact: string; p_order_ref: string }
+        Returns: Json
+      }
+      credit_prepaid_coins_to_wallet: {
+        Args: { p_parent_order_id: string; p_wallet_id: string }
+        Returns: Json
+      }
+      staff_lookup_party_order: {
+        Args: { p_query: string }
+        Returns: Json
       }
       get_current_user_role: { Args: never; Returns: string }
       user_has_permission: {

@@ -51,7 +51,7 @@ export default function TopUp() {
     if (error) {
       toast({
         title: "Packages Unavailable",
-        description: "Could not load Pink'D Coin packages. Please try again.",
+        description: "Could not load Pink'd Coin packages. Please try again.",
         variant: "destructive",
       });
       return;
@@ -124,7 +124,7 @@ export default function TopUp() {
     if (!scannedWallet || !selectedPackage) {
       toast({
         title: "Select Package",
-        description: "Please select a Pink'D Coin package.",
+        description: "Please select a Pink'd Coin package.",
         variant: "destructive",
       });
       return;
@@ -165,7 +165,7 @@ export default function TopUp() {
           amount: coinAmount,
           inr_amount: inrAmount,
           coin_amount: coinAmount,
-          description: `Pink'D Coin package purchase`,
+          description: `Pink'd Coin package purchase`,
           reference: paymentReference.trim()
         });
 
@@ -174,7 +174,7 @@ export default function TopUp() {
       }
       
       toast({
-        title: "Pink'D Coins Credited",
+        title: "Pink'd Coins Credited",
         description: `${formatCoins(coinAmount)} added after ${formatInr(inrAmount)} payment. New balance: ${formatCoins(newBalance)}.`,
       });
 
@@ -208,7 +208,7 @@ export default function TopUp() {
     <div className="max-w-2xl mx-auto space-y-8">
       {/* Header */}
       <div className="text-center">
-        <h1 className="text-3xl font-bold text-foreground">Pink'D Coin Top-Up</h1>
+        <h1 className="text-3xl font-bold text-foreground">Pink'd Coin Top-Up</h1>
         <p className="text-muted-foreground mt-2">Sell coin packages and credit an attendee's NFC wallet</p>
       </div>
 
@@ -260,7 +260,7 @@ export default function TopUp() {
               </div>
               
               <div className="flex items-center justify-between pt-3 border-t border-success/20">
-                <span className="text-sm font-medium text-muted-foreground">Current Pink'D Coin Balance</span>
+                <span className="text-sm font-medium text-muted-foreground">Current Pink'd Coin Balance</span>
                 <div className="flex items-center space-x-2">
                   <Wallet className="w-4 h-4 text-success" />
                   <span className="text-lg font-bold text-success">
@@ -330,7 +330,7 @@ export default function TopUp() {
                   <span>
                     Credit {selectedPackageId
                       ? formatCoins(coinPackages.find((pkg) => pkg.id === selectedPackageId)?.coin_amount || 0)
-                      : "Pink'D Coins"}
+                      : "Pink'd Coins"}
                   </span>
                 </div>
               )}
@@ -350,7 +350,7 @@ export default function TopUp() {
                 <li>• Scan the attendee's NFC band using its default UID</li>
                 <li>• Select the package and collect the listed INR payment</li>
                 <li>• Enter the confirmed payment reference before crediting coins</li>
-                <li>• The transaction logs INR paid and Pink'D Coins credited</li>
+                <li>• The transaction logs INR paid and Pink'd Coins credited</li>
               </ul>
             </div>
           </div>

@@ -49,7 +49,7 @@ export const EVENT_PACKAGE_OPTIONS: EventPackageOption[] = [
     id: "party-entry",
     name: "Party Entry",
     category: "party",
-    description: "Entry to the Pink'D party",
+    description: "Entry to the Pink'd party",
     priceInr: 2000,
   },
   {
