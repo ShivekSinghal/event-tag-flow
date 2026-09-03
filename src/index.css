@@ -238,6 +238,12 @@
     transform: translateY(1px);
   }
 
+  .pinkd-handoff-page .btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+    transform: none;
+  }
+
   .pinkd-handoff-page .btn-pink {
     background: var(--pinkd-pink);
     color: #fff;
@@ -597,6 +603,14 @@
     color: #fff;
     font-size: 12px;
     font-weight: 800;
+  }
+
+  .pinkd-handoff-page .live-line.soldout {
+    color: #ff9a9a;
+  }
+
+  .pinkd-handoff-page .live-line.soldout .live-dot {
+    background: #ff5a5a;
   }
 
   .pinkd-handoff-page .stats {

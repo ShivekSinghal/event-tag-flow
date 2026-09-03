@@ -6,7 +6,6 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
 import { useFlyingCards } from "@/hooks/use-flying-cards";
 import { useStaffPermissions } from "@/hooks/use-staff-permissions";
 import { nfcManager } from "@/utils/nfc";
@@ -47,9 +46,14 @@ interface PosItem {
   display_order: number;
 }
 
+function getErrorDetail(error: unknown, key: "message" | "code" | "details" | "hint") {
+  return typeof error === "object" && error !== null && key in error
+    ? String((error as Record<string, unknown>)[key] || "")
+    : "";
+}
+
 export default function POS() {
   const { toast } = useToast();
-  const { profile, isStaff } = useAuth();
   const { addCard } = useFlyingCards();
   const {
     getGamePermissions,
@@ -363,59 +367,23 @@ export default function POS() {
     setIsProcessing(true);
 
     try {
-      const newBalance = wallet.currentBalance - price;
-
-      // Update wallet coin balance in Supabase.
-      const { error: updateError } = await supabase
-        .from("wallets")
-        .update({ coin_balance: newBalance, balance: newBalance })
-        .eq("id", wallet.id);
-
-      if (updateError) {
-        console.error("Wallet update error:", updateError);
-        throw updateError;
-      }
-
-      // Create transaction record
-      const { data: transactionData, error: transactionError } = await supabase
-        .from("transactions")
-        .insert({
-          wallet_id: wallet.id,
-          type: transactionType,
-          amount: -price,
-          inr_amount: null,
-          coin_amount: -price,
-          description: `${transactionType === "drinks" ? "Drinks" : transactionType === "games" ? "Game" : "Food"} Purchase: ${itemName}`,
-          reference: `${transactionType.toUpperCase()}_${gameId || selectedDrink?.id || selectedCustomItem?.id || Date.now()}`,
-          game_id: gameId,
-          item_name: itemName,
-          item_category: transactionType,
-          staff_user_id: profile?.id || null,
-        } as any)
-        .select()
+      const { data: paymentResult, error: paymentError } = await supabase
+        .rpc("spend_wallet_coins", {
+          p_wallet_id: wallet.id,
+          p_coin_amount: Math.round(price),
+          p_transaction_type: transactionType,
+          p_item_name: itemName,
+          p_item_category: transactionType,
+          p_game_id: gameId,
+          p_reference: `${transactionType.toUpperCase()}_${gameId || selectedDrink?.id || selectedCustomItem?.id || Date.now()}`,
+        })
         .single();
 
-      if (transactionError) {
-        console.error("Transaction creation error:", transactionError);
-        throw transactionError;
+      if (paymentError) {
+        throw paymentError;
       }
 
-      // Create game sales record only if it's a game purchase
-      if (gameId) {
-        const { error: salesError } = await supabase.from("game_sales").insert({
-          game_id: gameId,
-          transaction_id: transactionData.id,
-          quantity: 1,
-          sale_price: price,
-          coin_price: price,
-        } as any);
-
-        if (salesError) {
-          console.error("Game sales creation error:", salesError);
-          // Don't throw for game sales errors - log but continue
-          console.warn("Game sales record creation failed, but payment succeeded");
-        }
-      }
+      const newBalance = Number(paymentResult.new_coin_balance);
 
       toast({
         title: "Payment Successful!",
@@ -436,15 +404,15 @@ export default function POS() {
     } catch (error) {
       console.error("Payment processing error:", error);
       console.error("Error details:", {
-        message: error.message,
-        code: error.code,
-        details: error.details,
-        hint: error.hint,
+        message: getErrorDetail(error, "message"),
+        code: getErrorDetail(error, "code"),
+        details: getErrorDetail(error, "details"),
+        hint: getErrorDetail(error, "hint"),
       });
 
       toast({
         title: "Payment Failed",
-        description: `Error: ${error.message || "There was an error processing the payment. Please try again."}`,
+        description: `Error: ${getErrorDetail(error, "message") || "There was an error processing the payment. Please try again."}`,
         variant: "destructive",
       });
     } finally {

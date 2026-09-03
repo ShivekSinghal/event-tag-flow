@@ -108,6 +108,13 @@ type EventPackagePhaseLimit = {
   active: boolean;
 };
 
+type EventPhasePackageStat = {
+  phase_id: string;
+  package_id: string;
+  confirmed_quantity: number;
+  pending_quantity: number;
+};
+
 type CheckoutFormState = {
   name: string;
   phone: string;
@@ -543,6 +550,7 @@ export default function EventLanding() {
   const [coinPackages, setCoinPackages] = useState<CoinPackage[]>([]);
   const [pricingPhases, setPricingPhases] = useState<EventPricingPhase[]>([]);
   const [phaseLimits, setPhaseLimits] = useState<EventPackagePhaseLimit[]>([]);
+  const [phaseStats, setPhaseStats] = useState<EventPhasePackageStat[]>([]);
   const [packagesLoading, setPackagesLoading] = useState(true);
   const [coinPackagesLoading, setCoinPackagesLoading] = useState(true);
   const [paymentProvider, setPaymentProvider] = useState<PaymentProvider>("cashfree");
@@ -631,9 +639,29 @@ export default function EventLanding() {
     }
   }, []);
 
+  const fetchPhaseStats = useCallback(async () => {
+    const { data, error } = await supabase.rpc("get_event_phase_package_stats");
+
+    if (error) {
+      console.warn("Event phase stats load failed:", error);
+      return;
+    }
+
+    setPhaseStats((data || []).map((stat) => ({
+      phase_id: stat.phase_id,
+      package_id: stat.package_id,
+      confirmed_quantity: Number(stat.confirmed_quantity || 0),
+      pending_quantity: Number(stat.pending_quantity || 0),
+    })));
+  }, []);
+
   useEffect(() => {
     fetchEventConfig();
-  }, [fetchEventConfig]);
+    fetchPhaseStats();
+
+    const intervalId = window.setInterval(fetchPhaseStats, 45_000);
+    return () => window.clearInterval(intervalId);
+  }, [fetchEventConfig, fetchPhaseStats]);
 
   useEffect(() => {
     captureLandingAttribution();
@@ -664,6 +692,15 @@ export default function EventLanding() {
     activePhaseLimits.forEach((limit) => map.set(limit.package_id, limit));
     return map;
   }, [activePhaseLimits]);
+  const activePhaseStatMap = useMemo(() => {
+    const map = new Map<string, EventPhasePackageStat>();
+    phaseStats.forEach((stat) => {
+      if (activePhase && stat.phase_id === activePhase.id) {
+        map.set(stat.package_id, stat);
+      }
+    });
+    return map;
+  }, [activePhase, phaseStats]);
   const displayEventOptions = useMemo(
     () =>
       eventOptions
@@ -700,6 +737,20 @@ export default function EventLanding() {
   const fullPassSavings = fullPassOption ? Math.max(0, fullPassSeparateTotal - fullPassOption.priceInr) : 0;
   const selectedGroupOption =
     groupedOptions.group.find((option) => option.id === selectedGroupPackageId) || groupedOptions.group[0];
+  const partyPhaseLimit = partyOption ? activePhaseLimitMap.get(partyOption.id) : undefined;
+  const partyPhaseStat = partyOption ? activePhaseStatMap.get(partyOption.id) : undefined;
+  const partyPhaseCapacity = partyPhaseLimit?.capacity ?? null;
+  const partyReservedQuantity =
+    Number(partyPhaseStat?.confirmed_quantity || 0) + Number(partyPhaseStat?.pending_quantity || 0);
+  const partySpotsLeft =
+    partyPhaseCapacity === null ? null : Math.max(partyPhaseCapacity - partyReservedQuantity, 0);
+  const partySeatsLabel =
+    activePhase && partyPhaseCapacity !== null
+      ? partySpotsLeft === 0
+        ? `${activePhase.name} sold out`
+        : `${partySpotsLeft} of ${partyPhaseCapacity} ${activePhase.name} spots left`
+      : "Live checkout pricing";
+  const partyIsSoldOut = partyPhaseCapacity !== null && partySpotsLeft === 0;
 
   useEffect(() => {
     if (!selectedGroupPackageId && groupedOptions.group[0]) {
@@ -1413,7 +1464,10 @@ export default function EventLanding() {
                 </div>
                 <p>Your price is held for 15 minutes once you proceed to payment.</p>
                 <div className="row">
-                  <span className="live-line"><i className="live-dot" />Live checkout pricing</span>
+                  <span className={`live-line ${partyIsSoldOut ? "soldout" : ""}`}>
+                    <i className="live-dot" />
+                    {partySeatsLabel}
+                  </span>
                   <button type="button" className="btn btn-ghost btn-sm" onClick={() => openPackageModal(partyOption)}>
                     Add party
                   </button>
@@ -1479,7 +1533,7 @@ export default function EventLanding() {
                 date: "11",
                 day: "Friday",
                 title: "The Pink'D party",
-                slots: [["9 PM - Late", "All-night party at Glass Villa", "DJ · Karaoke · Pool · Welcome drink + games"]],
+                slots: [["9 PM - Late", "All-night party at Glass Villa", "DJ · Karaoke · Pool · Welcome drink + 4 free games on entry"]],
                 venue: "Glass Villa, Sector 58, Baliawas, Gurugram · Entry includes wristband",
                 venueUrl: partyDirectionsUrl,
                 party: true,
@@ -1873,6 +1927,11 @@ export default function EventLanding() {
                       : "Payment is confirmed. Confirmation email will be sent shortly."}
                 </div>
               ) : null}
+              {confirmedOrder.includesParty ? (
+                <div className="mt-2 text-success/85">
+                  Party entry includes a welcome drink and four free games: Beer Pong, Jamaal Challenge, Red Flag Green Flag and Squid Games. Other games run on Pink Coins. Any coin packs bought online are loaded onto your NFC band at the venue.
+                </div>
+              ) : null}
             </div>
           ) : null}
 
@@ -1983,7 +2042,7 @@ export default function EventLanding() {
                 <div>
                   <div className="font-black">Say hi to your Pink'D currency</div>
                   <p className="mt-1 text-sm leading-5 text-white/68">
-                    Pink'D Coins can be used to play games at the party. Pick a coin pack below and it will be added to your total payable.
+                    Pink'D Coins can be used to play games at the party. Pick a coin pack below and it will be added to your total payable, then loaded onto your NFC band at the venue.
                   </p>
                 </div>
               </div>
@@ -2195,7 +2254,7 @@ export default function EventLanding() {
             ],
             [
               "What's included in party entry?",
-              "Entry to Glass Villa on Friday 11 September, your Pink'd wristband, a welcome drink, and four games free: Beer Pong, the Jamaal Challenge, Red Flag Green Flag and Squid Games. Everything else on the night runs on Pink'D Coins, which you can add in cart or load onto the band at the venue.",
+              "Entry to Glass Villa on Friday 11 September, your Pink'd wristband, a welcome drink, and four games free: Beer Pong, the Jamaal Challenge, Red Flag Green Flag and Squid Games. Everything else on the night runs on Pink Coins, which you load onto the band at the venue.",
             ],
             [
               "Why does the party price change?",
@@ -2237,7 +2296,11 @@ export default function EventLanding() {
             </p>
             <div className="hero-cta">
             {primaryGroupOption ? (
-              <button type="button" className="btn btn-pink" onClick={() => openPackageModal(primaryGroupOption)}>
+              <button
+                type="button"
+                className="btn btn-pink"
+                onClick={() => openPackageModal(primaryGroupOption)}
+              >
                 Book crew of {primaryGroupOption.pax || 10} · {formatEventPrice(primaryGroupOption.priceInr)}
               </button>
             ) : null}

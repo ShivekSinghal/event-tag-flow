@@ -3,7 +3,7 @@ import { CalendarDays, CheckCircle, Download, FileSpreadsheet, Filter, RefreshCw
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json, Tables } from "@/integrations/supabase/types";
-import { EVENT_CATEGORY_LABELS, EVENT_PACKAGE_OPTIONS, formatEventPrice } from "@/lib/eventPackages";
+import { EVENT_CATEGORY_LABELS, EVENT_PACKAGE_OPTIONS, EVENT_TIME_SLOTS, formatEventPrice } from "@/lib/eventPackages";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,8 @@ const ALL_STATUSES = "all-statuses";
 const SUCCESS_STATUSES = new Set(["paid", "completed"]);
 const PENDING_STATUSES = new Set(["pending", "manual_payment"]);
 const PAYMENT_STATUSES = ["manual_payment", "pending", "paid", "completed", "failed", "cancelled", "refunded"];
+const COIN_FULFILLMENT_STATUSES = ["pending_venue_load", "fulfilled", "cancelled"];
+const TIME_SLOT_CAPACITY = 120;
 
 function titleCaseStatus(status: string | null) {
   return (status || "pending").replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
@@ -60,6 +62,25 @@ function getItemsSummary(order: EventOrder) {
       return `${item.quantity} x ${item.package_name}${slots ? ` (${slots})` : ""}`;
     })
     .join("; ");
+}
+
+function getAttendeeSeatQuantity(item: EventOrderItem) {
+  return Number(item.quantity || 0) * Number(item.pax || 1);
+}
+
+function isCoinItem(item: EventOrderItem) {
+  return item.package_category === "coins" || item.package_key.startsWith("coin-package:");
+}
+
+function getCoinAmount(item: EventOrderItem) {
+  return Number(item.coin_amount || 0) * Number(item.quantity || 0);
+}
+
+function isActiveHold(order: EventOrder) {
+  const status = order.payment_status || "pending";
+  if (!PENDING_STATUSES.has(status)) return false;
+  if (!order.checkout_token_expires_at) return false;
+  return new Date(order.checkout_token_expires_at).getTime() > Date.now();
 }
 
 function exportCsv(filename: string, headers: string[], rows: Array<Array<string | number>>) {
@@ -141,10 +162,15 @@ export default function EventBookingReport() {
     let totalRevenue = 0;
     let pendingPayments = 0;
     let successfulPayments = 0;
+    let coinAddOnOrders = 0;
+    let coinAddOnInrValue = 0;
+    let coinsPendingVenueLoad = 0;
+    let coinsFulfilled = 0;
 
     filteredOrders.forEach((order) => {
       const status = order.payment_status || "pending";
       const orderIsSuccessful = SUCCESS_STATUSES.has(status);
+      let orderHasCoinAddOn = false;
 
       if (orderIsSuccessful) {
         totalRevenue += Number(order.total_amount_inr || 0);
@@ -166,7 +192,22 @@ export default function EventBookingReport() {
           existing.revenue += Number(item.line_total_inr || 0);
         }
         packageMap.set(item.package_key, existing);
+
+        if (isCoinItem(item)) {
+          orderHasCoinAddOn = true;
+          coinAddOnInrValue += Number(item.line_total_inr || 0);
+          const coins = getCoinAmount(item);
+          if (item.coin_fulfillment_status === "fulfilled") {
+            coinsFulfilled += coins;
+          } else if (item.coin_fulfillment_status !== "cancelled") {
+            coinsPendingVenueLoad += coins;
+          }
+        }
       });
+
+      if (orderHasCoinAddOn) {
+        coinAddOnOrders += 1;
+      }
     });
 
     return {
@@ -174,6 +215,10 @@ export default function EventBookingReport() {
       totalRevenue,
       pendingPayments,
       successfulPayments,
+      coinAddOnOrders,
+      coinAddOnInrValue,
+      coinsPendingVenueLoad,
+      coinsFulfilled,
       packageStats: Array.from(packageMap.entries())
         .map(([packageKey, packageData]) => {
           const option = EVENT_PACKAGE_OPTIONS.find((item) => item.id === packageKey);
@@ -187,6 +232,38 @@ export default function EventBookingReport() {
     };
   }, [filteredOrders]);
 
+  const timeSlotStats = useMemo(
+    () =>
+      EVENT_TIME_SLOTS.map((slot) => {
+        let booked = 0;
+        let held = 0;
+
+        orders.forEach((order) => {
+          const status = order.payment_status || "pending";
+          getOrderItems(order).forEach((item) => {
+            if (!getTimeSlots(item.selected_time_slots).includes(slot)) return;
+
+            const seatQuantity = getAttendeeSeatQuantity(item);
+            if (SUCCESS_STATUSES.has(status)) {
+              booked += seatQuantity;
+            } else if (isActiveHold(order)) {
+              held += seatQuantity;
+            }
+          });
+        });
+
+        const totalReserved = booked + held;
+        return {
+          slot,
+          booked,
+          held,
+          totalReserved,
+          available: Math.max(TIME_SLOT_CAPACITY - totalReserved, 0),
+        };
+      }),
+    [orders],
+  );
+
   const exportHeaders = [
     "Order ID",
     "Name",
@@ -196,6 +273,8 @@ export default function EventBookingReport() {
     "Cart Items",
     "Time Slots",
     "Total INR",
+    "Coin Amount",
+    "Coin Fulfillment Status",
     "Payment Provider",
     "Payment Status",
     "Payment Reference",
@@ -225,6 +304,11 @@ export default function EventBookingReport() {
           .filter(Boolean)
           .join(" | "),
         Number(order.total_amount_inr || 0),
+        getOrderItems(order).reduce((total, item) => total + getCoinAmount(item), 0),
+        getOrderItems(order)
+          .filter(isCoinItem)
+          .map((item) => `${item.package_name}: ${titleCaseStatus(item.coin_fulfillment_status)}`)
+          .join(" | "),
         order.payment_provider || "manual",
         order.payment_status || "pending",
         order.payment_reference || "",
@@ -316,6 +400,94 @@ export default function EventBookingReport() {
     }
   };
 
+  const updateCoinFulfillmentStatus = async (itemId: string, fulfillmentStatus: string) => {
+    try {
+      setUpdatingOrderId(itemId);
+      const { error } = await supabase
+        .from("event_order_items")
+        .update({
+          coin_fulfillment_status: fulfillmentStatus,
+          coin_fulfilled_at: fulfillmentStatus === "fulfilled" ? new Date().toISOString() : null,
+        })
+        .eq("id", itemId);
+
+      if (error) throw error;
+
+      setOrders((current) =>
+        current.map((order) => ({
+          ...order,
+          event_order_items:
+            order.event_order_items?.map((item) =>
+              item.id === itemId
+                ? {
+                    ...item,
+                    coin_fulfillment_status: fulfillmentStatus,
+                    coin_fulfilled_at: fulfillmentStatus === "fulfilled" ? new Date().toISOString() : null,
+                  }
+                : item,
+            ) || null,
+        })),
+      );
+      toast({
+        title: "Coin Fulfillment Updated",
+        description:
+          fulfillmentStatus === "fulfilled"
+            ? "This coin add-on is marked as loaded at the venue."
+            : "The coin add-on fulfillment status is updated.",
+      });
+    } catch (error) {
+      console.error("Coin fulfillment update failed:", error);
+      toast({
+        title: "Update Failed",
+        description: "Could not update the coin fulfillment status.",
+        variant: "destructive",
+      });
+    } finally {
+      setUpdatingOrderId(null);
+    }
+  };
+
+  const sendConfirmationEmail = async (orderId: string) => {
+    try {
+      setUpdatingOrderId(orderId);
+      const { data: emailData, error } = await supabase.functions.invoke("event-confirmation-email", {
+        body: { event_order_id: orderId },
+      });
+
+      const emailSent = Boolean(emailData?.confirmation_email_sent);
+      const emailError = emailData?.confirmation_email_error ? String(emailData.confirmation_email_error) : null;
+
+      if (error && !emailError) throw error;
+
+      setOrders((current) =>
+        current.map((order) =>
+          order.id === orderId
+            ? {
+                ...order,
+                confirmation_email_sent_at: emailSent ? new Date().toISOString() : order.confirmation_email_sent_at,
+                confirmation_email_error: emailError,
+              }
+            : order,
+        ),
+      );
+
+      toast({
+        title: emailSent ? "Confirmation Email Sent" : "Email Not Sent",
+        description: emailSent ? "The booking confirmation was sent." : emailError || "The email provider did not send this message.",
+        variant: emailSent ? "default" : "destructive",
+      });
+    } catch (error) {
+      console.error("Confirmation email retry failed:", error);
+      toast({
+        title: "Email Failed",
+        description: "Could not send the confirmation email. Check the email provider/API key.",
+        variant: "destructive",
+      });
+    } finally {
+      setUpdatingOrderId(null);
+    }
+  };
+
   return (
     <Card className="shadow-card">
       <CardHeader>
@@ -386,12 +558,13 @@ export default function EventBookingReport() {
           </Button>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           {[
             { label: "Total Orders", value: stats.totalOrders.toString(), icon: Users },
             { label: "Total INR Revenue", value: formatEventPrice(stats.totalRevenue), icon: Ticket },
             { label: "Pending Payments", value: stats.pendingPayments.toString(), icon: Filter },
             { label: "Successful Payments", value: stats.successfulPayments.toString(), icon: CheckCircle },
+            { label: "Coin Add-Ons", value: `${stats.coinsPendingVenueLoad.toLocaleString("en-IN")} pending`, icon: Ticket },
           ].map((item) => {
             const Icon = item.icon;
             return (
@@ -405,6 +578,56 @@ export default function EventBookingReport() {
             );
           })}
         </div>
+
+        <section className="space-y-3">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                Intensive Time Slot Availability
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                Booked counts are paid/completed orders. Holds are pending checkout reservations that have not expired.
+              </p>
+            </div>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {timeSlotStats.map((slotData) => {
+              const isSoldOut = slotData.available <= 0;
+              return (
+                <div
+                  key={slotData.slot}
+                  className="rounded-lg border bg-secondary/20 p-4"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="font-semibold">{slotData.slot}</div>
+                      <div className="mt-1 text-sm text-muted-foreground">
+                        {slotData.totalReserved} of {TIME_SLOT_CAPACITY} seats reserved
+                      </div>
+                    </div>
+                    <Badge variant={isSoldOut ? "destructive" : "outline"}>
+                      {isSoldOut ? "Sold Out" : `${slotData.available} left`}
+                    </Badge>
+                  </div>
+                  <div className="mt-4 grid grid-cols-3 gap-2 text-sm">
+                    <div className="rounded-md bg-background/55 p-2">
+                      <div className="text-muted-foreground">Booked</div>
+                      <div className="font-bold">{slotData.booked}</div>
+                    </div>
+                    <div className="rounded-md bg-background/55 p-2">
+                      <div className="text-muted-foreground">Held</div>
+                      <div className="font-bold">{slotData.held}</div>
+                    </div>
+                    <div className="rounded-md bg-background/55 p-2">
+                      <div className="text-muted-foreground">Available</div>
+                      <div className="font-bold">{slotData.available}</div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
 
         <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
           <section className="space-y-3">
@@ -464,6 +687,34 @@ export default function EventBookingReport() {
                                 {formatTimeSlots(item.selected_time_slots)}
                               </div>
                             ) : null}
+                            {isCoinItem(item) ? (
+                              <div className="mt-2 flex flex-col gap-2 rounded-md border border-primary/20 bg-primary/10 p-2 text-xs">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <span className="font-medium">
+                                    {getCoinAmount(item).toLocaleString("en-IN")} coins bought online
+                                  </span>
+                                  <Badge variant={item.coin_fulfillment_status === "fulfilled" ? "default" : "secondary"}>
+                                    {titleCaseStatus(item.coin_fulfillment_status || "pending_venue_load")}
+                                  </Badge>
+                                </div>
+                                <Select
+                                  value={item.coin_fulfillment_status || "pending_venue_load"}
+                                  onValueChange={(value) => updateCoinFulfillmentStatus(item.id, value)}
+                                  disabled={updatingOrderId === item.id}
+                                >
+                                  <SelectTrigger className="h-8 bg-background">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {COIN_FULFILLMENT_STATUSES.map((status) => (
+                                      <SelectItem key={status} value={status}>
+                                        {titleCaseStatus(status)}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            ) : null}
                           </div>
                         ))}
                       </div>
@@ -484,6 +735,18 @@ export default function EventBookingReport() {
                             ? `Email failed: ${order.confirmation_email_error}`
                             : "Email not sent yet"}
                       </div>
+                      {SUCCESS_STATUSES.has(order.payment_status || "") && !order.confirmation_email_sent_at ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => sendConfirmationEmail(order.id)}
+                          disabled={updatingOrderId === order.id}
+                          className="w-full"
+                        >
+                          Send Email
+                        </Button>
+                      ) : null}
                       <Select
                         value={order.payment_status || "pending"}
                         onValueChange={(value) => updatePaymentStatus(order.id, value)}

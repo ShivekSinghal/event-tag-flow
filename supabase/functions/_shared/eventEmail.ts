@@ -10,6 +10,8 @@ type EventOrderItem = {
   unit_price_inr: number;
   quantity: number;
   line_total_inr: number;
+  coin_amount: number | null;
+  coin_fulfillment_status: string | null;
   selected_time_slots: unknown;
 };
 
@@ -66,12 +68,19 @@ function itemIncludesParty(item: EventOrderItem) {
   return category === "party" || category === "package" || category === "group" || name.includes("party");
 }
 
+function itemIsCoinPack(item: EventOrderItem) {
+  return item.package_category.toLowerCase() === "coins";
+}
+
 function renderItems(items: EventOrderItem[]) {
   return items
     .map((item) => {
       const slots = getTimeSlots(item.selected_time_slots);
       const slotHtml = slots.length
         ? `<div style="margin-top:6px;color:#777;font-size:13px;">Slots: ${slots.map(escapeHtml).join("; ")}</div>`
+        : "";
+      const coinHtml = itemIsCoinPack(item)
+        ? `<div style="margin-top:6px;color:#ff007f;font-size:13px;font-weight:700;">Venue load pending: show this order at the Pink'D Coins counter to load ${Number(item.coin_amount || 0).toLocaleString("en-IN")} coins on your NFC band.</div>`
         : "";
 
       return `
@@ -80,6 +89,7 @@ function renderItems(items: EventOrderItem[]) {
             <div style="font-weight:700;color:#111;">${escapeHtml(item.package_name)}</div>
             <div style="margin-top:4px;color:#777;font-size:13px;">${escapeHtml(item.package_category)} · ${formatInr(Number(item.unit_price_inr))} x ${item.quantity}</div>
             ${slotHtml}
+            ${coinHtml}
           </td>
           <td style="padding:14px 0;border-bottom:1px solid #eee;text-align:right;font-weight:700;color:#111;">
             ${formatInr(Number(item.line_total_inr))}
@@ -163,8 +173,11 @@ function renderConfirmationEmail(order: EventOrder) {
             <p style="margin:24px 0 0;color:#666;line-height:1.6;font-size:14px;">
               Please keep this email handy for entry.<br>${directionLinks}
             </p>
+            ${includesParty ? `<p style="margin:12px 0 0;color:#666;line-height:1.6;font-size:14px;">
+              Party entry includes your Pink'D wristband, a welcome drink, and four free games: Beer Pong, Jamaal Challenge, Red Flag Green Flag and Squid Games. Other games on the night run on Pink Coins, which you load onto the band at the venue.
+            </p>` : ""}
             <p style="margin:12px 0 0;color:#666;line-height:1.6;font-size:14px;">
-              18+ event. Valid ID required at entry. All bookings are non-refundable. This event booking is separate from Pink'D Coins and does not credit your NFC wallet.
+              18+ event. Valid ID required at entry. All bookings are non-refundable and non-transferable. This event booking is separate from Pink Coins and does not credit your NFC wallet.
             </p>
           </div>
         </div>
