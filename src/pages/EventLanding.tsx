@@ -65,6 +65,7 @@ import {
   EventPackageOption,
   formatEventPrice,
   getDefaultTimeSlots,
+  isPackageRevealed,
   normalizeEventPackage,
 } from "@/lib/eventPackages";
 import {
@@ -269,6 +270,7 @@ export default function EventLanding() {
   const [eventOptions, setEventOptions] = useState<EventPackageOption[]>(EVENT_PACKAGE_OPTIONS);
   const [packagesLoading, setPackagesLoading] = useState(true);
   const { status: partyStatus, isLive: partyStatusLive, refresh: refreshPartyStatus } = usePartyStatus();
+  const [revealClock, setRevealClock] = useState(() => Date.now());
   const [paymentProvider, setPaymentProvider] = useState<PaymentProvider>("cashfree");
   const [paymentSettingsLoading, setPaymentSettingsLoading] = useState(true);
   const [isGatewayActive, setIsGatewayActive] = useState(false);
@@ -332,6 +334,23 @@ export default function EventLanding() {
     };
   }, []);
 
+  // Timed reveals: a pass with available_from in the future stays hidden, then
+  // appears at that exact moment without a reload (the server refuses it earlier anyway).
+  useEffect(() => {
+    const pending = eventOptions
+      .map((option) => (option.availableFrom ? new Date(option.availableFrom).getTime() : Number.NaN))
+      .filter((revealAt) => Number.isFinite(revealAt) && revealAt > Date.now());
+    if (pending.length === 0) return;
+    const delay = Math.min(Math.max(Math.min(...pending) - Date.now(), 0) + 250, 2_147_000_000);
+    const timer = window.setTimeout(() => setRevealClock(Date.now()), delay);
+    return () => window.clearTimeout(timer);
+  }, [eventOptions, revealClock]);
+
+  const revealedEventOptions = useMemo(
+    () => eventOptions.filter((option) => isPackageRevealed(option, revealClock)),
+    [eventOptions, revealClock],
+  );
+
   // Live phase + seat availability. The server prices the party entry at the
   // moment Pay is clicked; everything shown here is display only.
   const partyPhase = partyStatus?.phase ?? null;
@@ -355,10 +374,13 @@ export default function EventLanding() {
   );
   const displayEventOptions = useMemo(
     () =>
-      eventOptions.map((option) =>
+      revealedEventOptions.map((option) =>
         option.category === "party" && partyPhase ? { ...option, priceInr: partyPhase.price_inr } : option,
       ),
-    [eventOptions, partyPhase],
+    [revealedEventOptions, partyPhase],
+  );
+  const smallIntensivePassesLive = displayEventOptions.some(
+    (option) => (option.intensiveCount || 0) > 0 && (option.intensiveCount || 0) < EVENT_TIME_SLOTS.length,
   );
 
   const groupedOptions = useMemo(
@@ -1706,7 +1728,9 @@ export default function EventLanding() {
             ],
             [
               "Do I pick my intensive sessions?",
-              "A 4-intensive or full pass covers all four sessions across both evenings. With 1 Intensive you pick any one session, with 2 Intensives any two — day and time only; styles are announced closer to the date. Each session is capped at 120 seats, and a full session is greyed out in the picker.",
+              smallIntensivePassesLive
+                ? "A 4-intensive or full pass covers all four sessions across both evenings. With 1 Intensive you pick any one session, with 2 Intensives any two — day and time only; styles are announced closer to the date. Each session is capped at 120 seats, and a full session is greyed out in the picker."
+                : "A 4-intensive or full pass covers all four sessions across both evenings. Each session is capped at 120 seats. Styles are announced closer to the date.",
             ],
             [
               "How do I get Pink'd Coins for the games?",

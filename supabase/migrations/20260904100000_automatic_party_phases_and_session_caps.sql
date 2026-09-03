@@ -370,6 +370,19 @@ GRANT EXECUTE ON FUNCTION public.get_event_party_status() TO anon, authenticated
 COMMENT ON FUNCTION public.get_event_party_status() IS 'Live party phase + seat availability for pinkd.hashtag.dance (served as GET /api/party-status). Same counting rule as checkout.';
 
 -- ---------------------------------------------------------------------------
+-- 6b. Timed reveal: 1 Intensive and 2 Intensives open at 6 PM IST on 4 Sep 2026
+-- ---------------------------------------------------------------------------
+
+ALTER TABLE public.event_packages
+  ADD COLUMN IF NOT EXISTS available_from TIMESTAMPTZ;
+
+COMMENT ON COLUMN public.event_packages.available_from IS 'When set, the pass is hidden on the booking page and refused at checkout until this moment.';
+
+UPDATE public.event_packages
+SET available_from = '2026-09-04 18:00:00+05:30', updated_at = now()
+WHERE id IN ('one-intensive', 'two-intensives');
+
+-- ---------------------------------------------------------------------------
 -- 7. Landing-page checkout: server-priced, capacity-checked, no coins
 -- ---------------------------------------------------------------------------
 
@@ -493,6 +506,11 @@ BEGIN
 
     IF v_package.id IS NULL THEN
       RAISE EXCEPTION 'This event package is unavailable';
+    END IF;
+
+    IF v_package.available_from IS NOT NULL AND v_package.available_from > now() THEN
+      RAISE EXCEPTION '% opens at % IST', v_package.name,
+        to_char(v_package.available_from AT TIME ZONE 'Asia/Kolkata', 'FMDD Mon, FMHH12:MI AM');
     END IF;
 
     -- Only party-only entries move with the phase. Bundles are flat.

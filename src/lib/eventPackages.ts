@@ -11,6 +11,8 @@ export interface EventPackageOption {
   featured?: boolean;
   active?: boolean;
   displayOrder?: number;
+  /** ISO timestamp; the pass is hidden and refused at checkout before this moment. */
+  availableFrom?: string | null;
 }
 
 export const EVENT_TIME_SLOTS = [
@@ -28,6 +30,7 @@ export const EVENT_PACKAGE_OPTIONS: EventPackageOption[] = [
     description: "Single workshop pass",
     priceInr: 1499,
     intensiveCount: 1,
+    availableFrom: "2026-09-04T18:00:00+05:30",
   },
   {
     id: "two-intensives",
@@ -36,6 +39,7 @@ export const EVENT_PACKAGE_OPTIONS: EventPackageOption[] = [
     description: "Two workshop pass",
     priceInr: 2699,
     intensiveCount: 2,
+    availableFrom: "2026-09-04T18:00:00+05:30",
   },
   {
     id: "four-intensives",
@@ -103,6 +107,7 @@ export function normalizeEventPackage(row: {
   featured: boolean;
   active: boolean;
   display_order: number;
+  available_from?: string | null;
 }): EventPackageOption {
   return {
     id: row.id,
@@ -115,7 +120,14 @@ export function normalizeEventPackage(row: {
     featured: row.featured,
     active: row.active,
     displayOrder: row.display_order,
+    availableFrom: row.available_from ?? null,
   };
+}
+
+export function isPackageRevealed(option: EventPackageOption, now = Date.now()) {
+  if (!option.availableFrom) return true;
+  const revealAt = new Date(option.availableFrom).getTime();
+  return Number.isNaN(revealAt) || revealAt <= now;
 }
 
 export function getDefaultTimeSlots(option: EventPackageOption) {

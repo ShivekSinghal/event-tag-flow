@@ -280,6 +280,7 @@ export type Database = {
       event_packages: {
         Row: {
           active: boolean
+          available_from: string | null
           category: string
           created_at: string
           description: string
@@ -294,6 +295,7 @@ export type Database = {
         }
         Insert: {
           active?: boolean
+          available_from?: string | null
           category: string
           created_at?: string
           description?: string
@@ -308,6 +310,7 @@ export type Database = {
         }
         Update: {
           active?: boolean
+          available_from?: string | null
           category?: string
           created_at?: string
           description?: string
