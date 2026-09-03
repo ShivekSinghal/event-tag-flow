@@ -16,7 +16,6 @@ import {
   Plus,
   ShieldCheck,
   ShoppingBag,
-  Sparkles,
   Trash2,
   User,
 } from "lucide-react";
@@ -139,7 +138,6 @@ const STUDIO_OPTIONS = [
 
 const posterImage = "/media/hero-poster.jpg";
 const logoImage = "/media/pinkd-logo.png";
-const hashtagLogoImage = "/hashtaglogo.png";
 const heroVideo = "/media/hero-reel.mp4";
 const heroPoster = "/media/hero-poster.jpg";
 const partyCardImage = "/media/party-card.jpg";
@@ -498,15 +496,6 @@ function findCurrentPhase(phases: EventPricingPhase[]) {
     const endsAt = phase.ends_at ? new Date(phase.ends_at).getTime() : Infinity;
     return startsAt <= now && now < endsAt;
   }) || null;
-}
-
-function formatPhaseEnd(value: string | null) {
-  if (!value) return "while passes last";
-  return new Date(value).toLocaleString("en-IN", {
-    dateStyle: "medium",
-    timeStyle: "short",
-    timeZone: "Asia/Kolkata",
-  });
 }
 
 function getSlotSummary(selectedTimeSlots: string[], intensiveCount?: number) {
@@ -1241,9 +1230,6 @@ export default function EventLanding() {
   const cartBannerSub = totalCartItems === 0
     ? "All passes are billed in INR"
     : `${attendeeCount || cartCount} ${attendeeCount === 1 ? "attendee" : "attendees"}${coinsToReceive ? ` · ${formatCoins(coinsToReceive)}` : ""}`;
-  const phaseSummary = activePhase
-    ? `${activePhase.name} live until ${formatPhaseEnd(activePhase.ends_at)}`
-    : "Live pricing updates from admin controls";
   const crewTenOption = groupedOptions.group.find((option) => option.id === "ten-pax-four-intensives-party" || option.pax === 10);
   const crewSixOption = groupedOptions.group.find((option) => option.id === "six-pax-four-intensives-party" || option.pax === 6);
   const primaryGroupOption = crewTenOption || selectedGroupOption;
@@ -1261,13 +1247,95 @@ export default function EventLanding() {
   ].filter((option, index, options): option is EventPackageOption =>
     Boolean(option) && options.findIndex((candidate) => candidate?.id === option.id) === index,
   );
+  const primaryGroupSavings = primaryGroupOption
+    ? Math.max(0, ((fullPassOption?.priceInr || 5500) * (primaryGroupOption.pax || 10)) - primaryGroupOption.priceInr)
+    : 0;
+  const secondaryGroupSavings = secondaryGroupOption
+    ? Math.max(0, ((fullPassOption?.priceInr || 5500) * (secondaryGroupOption.pax || 6)) - secondaryGroupOption.priceInr)
+    : 0;
+  const stickySubText = hasCheckoutItems
+    ? cartBannerSub
+    : primaryGroupOption?.pax
+      ? `Crews from ${formatEventPrice(Math.round(primaryGroupOption.priceInr / primaryGroupOption.pax))} per head`
+      : "Crews from ₹4,800 per head";
+  const renderIndividualPassDetails = (option: EventPackageOption) => {
+    if (option.id === "four-intensives") {
+      return (
+        <>
+          <div>
+            <h3>4 Intensives</h3>
+            <div className="sub">Both evenings · all four sessions</div>
+          </div>
+          <div className="price">{formatEventPrice(option.priceInr)}</div>
+          <ul className="incl">
+            <li><CheckCircle2 />Intensives 1 - 4, Rajouri Garden</li>
+            <li className="dim">No party entry</li>
+          </ul>
+        </>
+      );
+    }
+
+    if (option.id === "four-intensives-party") {
+      return (
+        <>
+          <div>
+            <h3>Full Pass</h3>
+            <div className="sub">4 intensives + party</div>
+          </div>
+          <div className="price">{formatEventPrice(option.priceInr)}</div>
+          <ul className="incl">
+            <li><CheckCircle2 />All four intensives</li>
+            <li><CheckCircle2 />Party entry · band · welcome drink · 4 free games</li>
+            <li><CheckCircle2 />Flat price — saves {formatEventPrice(fullPassSavings)} vs buying separately</li>
+          </ul>
+          <p className="u18">Party night is 18+ with valid ID at the gate. Under 18? Book 4 Intensives instead — the party portion of a full pass is forfeited, no refund.</p>
+        </>
+      );
+    }
+
+    if (option.id === "party-entry") {
+      return (
+        <>
+          <div>
+            <h3>Party Entry</h3>
+            <div className="sub">Friday 11 Sep · Glass Villa · 18+</div>
+          </div>
+          <div className="price">{formatEventPrice(option.priceInr)}</div>
+          <div className="phase">
+            <div className="row">
+              <span>{activePhase ? activePhase.name : "Live phase"}</span>
+              <b>{formatEventPrice(option.priceInr)}</b>
+            </div>
+            <small>Your price is held for 15 min at checkout.</small>
+          </div>
+          <ul className="incl">
+            <li><CheckCircle2 />Entry · wristband · welcome drink · Beer Pong · Jamaal Challenge · Red Flag Green Flag · Squid Games</li>
+            <li><CheckCircle2 />Bringing friends? Add one entry each — names can be managed after payment</li>
+          </ul>
+        </>
+      );
+    }
+
+    return (
+      <>
+        <div>
+          <h3>{option.name}</h3>
+          <div className="sub">{option.description}</div>
+        </div>
+        <div className="price">{formatEventPrice(option.priceInr)}</div>
+        <ul className="incl">
+          <li><CheckCircle2 />Stored as a full cart order in Supabase</li>
+        </ul>
+      </>
+    );
+  };
 
   return (
     <main className="pinkd-handoff-page">
       <nav className="nav">
         <div className="wrap">
           <a href="#top" className="nav-logo" aria-label="Pink'D home">
-            <img src={hashtagLogoImage} alt="Hashtag For Dance" />
+            <img src={logoImage} alt="Pink'd" />
           </a>
           <div className="nav-links">
             <a href="#schedule">Schedule</a>
@@ -1276,18 +1344,16 @@ export default function EventLanding() {
             <a href="#passes">Passes</a>
             <a href="#faq">FAQ</a>
           </div>
-          <div className="nav-actions">
-            <Link to="/dashboard" className="dash-link">Dashboard</Link>
-            <button
-              type="button"
-              onClick={() => setIsCartOpen(true)}
-              className={`nav-cart ${cartCount > 0 ? "has" : ""}`}
-            >
-              <ShoppingBag className="h-4 w-4" />
-              Cart
-              <span className="count">{cartCount}</span>
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setIsCartOpen(true)}
+            className={`nav-cart ${cartCount > 0 ? "has" : ""}`}
+            aria-label="Open cart"
+          >
+            <ShoppingBag className="h-4 w-4" />
+            Cart
+            <span className="count">{cartCount}</span>
+          </button>
         </div>
       </nav>
 
@@ -1300,7 +1366,7 @@ export default function EventLanding() {
         <div className="hero-grain" />
         <div className="wrap">
           <div>
-            <span className="kicker kicker-hero">A <em>FUN'draiser</em> by Hashtag For Dance · 7 years of Pink'D</span>
+            <span className="kicker kicker-hero">A <em>FUN'draiser</em> by Hashtag For Dance · 7 years of Pink'd</span>
             <img className="hero-logo" src={logoImage} alt="PINK'D" />
             <h1>Two nights of <em>intensives.</em><br />One night that <em>doesn't end.</em></h1>
             <div className="meta">
@@ -1309,15 +1375,14 @@ export default function EventLanding() {
               <span><i />4 intensives · 1 all-night party</span>
               <span><i />Party is 18+</span>
             </div>
-            {activePhase ? <div className="phase-pill">{phaseSummary}</div> : null}
             <div className="hero-cta">
               <a className="btn btn-pink" href="#passes">Book your pass</a>
               <a className="btn btn-ghost" href="#crew">{crewCtaLabel}</a>
             </div>
             <div className="cause-pill-wrap">
               <span className="cause-pill">
-                <Sparkles className="h-4 w-4" />
-                <span>Every rupee after costs goes to <b>dance scholarships</b></span>
+                <span aria-hidden="true">💗</span>
+                <span><span className="cause-muted">Every rupee after costs</span> <b>goes to dance scholarships</b></span>
               </span>
             </div>
           </div>
@@ -1330,11 +1395,11 @@ export default function EventLanding() {
                   {formatEventPrice(primaryGroupOption.priceInr)}
                   {primaryGroupOption.pax ? <small>{formatEventPrice(Math.round(primaryGroupOption.priceInr / primaryGroupOption.pax))} per head</small> : null}
                 </div>
-                <p>{primaryGroupOption.description}</p>
+                <p>4 intensives + party for ten. Save versus ten full passes.</p>
                 <div className="row">
-                  <span className="save">Seats held together</span>
+                  <span className="save">Saves {formatEventPrice(primaryGroupSavings)}</span>
                   <button type="button" className="btn btn-pink btn-sm" onClick={() => openPackageModal(primaryGroupOption)}>
-                    Book crew
+                    Book crew of {primaryGroupOption.pax || 10}
                   </button>
                 </div>
               </div>
@@ -1344,11 +1409,11 @@ export default function EventLanding() {
                 <span className="kicker">Party · {activePhase ? `${activePhase.name} live` : "Live pricing"}</span>
                 <div className="big">
                   {formatEventPrice(partyOption.priceInr)}
-                  <small>{activePhase ? activePhase.name : "admin price"}</small>
+                  <small>{activePhase ? `${activePhase.name} pricing live` : "live pricing"}</small>
                 </div>
-                <p>Welcome drink, wristband, and games powered by Pink'D Coins.</p>
+                <p>Your price is held for 15 minutes once you proceed to payment.</p>
                 <div className="row">
-                  <span className="live-line"><i className="live-dot" />Live pricing</span>
+                  <span className="live-line"><i className="live-dot" />Live checkout pricing</span>
                   <button type="button" className="btn btn-ghost btn-sm" onClick={() => openPackageModal(partyOption)}>
                     Add party
                   </button>
@@ -1362,7 +1427,7 @@ export default function EventLanding() {
       <div className="stats">
         <div className="wrap">
           {[
-            ["7 years", "of Pink'D · Hashtag's anniversary"],
+            ["7 years", "of Pink'd · Hashtag's 7th anniversary"],
             ["600+", "Dancers expected across 3 days"],
             ["120 seats", "Hard cap per intensive"],
             ["4 faculty teams", "10 instructors, 4 sessions"],
@@ -1381,7 +1446,7 @@ export default function EventLanding() {
             <span className="kicker">The three days · 7th anniversary edition</span>
             <h2>Two days to elevate. One night to celebrate.</h2>
             <p className="lead">
-              Two evenings of intensives at {intensiveVenueLabel}, then the floor heads to {partyVenueLabel}.
+              Two evenings of intensives at the Hashtag Rajouri Garden studio, then the whole floor heads to a farmhouse in Sector 58 for a night that runs till the sun comes up.
             </p>
           </div>
           <div className="days">
@@ -1415,7 +1480,7 @@ export default function EventLanding() {
                 day: "Friday",
                 title: "The Pink'D party",
                 slots: [["9 PM - Late", "All-night party at Glass Villa", "DJ · Karaoke · Pool · Welcome drink + games"]],
-                venue: `${partyVenueLabel} · Entry includes wristband`,
+                venue: "Glass Villa, Sector 58, Baliawas, Gurugram · Entry includes wristband",
                 venueUrl: partyDirectionsUrl,
                 party: true,
               },
@@ -1447,7 +1512,7 @@ export default function EventLanding() {
                 </div>
                 {day.party ? (
                   <div className="tags">
-                    {["DJ set", "Karaoke", "4 free games", "Pink'D Coins", "18+ · ID at gate"].map((tag) => (
+                    {["DJ set", "Karaoke", "4 free games", "More on Pink Coins", "Dunk drop", "18+ · ID at gate"].map((tag) => (
                       <span className="tag" key={tag}>{tag}</span>
                     ))}
                   </div>
@@ -1468,7 +1533,7 @@ export default function EventLanding() {
             <span className="kicker">Faculty</span>
             <h2>Four rooms. Ten teachers.</h2>
             <p className="lead">
-              Every session is co-led by Hashtag company members. Your selected slots are stored with the booking.
+              Every session is co-led by Hashtag company members. Styles drop on Instagram before the event — a full pass gets you into all four, whatever they turn out to be.
             </p>
           </div>
           <div className="fac-grid">
@@ -1492,13 +1557,13 @@ export default function EventLanding() {
             <span className="kicker">#DanceForACause</span>
             <blockquote>Dancers shouldn't perform for free. <em>Pink'D exists so the next ones don't have to.</em></blockquote>
             <p className="lead">
-              Seven years of Pink'D have helped fund scholarships at Hashtag. Your pass is the fee. The party is the thank-you.
+              Seven years of Pink'd have funded full scholarships at Hashtag — training across five forms for dancers who couldn't otherwise afford it. Your pass is the fee. The party is the thank-you.
             </p>
             <div className="facts">
               {[
-                ["10%", "of every ticket goes straight into the scholarship fund"],
-                ["5 forms", "each scholarship student trains across five dance forms"],
-                ["~₹50K", "is what one month of full training for one student costs"],
+                ["100%", "of proceeds after costs go straight into the scholarship fund — nothing is kept"],
+                ["5 forms", "each scholarship student trains across five dance forms, six months at a time"],
+                ["~₹50K", "is what one month of full training for one student costs — a crew of 10 covers almost all of it"],
               ].map(([value, label]) => (
                 <div className="fact" key={value}>
                   <b>{value}</b>
@@ -1537,7 +1602,7 @@ export default function EventLanding() {
             <span className="kicker">Passes</span>
             <h2>Come alone. Or come as a crew and pay less.</h2>
             <p className="lead">
-              Prices, phases, and availability stay live from the admin dashboard, so this page and checkout never disagree.
+              Bundle prices are flat — they don't move with the party phase. Group passes lock in the lowest per-head rate we offer.
             </p>
           </div>
 
@@ -1550,27 +1615,29 @@ export default function EventLanding() {
                 <div className="crew-in">
                   <div>
                     <h3>{primaryGroupOption.name}</h3>
-                    <div className="sub">{primaryGroupOption.description}</div>
+                    <div className="sub">One booking, ten full passes. Names and numbers are managed after payment.</div>
                   </div>
                   <div className="price-row">
                     <div className="price">{formatEventPrice(primaryGroupOption.priceInr)}</div>
                     {primaryGroupOption.pax ? (
                       <div className="perhead">
                         <b>{formatEventPrice(Math.round(primaryGroupOption.priceInr / primaryGroupOption.pax))} per head</b>
-                        <small>vs solo full pass</small>
+                        <small>vs {formatEventPrice(fullPassOption?.priceInr || 5500)} solo</small>
                       </div>
                     ) : null}
                   </div>
-                  <span className="save">Seats held together across all four sessions</span>
+                  <span className="save">Saves {formatEventPrice(primaryGroupSavings)} on ten full passes</span>
                   <ul className="incl">
-                    <li><CheckCircle2 />All four intensives for the full crew</li>
-                    <li><CheckCircle2 />Party entry, wristbands, and welcome drinks</li>
-                    <li><CheckCircle2 />Price saved to the order by the backend at checkout</li>
+                    <li><CheckCircle2 />All four intensives, both evenings, for all ten</li>
+                    <li><CheckCircle2 />Party entry x10 · wristbands · welcome drinks · 4 free games each</li>
+                    <li><CheckCircle2 />Price locked by the backend at checkout</li>
+                    <li><CheckCircle2 />Seats held together across all four sessions</li>
                   </ul>
                   <div className="crew-actions">
                     <button type="button" className="btn btn-pink" onClick={() => openPackageModal(primaryGroupOption)}>
-                      Book crew · {formatEventPrice(primaryGroupOption.priceInr)}
+                      Book crew of {primaryGroupOption.pax || 10} · {formatEventPrice(primaryGroupOption.priceInr)}
                     </button>
+                    <a className="btn btn-ghost btn-wa" href="https://wa.me/919205488417?text=Hi%2C%20I%27m%20booking%20a%20crew%20of%2010%20for%20Pink%27d" target="_blank" rel="noopener noreferrer">Talk to us first</a>
                   </div>
                 </div>
               </article>
@@ -1582,25 +1649,26 @@ export default function EventLanding() {
                 <div className="crew-in">
                   <div>
                     <h3>{secondaryGroupOption.name}</h3>
-                    <div className="sub">{secondaryGroupOption.description}</div>
+                    <div className="sub">Six full passes in one checkout.</div>
                   </div>
                   <div className="price-row">
                     <div className="price">{formatEventPrice(secondaryGroupOption.priceInr)}</div>
                     {secondaryGroupOption.pax ? (
                       <div className="perhead">
                         <b>{formatEventPrice(Math.round(secondaryGroupOption.priceInr / secondaryGroupOption.pax))} per head</b>
-                        <small>flat group price</small>
+                        <small>vs {formatEventPrice(fullPassOption?.priceInr || 5500)} solo</small>
                       </div>
                     ) : null}
                   </div>
+                  <span className="save">Saves {formatEventPrice(secondaryGroupSavings)}</span>
                   <ul className="incl">
-                    <li><CheckCircle2 />All four intensives for the full crew</li>
-                    <li><CheckCircle2 />Party entry and wristbands included</li>
-                    <li><CheckCircle2 />Phase-proof checkout total</li>
+                    <li><CheckCircle2 />All four intensives for all six</li>
+                    <li><CheckCircle2 />Party entry x6 · wristbands · welcome drinks · 4 free games each</li>
+                    <li><CheckCircle2 />Flat price, phase-proof</li>
                   </ul>
                   <div className="crew-actions">
                     <button type="button" className="btn btn-pink" onClick={() => openPackageModal(secondaryGroupOption)}>
-                      Book crew · {formatEventPrice(secondaryGroupOption.priceInr)}
+                      Book crew of {secondaryGroupOption.pax || 6} · {formatEventPrice(secondaryGroupOption.priceInr)}
                     </button>
                   </div>
                 </div>
@@ -1609,7 +1677,7 @@ export default function EventLanding() {
           </div>
 
           <p className="custom">
-            Event revenue is INR only. Pink'D Coins can be added in cart for games at the party.
+            Crew of 7, 12, 20? <a href="https://wa.me/919205488417?text=Hi%2C%20I%20want%20a%20custom%20crew%20quote%20for%20Pink%27d" target="_blank" rel="noopener noreferrer">Message us for a custom quote</a> — studios and colleges welcome.
           </p>
 
           <div className="divider">Individual passes</div>
@@ -1617,35 +1685,19 @@ export default function EventLanding() {
             {individualPassOptions.map((option) => (
               <article className={`solo ${option.featured ? "rec" : ""}`} key={option.id}>
                 {option.featured ? <span className="ribbon">Most popular</span> : null}
-                <div>
-                  <h3>{option.name}</h3>
-                  <div className="sub">{option.description}</div>
-                </div>
-                <div className="price">{formatEventPrice(option.priceInr)}</div>
-                <ul className="incl">
-                  {option.category === "party" || option.category === "package" ? <li><CheckCircle2 />Party entry and wristband included</li> : null}
-                  <li><CheckCircle2 />Stored as a full cart order in Supabase</li>
-                </ul>
-                {option.category === "party" ? (
-                  <div className="phase">
-                    <div className="row">
-                      <span>{activePhase ? activePhase.name : "Live phase"}</span>
-                      <b>{formatEventPrice(option.priceInr)}</b>
-                    </div>
-                  </div>
-                ) : null}
+                {renderIndividualPassDetails(option)}
                 <button type="button" className={`btn ${option.featured ? "btn-pink" : "btn-ghost"}`} onClick={() => openPackageModal(option)}>
-                  Add to cart
+                  {option.id === "four-intensives" ? "Reserve intensives" : option.id === "four-intensives-party" ? "Book full pass" : option.id === "party-entry" ? "Add party entry" : "Add to cart"}
                 </button>
               </article>
             ))}
           </div>
 
           <div className="trust">
-            <span><ShieldCheck />Secure payment via {getGatewayLabel(paymentProvider)}</span>
-            <span><Mail />Confirmation email after payment</span>
-            <span><Coins />Pink'D Coins available in cart</span>
-            <span><CreditCard />Event orders are INR only</span>
+            <span><ShieldCheck />Secure payment via {getGatewayLabel(paymentProvider)} · UPI, cards, netbanking</span>
+            <span><Mail />Instant confirmation by email</span>
+            <span><CreditCard />Party is 18+ · ID checked at gate</span>
+            <span><Coins />No refunds or transfers on any ticket</span>
           </div>
         </div>
       </section>
@@ -2127,37 +2179,43 @@ export default function EventLanding() {
             <span className="kicker">Before you book</span>
             <h2>Questions crews ask us.</h2>
             <p className="lead">
-              Anything else, reach the team through the policy/contact page. Payment status updates after gateway verification.
+              Anything else — the WhatsApp line is open till the doors close on the 11th.
             </p>
-            <button type="button" className="btn btn-ghost" onClick={() => setIsCartOpen(true)}>
-              Review cart
-            </button>
+            <a className="btn btn-ghost btn-wa" href="https://wa.me/919205488417" target="_blank" rel="noopener noreferrer">WhatsApp the team</a>
           </div>
           <div className="acc">
           {[
             [
               "How does a group booking work?",
-              "One person pays for the crew in a single checkout. The order stores the package, quantity, selected time slots, customer details, and payment status for admin reporting.",
+              "One person pays for the whole crew in a single checkout. The order stores the package, quantity, selected time slots, customer details, and payment status for admin reporting.",
+            ],
+            [
+              "Can I buy party entries for friends?",
+              "Yes — add one Party Entry per person in the cart and pay once. Each name gets its own wristband at the gate, and everyone must be 18+ with ID.",
             ],
             [
               "What's included in party entry?",
-              "Entry to Glass Villa on Friday 11 September, your Pink'D wristband, and a welcome drink. Pink'D Coins can be bought in the same cart for games at the party.",
+              "Entry to Glass Villa on Friday 11 September, your Pink'd wristband, a welcome drink, and four games free: Beer Pong, the Jamaal Challenge, Red Flag Green Flag and Squid Games. Everything else on the night runs on Pink'D Coins, which you can add in cart or load onto the band at the venue.",
             ],
             [
-              "Why can prices change?",
-              "Admins control Early Bird, Phase 1, and Last Call prices from the dashboard. The active phase price is frozen on the order when checkout is created.",
+              "Why does the party price change?",
+              "Admins control Early Bird, Phase 1, and Last Call prices from the dashboard. The active phase price is frozen on the order when checkout is created. When you hit Pay, your seat and phase price are held for 15 minutes.",
             ],
             [
               "Do I pick my intensive sessions?",
-              "Yes for 1- and 2-intensive passes. Full intensive, full pass, and group packages automatically include all four slots.",
+              "A 4-intensive or full pass covers all four sessions across both evenings. For smaller intensive packs, the booking modal asks you to choose the eligible slots before checkout.",
             ],
             [
               "Is there an age limit?",
-              "The intensives are open to all. The party is 18+ with valid ID checked at the gate.",
+              "The intensives are open to all. The party on the 11th is strictly 18+ with ID checked at the gate. If you're under 18 and buy a full pass, the party portion is forfeited at the door — no refund — so please book intensives-only.",
             ],
             [
-              "Can I get a refund or transfer my ticket?",
-              "All bookings are non-refundable and non-transferable. Please double-check dates, package, and attendee plan before payment.",
+              "Can I get a refund or give my ticket to a friend?",
+              "No. All tickets, including group passes, are non-refundable and non-transferable. Please double-check dates and attendees before you pay.",
+            ],
+            [
+              "Where does the money go?",
+              "Once the event breaks even, every rupee goes to Hashtag's scholarship programme, which trains dancers across five forms who couldn't otherwise afford it. Nobody takes a cut. Pink'd has run this way for seven years.",
             ],
           ].map(([question, answer], index) => (
             <details key={question} open={index === 0}>
@@ -2175,12 +2233,12 @@ export default function EventLanding() {
             <span className="kicker">9 - 11 September · Rajouri Garden & Gurugram</span>
             <h2>Round up your people.</h2>
             <p className="lead">
-              Four intensives, one all-night party, and a dancer somewhere gets to train because you showed up.
+              Ten of you. Four intensives. One night that doesn't end. {primaryGroupOption?.pax ? `${formatEventPrice(Math.round(primaryGroupOption.priceInr / primaryGroupOption.pax))} a head` : "A crew pass"} — and a dancer somewhere gets to train because you showed up.
             </p>
             <div className="hero-cta">
             {primaryGroupOption ? (
               <button type="button" className="btn btn-pink" onClick={() => openPackageModal(primaryGroupOption)}>
-                Book crew · {formatEventPrice(primaryGroupOption.priceInr)}
+                Book crew of {primaryGroupOption.pax || 10} · {formatEventPrice(primaryGroupOption.priceInr)}
               </button>
             ) : null}
               <a className="btn btn-ghost" href="#passes">See all passes</a>
@@ -2191,7 +2249,8 @@ export default function EventLanding() {
 
       <footer>
         <div className="wrap">
-          <span>Pink'D · A <b>FUN'draiser</b> by Hashtag For Dance · 7 years of Pink'D · 2026</span>
+          <span>Pink'd · A <b>FUN'draiser</b> by Hashtag For Dance · 7 years of Pink'd · 2026</span>
+          <span>Payments processed by {getGatewayLabel(paymentProvider)} · Tickets are non-refundable and non-transferable</span>
           <nav aria-label="Policy links">
             <Link to="/contact-us">Contact Us</Link>
             <Link to="/terms-and-conditions">Terms & Conditions</Link>
@@ -2214,11 +2273,11 @@ export default function EventLanding() {
       >
         <span className="pulse" />
         <span className="t">
-          <b>{cartBannerTitle}</b>
-          <small>{cartBannerSub}</small>
+          <b>{hasCheckoutItems ? cartBannerTitle : "9 - 11 Sep · Rajouri Garden & Gurugram"}</b>
+          <small>{stickySubText}</small>
         </span>
-        <span className="total">{formatEventPrice(grandTotal)}</span>
-        <span className="btn btn-pink btn-sm">Checkout</span>
+        {hasCheckoutItems ? <span className="total">{formatEventPrice(grandTotal)}</span> : null}
+        <span className="btn btn-pink btn-sm">{hasCheckoutItems ? "Review & pay" : "Book now"}</span>
       </button>
     </main>
   );
