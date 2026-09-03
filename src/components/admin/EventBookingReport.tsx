@@ -422,6 +422,47 @@ export default function EventBookingReport() {
     }
   };
 
+  const sendConfirmationEmail = async (orderId: string) => {
+    try {
+      setUpdatingOrderId(orderId);
+      const { data: emailData, error } = await supabase.functions.invoke("event-confirmation-email", {
+        body: { event_order_id: orderId },
+      });
+
+      const emailSent = Boolean(emailData?.confirmation_email_sent);
+      const emailError = emailData?.confirmation_email_error ? String(emailData.confirmation_email_error) : null;
+
+      if (error && !emailError) throw error;
+
+      setOrders((current) =>
+        current.map((order) =>
+          order.id === orderId
+            ? {
+                ...order,
+                confirmation_email_sent_at: emailSent ? new Date().toISOString() : order.confirmation_email_sent_at,
+                confirmation_email_error: emailError,
+              }
+            : order,
+        ),
+      );
+
+      toast({
+        title: emailSent ? "Confirmation Email Sent" : "Email Not Sent",
+        description: emailSent ? "The booking confirmation was sent." : emailError || "The email provider did not send this message.",
+        variant: emailSent ? "default" : "destructive",
+      });
+    } catch (error) {
+      console.error("Confirmation email retry failed:", error);
+      toast({
+        title: "Email Failed",
+        description: "Could not send the confirmation email. Check the email provider/API key.",
+        variant: "destructive",
+      });
+    } finally {
+      setUpdatingOrderId(null);
+    }
+  };
+
   return (
     <Card className="shadow-card">
       <CardHeader>
@@ -609,6 +650,18 @@ export default function EventBookingReport() {
                             ? `Email failed: ${order.confirmation_email_error}`
                             : "Email not sent yet"}
                       </div>
+                      {SUCCESS_STATUSES.has(order.payment_status || "") ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-8"
+                          onClick={() => sendConfirmationEmail(order.id)}
+                          disabled={updatingOrderId === order.id}
+                        >
+                          {order.confirmation_email_sent_at ? "Resend email" : "Send email"}
+                        </Button>
+                      ) : null}
                       <Select
                         value={order.payment_status || "pending"}
                         onValueChange={(value) => updatePaymentStatus(order.id, value)}

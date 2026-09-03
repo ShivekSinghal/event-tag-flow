@@ -144,34 +144,19 @@ export default function TopUp() {
     try {
       const inrAmount = Number(selectedPackage.inr_amount);
       const coinAmount = Number(selectedPackage.coin_amount);
-      const newBalance = scannedWallet.currentBalance + coinAmount;
-      
-      // Update wallet coin balance in Supabase only after payment confirmation.
-      const { error: updateError } = await supabase
-        .from('wallets')
-        .update({ coin_balance: newBalance, balance: newBalance })
-        .eq('id', scannedWallet.id);
+      const { data: topUpResult, error: topUpError } = await supabase
+        .rpc("credit_wallet_coins", {
+          p_wallet_id: scannedWallet.id,
+          p_coin_package_id: selectedPackage.id,
+          p_payment_reference: paymentReference.trim(),
+        })
+        .single();
 
-      if (updateError) {
-        throw updateError;
+      if (topUpError) {
+        throw topUpError;
       }
 
-      // Add transaction record
-      const { error: transactionError } = await supabase
-        .from('transactions')
-        .insert({
-          wallet_id: scannedWallet.id,
-          type: 'coin_purchase',
-          amount: coinAmount,
-          inr_amount: inrAmount,
-          coin_amount: coinAmount,
-          description: `Pink'd Coin package purchase`,
-          reference: paymentReference.trim()
-        });
-
-      if (transactionError) {
-        throw transactionError;
-      }
+      const newBalance = Number(topUpResult.new_coin_balance);
       
       toast({
         title: "Pink'd Coins Credited",

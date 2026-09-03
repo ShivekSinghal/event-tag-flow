@@ -162,6 +162,10 @@ export type Database = {
       }
       event_order_items: {
         Row: {
+          coin_amount: number | null
+          coin_fulfilled_at: string | null
+          coin_fulfilled_wallet_id: string | null
+          coin_fulfillment_status: string
           created_at: string
           id: string
           line_total_inr: number
@@ -178,6 +182,10 @@ export type Database = {
           unit_price_inr: number
         }
         Insert: {
+          coin_amount?: number | null
+          coin_fulfilled_at?: string | null
+          coin_fulfilled_wallet_id?: string | null
+          coin_fulfillment_status?: string
           created_at?: string
           id?: string
           line_total_inr: number
@@ -194,6 +202,10 @@ export type Database = {
           unit_price_inr: number
         }
         Update: {
+          coin_amount?: number | null
+          coin_fulfilled_at?: string | null
+          coin_fulfilled_wallet_id?: string | null
+          coin_fulfillment_status?: string
           created_at?: string
           id?: string
           line_total_inr?: number
@@ -916,6 +928,20 @@ export type Database = {
           total_amount_inr: number
         }[]
       }
+      credit_wallet_coins: {
+        Args: {
+          p_coin_package_id: string
+          p_payment_reference: string
+          p_wallet_id: string
+        }
+        Returns: {
+          credited_coin_amount: number
+          inr_amount: number
+          new_coin_balance: number
+          transaction_id: string
+          wallet_id: string
+        }[]
+      }
       get_event_phase_package_stats: {
         Args: never
         Returns: {
@@ -982,6 +1008,23 @@ export type Database = {
         Returns: Json
       }
       get_current_user_role: { Args: never; Returns: string }
+      spend_wallet_coins: {
+        Args: {
+          p_coin_amount: number
+          p_game_id?: string | null
+          p_item_category?: string | null
+          p_item_name: string
+          p_reference?: string | null
+          p_transaction_type: string
+          p_wallet_id: string
+        }
+        Returns: {
+          new_coin_balance: number
+          spent_coin_amount: number
+          transaction_id: string
+          wallet_id: string
+        }[]
+      }
       user_has_permission: {
         Args: { _game_id?: string; _permission_type: string; _user_id: string }
         Returns: boolean

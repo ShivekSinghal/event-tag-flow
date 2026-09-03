@@ -616,8 +616,8 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.create_event_order(TEXT, TEXT, TEXT, JSONB, TEXT) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.create_event_order(TEXT, TEXT, TEXT, JSONB, TEXT) TO anon, authenticated;
+-- Only reachable through create_event_order_checkout (SECURITY DEFINER); app roles never call it directly.
+REVOKE ALL ON FUNCTION public.create_event_order(TEXT, TEXT, TEXT, JSONB, TEXT) FROM PUBLIC, anon, authenticated;
 
 COMMENT ON FUNCTION public.create_event_order(TEXT, TEXT, TEXT, JSONB, TEXT) IS 'Creates a Pink''d landing-page order. Party entries are priced from the live phase, intensives are checked against the 120-seat session caps, coins are refused (sold on /coins).';
 
