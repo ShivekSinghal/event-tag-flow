@@ -863,6 +863,7 @@ export type Database = {
           balance: number
           coin_balance: number
           created_at: string
+          event_order_id: string | null
           id: string
           status: string
           studio: string
@@ -875,6 +876,7 @@ export type Database = {
           balance?: number
           coin_balance?: number
           created_at?: string
+          event_order_id?: string | null
           id?: string
           status?: string
           studio?: string
@@ -887,6 +889,7 @@ export type Database = {
           balance?: number
           coin_balance?: number
           created_at?: string
+          event_order_id?: string | null
           id?: string
           status?: string
           studio?: string
@@ -1005,6 +1008,11 @@ export type Database = {
       }
       staff_lookup_party_order: {
         Args: { p_query: string }
+        Returns: Json
+      }
+      auto_credit_coin_order: { Args: { p_coin_order_id: string }; Returns: Json }
+      link_wallet_to_event_order: {
+        Args: { p_parent_order_id: string; p_wallet_id: string }
         Returns: Json
       }
       get_current_user_role: { Args: never; Returns: string }

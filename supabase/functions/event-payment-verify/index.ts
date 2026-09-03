@@ -7,6 +7,7 @@ import {
   mapCashfreeOrderStatus,
 } from "../_shared/cashfree.ts";
 import { sendEventConfirmationEmail } from "../_shared/eventEmail.ts";
+import { autoCreditCoinOrder } from "../_shared/coinCredit.ts";
 import { validateCheckoutToken } from "../_shared/eventCheckout.ts";
 import { fetchRazorpayPayment, verifyRazorpayPaymentSignature } from "../_shared/razorpay.ts";
 
@@ -108,11 +109,15 @@ serve(async (req: Request) => {
 
       if (updateError) throw updateError;
 
+      const creditResult =
+        paymentStatus === "paid" ? await autoCreditCoinOrder(supabase, order.id) : { attempted: false, credited: 0, reason: null, error: null };
       const emailResult =
         paymentStatus === "paid" ? await sendEventConfirmationEmail(supabase, order.id) : { sent: false };
 
       return jsonResponse({
         provider: "razorpay",
+        coins_credited: creditResult.credited,
+        coins_credit_reason: creditResult.reason,
         event_order_id: order.id,
         razorpay_order_id: expectedOrderId,
         razorpay_payment_status: razorpayStatus,
@@ -148,11 +153,15 @@ serve(async (req: Request) => {
 
     if (updateError) throw updateError;
 
+    const creditResult =
+      paymentStatus === "paid" ? await autoCreditCoinOrder(supabase, order.id) : { attempted: false, credited: 0, reason: null, error: null };
     const emailResult =
       paymentStatus === "paid" ? await sendEventConfirmationEmail(supabase, order.id) : { sent: false };
 
     return jsonResponse({
       provider: "cashfree",
+      coins_credited: creditResult.credited,
+      coins_credit_reason: creditResult.reason,
       event_order_id: order.id,
       cashfree_order_id: expectedCashfreeOrderId,
       cashfree_order_status: orderStatus,

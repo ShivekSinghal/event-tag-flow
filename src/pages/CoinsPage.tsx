@@ -39,6 +39,10 @@ type PartyLookup = {
   party_entries: number;
   coins_purchased: number;
   coins_pending: number;
+  coins_waiting: number;
+  wallet_linked: boolean;
+  coin_balance: number;
+  band_hint: string | null;
   paid_at: string | null;
 };
 
@@ -60,6 +64,10 @@ function parseLookup(data: unknown): PartyLookup | null {
     party_entries: toIntegerCoins(record.party_entries),
     coins_purchased: toIntegerCoins(record.coins_purchased),
     coins_pending: toIntegerCoins(record.coins_pending),
+    coins_waiting: toIntegerCoins(record.coins_waiting),
+    wallet_linked: record.wallet_linked === true,
+    coin_balance: toIntegerCoins(record.coin_balance),
+    band_hint: typeof record.band_hint === "string" ? record.band_hint : null,
     paid_at: typeof record.paid_at === "string" ? record.paid_at : null,
   };
 }
@@ -364,7 +372,11 @@ export default function CoinsPage() {
                   <div className="text-base font-bold">
                     {formatCoinLabel(paid.coins)} are booked against order {lookup.order_ref}.
                   </div>
-                  <p className="mt-1 text-white/70">Show this order reference at the gate and they'll be loaded onto your band.</p>
+                  <p className="mt-1 text-white/70">
+                    {lookup.wallet_linked
+                      ? "They're on your band now. Your balance updates below in a few seconds."
+                      : "Show this order reference at the gate and they'll be loaded onto your band."}
+                  </p>
                 </div>
               ) : (
                 <div>
@@ -396,16 +408,26 @@ export default function CoinsPage() {
                     Not you?
                   </Button>
                 </div>
-                {lookup.coins_purchased > 0 ? (
+                {lookup.wallet_linked ? (
+                  <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-primary/30 bg-primary/10 px-3 py-2 text-sm">
+                    <span className="flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" />
+                      Band{lookup.band_hint ? ` ···${lookup.band_hint}` : ""} linked
+                    </span>
+                    <span className="font-bold">{formatCoinLabel(lookup.coin_balance)}</span>
+                  </div>
+                ) : lookup.coins_waiting > 0 ? (
                   <div className="mt-4 flex items-center gap-2 rounded-xl border border-primary/30 bg-primary/10 px-3 py-2 text-sm">
                     <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" />
-                    <span>{formatCoinLabel(lookup.coins_purchased)} already bought online, waiting to load at the gate.</span>
+                    <span>{formatCoinLabel(lookup.coins_waiting)} already bought online, waiting to load at the gate.</span>
                   </div>
                 ) : null}
                 <p className="mt-4 text-sm leading-relaxed text-white/60">
                   Your ticket already covers entry, the welcome drink and the four free games: Beer Pong, Jamaal
                   Challenge, Red Flag Green Flag and Squid Games. Everything else on the night runs on Pink'd Coins.
-                  Whatever you buy here is loaded onto your wristband at the gate.
+                  {lookup.wallet_linked
+                    ? "Whatever you buy here lands on your wristband within seconds — no queue, no tapping."
+                    : "Whatever you buy here is loaded onto your wristband at the gate; after that, this link tops it up instantly."}
                 </p>
               </CardContent>
             </Card>

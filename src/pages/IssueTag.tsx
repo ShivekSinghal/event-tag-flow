@@ -309,9 +309,11 @@ export default function IssueTag() {
    * Returns the number of coins credited (0 when nothing was waiting).
    */
   const creditPrepaidCoins = async (orderId: string, walletId: string): Promise<CreditResult> => {
-    const { data, error } = await rpc("credit_prepaid_coins_to_wallet", {
-      p_parent_order_id: orderId,
+    // Links the band to the booking (so later online top-ups land on it automatically)
+    // and loads anything already paid for. Idempotent on the server.
+    const { data, error } = await rpc("link_wallet_to_event_order", {
       p_wallet_id: walletId,
+      p_parent_order_id: orderId,
     });
     if (error) {
       throw new Error(error.message);
@@ -409,8 +411,8 @@ export default function IssueTag() {
         description: `Digital wallet created for ${attendeeName} with tag ${scannedTag}`,
       });
 
-      // Load coins bought online against this booking (once per order).
-      if (booking && coinsWaiting > 0) {
+      // Link the band to the booking and load coins bought online (once per order).
+      if (booking) {
         const creditContext: PendingCredit = {
           walletId,
           orderId: booking.order_id,
@@ -432,7 +434,9 @@ export default function IssueTag() {
           setPendingCredit(creditContext);
           toast({
             title: "Coins Not Loaded Yet",
-            description: `The band was issued, but ${formatPinkdCoins(coinsWaiting)} from order ${booking.order_ref} could not be loaded. Use "Retry loading coins" below.`,
+            description: coinsWaiting > 0
+              ? `The band was issued, but ${formatPinkdCoins(coinsWaiting)} from order ${booking.order_ref} could not be loaded. Use "Retry loading coins" below.`
+              : `The band was issued, but it could not be linked to order ${booking.order_ref} for online top-ups. Use "Retry loading coins" below.`,
             variant: "destructive",
           });
         }

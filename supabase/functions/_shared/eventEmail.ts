@@ -243,7 +243,7 @@ function renderTicketEmail(order: EventOrder, prepaidCoins: number) {
   return shell("Booking confirmed", `Order ${ref} · 9–11 September 2026`, body);
 }
 
-function renderCoinEmail(order: EventOrder, parent: EventOrder | null) {
+function renderCoinEmail(order: EventOrder, parent: EventOrder | null, onBandNow: boolean) {
   const ref = orderRef(order);
   const parentRef = parent ? orderRef(parent) : null;
   const items = order.event_order_items || [];
@@ -252,7 +252,9 @@ function renderCoinEmail(order: EventOrder, parent: EventOrder | null) {
   const body = `
     <h1 style="margin:0 0 8px;font-size:24px;line-height:1.2;color:#111;">${coins.toLocaleString("en-IN")} ${BRAND} Coins, booked.</h1>
     <p style="margin:0 0 18px;color:#555;line-height:1.6;">
-      They're reserved against ${parentRef ? `party ticket <b>${parentRef}</b>` : "your party ticket"} and will be loaded onto your wristband when you collect it at the gate on ${escapeHtml(PARTY_DATE_LABEL)}.
+      ${onBandNow
+        ? `They're already on your wristband — the band linked to ${parentRef ? `party ticket <b>${parentRef}</b>` : "your party ticket"} was credited the moment your payment went through.`
+        : `They're reserved against ${parentRef ? `party ticket <b>${parentRef}</b>` : "your party ticket"} and will be loaded onto your wristband when you collect it at the gate on ${escapeHtml(PARTY_DATE_LABEL)}.`}
     </p>
 
     <div style="background:#f8f8f8;border:1px solid #eee;border-radius:12px;padding:12px 16px;margin-bottom:18px;">
@@ -275,7 +277,9 @@ function renderCoinEmail(order: EventOrder, parent: EventOrder | null) {
     </table>
 
     <p style="margin:22px 0 0;color:#555;font-size:14px;line-height:1.6;">
-      Show your party ticket reference at the counter and the coins go straight onto the band. Need more on the night? Top up at the venue.
+      ${onBandNow
+        ? "Need more during the night? Open the same link again from your phone and top up — no queue, no tapping."
+        : "Show your party ticket reference at the counter and the coins go straight onto the band. Once your band is issued, the same link tops it up instantly from your phone."}
       Coin purchases are non-refundable.
     </p>
   `;
@@ -322,7 +326,18 @@ export async function sendEventConfirmationEmail(supabase: SupabaseAdminClient, 
         .maybeSingle();
       parent = (parentOrder as EventOrder | null) || null;
     }
-    html = renderCoinEmail(typedOrder, parent);
+    let onBandNow = false;
+    if (typedOrder.parent_order_id) {
+      const { data: linkedWallet } = await supabase
+        .from("wallets")
+        .select("id")
+        .eq("event_order_id", typedOrder.parent_order_id)
+        .eq("status", "active")
+        .limit(1)
+        .maybeSingle();
+      onBandNow = Boolean(linkedWallet?.id);
+    }
+    html = renderCoinEmail(typedOrder, parent, onBandNow);
     subject = `${BRAND} Coins confirmed - ${ref}`;
   } else {
     let prepaidCoins = 0;

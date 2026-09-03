@@ -7,6 +7,7 @@ import {
   verifyCashfreeSignature,
 } from "../_shared/cashfree.ts";
 import { sendEventConfirmationEmail } from "../_shared/eventEmail.ts";
+import { autoCreditCoinOrder } from "../_shared/coinCredit.ts";
 import { verifyRazorpayWebhookSignature } from "../_shared/razorpay.ts";
 
 function readCashfreeOrderId(payload: Record<string, unknown>) {
@@ -83,6 +84,11 @@ serve(async (req: Request) => {
 
       if (error) throw error;
 
+      const creditResult =
+        paymentStatus === "paid" && updatedOrder?.id
+          ? await autoCreditCoinOrder(supabase, updatedOrder.id)
+          : { attempted: false, credited: 0, reason: null, error: null };
+
       const emailResult =
         paymentStatus === "paid" && updatedOrder?.id
           ? await sendEventConfirmationEmail(supabase, updatedOrder.id)
@@ -90,6 +96,7 @@ serve(async (req: Request) => {
 
       return jsonResponse({
         received: true,
+        coins_credited: creditResult.credited,
         confirmation_email_sent: emailResult.sent,
         confirmation_email_error: "error" in emailResult ? emailResult.error : null,
       });
@@ -133,6 +140,11 @@ serve(async (req: Request) => {
 
     if (error) throw error;
 
+    const creditResult =
+      paymentStatus === "paid" && updatedOrder?.id
+        ? await autoCreditCoinOrder(supabase, updatedOrder.id)
+        : { attempted: false, credited: 0, reason: null, error: null };
+
     const emailResult =
       paymentStatus === "paid" && updatedOrder?.id
         ? await sendEventConfirmationEmail(supabase, updatedOrder.id)
@@ -140,6 +152,7 @@ serve(async (req: Request) => {
 
     return jsonResponse({
       received: true,
+      coins_credited: creditResult.credited,
       confirmation_email_sent: emailResult.sent,
       confirmation_email_error: "error" in emailResult ? emailResult.error : null,
     });
