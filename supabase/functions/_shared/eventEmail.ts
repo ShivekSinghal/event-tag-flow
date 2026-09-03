@@ -28,8 +28,10 @@ type EventOrder = {
 };
 
 const EVENT_DATE_LABEL = "11 September";
-const EVENT_VENUE_LABEL = "Glass Villa, Gurgaon";
-const EVENT_DIRECTIONS_URL = "https://www.google.com/maps/search/?api=1&query=Glass%20Villa%20Gurgaon";
+const INTENSIVE_VENUE_LABEL = "#hashtag Rajouri Garden";
+const INTENSIVE_DIRECTIONS_URL = "https://share.google/YFUUQ85X3WYy0wVLE";
+const PARTY_VENUE_LABEL = "Glass Villa, Gurgaon";
+const PARTY_DIRECTIONS_URL = "https://www.google.com/maps/search/?api=1&query=Glass%20Villa%20Gurgaon";
 
 function formatInr(value: number) {
   return `Rs. ${Number(value || 0).toLocaleString("en-IN")}`;
@@ -46,6 +48,22 @@ function escapeHtml(value: string) {
 
 function getTimeSlots(value: unknown) {
   return Array.isArray(value) ? value.filter((slot): slot is string => typeof slot === "string") : [];
+}
+
+function itemIncludesIntensives(item: EventOrderItem) {
+  const category = item.package_category.toLowerCase();
+  const name = item.package_name.toLowerCase();
+  return getTimeSlots(item.selected_time_slots).length > 0
+    || category === "intensives"
+    || category === "package"
+    || category === "group"
+    || name.includes("intensive");
+}
+
+function itemIncludesParty(item: EventOrderItem) {
+  const category = item.package_category.toLowerCase();
+  const name = item.package_name.toLowerCase();
+  return category === "party" || category === "package" || category === "group" || name.includes("party");
 }
 
 function renderItems(items: EventOrderItem[]) {
@@ -76,6 +94,30 @@ function renderConfirmationEmail(order: EventOrder) {
   const orderRef = order.id.slice(0, 8).toUpperCase();
   const items = order.event_order_items || [];
   const paidAt = order.paid_at ? new Date(order.paid_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }) : "";
+  const includesIntensives = items.some(itemIncludesIntensives);
+  const includesParty = items.some(itemIncludesParty);
+  const venueRows = [
+    includesIntensives
+      ? `<div style="display:flex;justify-content:space-between;gap:12px;margin-bottom:8px;">
+          <span style="color:#777;">Intensives Venue</span>
+          <strong style="color:#111;">${INTENSIVE_VENUE_LABEL}</strong>
+        </div>`
+      : "",
+    includesParty
+      ? `<div style="display:flex;justify-content:space-between;gap:12px;margin-bottom:8px;">
+          <span style="color:#777;">Party Venue</span>
+          <strong style="color:#111;">${PARTY_VENUE_LABEL}</strong>
+        </div>`
+      : "",
+  ].join("");
+  const directionLinks = [
+    includesIntensives
+      ? `Intensives at <strong>${INTENSIVE_VENUE_LABEL}</strong>: <a href="${INTENSIVE_DIRECTIONS_URL}" style="color:#ff007f;font-weight:700;">${INTENSIVE_DIRECTIONS_URL}</a>`
+      : "",
+    includesParty
+      ? `Party at <strong>${PARTY_VENUE_LABEL}</strong>: <a href="${PARTY_DIRECTIONS_URL}" style="color:#ff007f;font-weight:700;">${PARTY_DIRECTIONS_URL}</a>`
+      : "",
+  ].filter(Boolean).join("<br>");
 
   return `
     <div style="margin:0;padding:0;background:#08050b;font-family:Arial,sans-serif;color:#111;">
@@ -94,10 +136,7 @@ function renderConfirmationEmail(order: EventOrder) {
                 <span style="color:#777;">Event Date</span>
                 <strong style="color:#111;">${EVENT_DATE_LABEL}</strong>
               </div>
-              <div style="display:flex;justify-content:space-between;gap:12px;margin-bottom:8px;">
-                <span style="color:#777;">Venue</span>
-                <strong style="color:#111;">${EVENT_VENUE_LABEL}</strong>
-              </div>
+              ${venueRows}
               <div style="display:flex;justify-content:space-between;gap:12px;margin-bottom:8px;">
                 <span style="color:#777;">Order Ref</span>
                 <strong style="color:#111;">${orderRef}</strong>
@@ -122,7 +161,7 @@ function renderConfirmationEmail(order: EventOrder) {
             </div>
 
             <p style="margin:24px 0 0;color:#666;line-height:1.6;font-size:14px;">
-              Please keep this email handy for entry. Get directions: <a href="${EVENT_DIRECTIONS_URL}" style="color:#ff007f;font-weight:700;">${EVENT_DIRECTIONS_URL}</a>
+              Please keep this email handy for entry.<br>${directionLinks}
             </p>
             <p style="margin:12px 0 0;color:#666;line-height:1.6;font-size:14px;">
               18+ event. Valid ID required at entry. All bookings are non-refundable. This event booking is separate from Pink'D Coins and does not credit your NFC wallet.

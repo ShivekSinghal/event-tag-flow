@@ -154,8 +154,10 @@ const partyCardImage = "/media/party-card.jpg";
 const brandName = "PINK'D";
 const brandColor = "#ff007f";
 const eventDateLabel = "11 SEPTEMBER";
-const eventVenueLabel = "GLASS VILLA, GURGAON";
-const eventDirectionsUrl = "https://www.google.com/maps/search/?api=1&query=Glass%20Villa%20Gurgaon";
+const intensiveVenueLabel = "#HASHTAG RAJOURI GARDEN";
+const intensiveDirectionsUrl = "https://share.google/YFUUQ85X3WYy0wVLE";
+const partyVenueLabel = "GLASS VILLA, GURGAON";
+const partyDirectionsUrl = "https://www.google.com/maps/search/?api=1&query=Glass%20Villa%20Gurgaon";
 const cashfreeScriptId = "cashfree-checkout-js";
 const razorpayScriptId = "razorpay-checkout-js";
 
@@ -526,6 +528,14 @@ function makeCartLineId(packageId: string, selectedTimeSlots: string[]) {
   return `${packageId}:${selectedTimeSlots.join("|")}`;
 }
 
+function packageIncludesIntensives(option: EventPackageOption) {
+  return Boolean(option.intensiveCount) || option.category === "intensives" || option.category === "package" || option.category === "group";
+}
+
+function packageIncludesParty(option: EventPackageOption) {
+  return option.category === "party" || option.category === "package" || option.category === "group";
+}
+
 export default function EventLanding() {
   const { toast } = useToast();
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -538,6 +548,8 @@ export default function EventLanding() {
     status: "paid" | "pending";
     customerEmail: string;
     purchasedItems?: string;
+    includesIntensives?: boolean;
+    includesParty?: boolean;
     confirmationEmailSent?: boolean;
     confirmationEmailError?: string | null;
   } | null>(null);
@@ -1029,6 +1041,9 @@ export default function EventLanding() {
     });
     await waitForSheetCloseAnimation();
 
+    const orderIncludesIntensives = cartLines.some((line) => packageIncludesIntensives(line.option));
+    const orderIncludesParty = cartLines.some((line) => packageIncludesParty(line.option));
+
     try {
       const checkoutToken = createCheckoutToken();
       const checkoutTokenHash = await sha256Hex(checkoutToken);
@@ -1138,6 +1153,8 @@ export default function EventLanding() {
             status: isPaid ? "paid" : "pending",
             customerEmail: form.email.trim(),
             purchasedItems: purchasedItemsSummary,
+            includesIntensives: orderIncludesIntensives,
+            includesParty: orderIncludesParty,
             confirmationEmailSent,
             confirmationEmailError,
           });
@@ -1216,6 +1233,8 @@ export default function EventLanding() {
             status: isPaid ? "paid" : "pending",
             customerEmail: form.email.trim(),
             purchasedItems: purchasedItemsSummary,
+            includesIntensives: orderIncludesIntensives,
+            includesParty: orderIncludesParty,
             confirmationEmailSent,
             confirmationEmailError,
           });
@@ -1253,6 +1272,8 @@ export default function EventLanding() {
           status: "pending",
           customerEmail: form.email.trim(),
           purchasedItems: purchasedItemsSummary,
+          includesIntensives: orderIncludesIntensives,
+          includesParty: orderIncludesParty,
         });
         setIsCartOpen(true);
         toast({
@@ -1438,7 +1459,7 @@ export default function EventLanding() {
             <span className="kicker">The three days · 7th anniversary edition</span>
             <h2>Two days to elevate. One night to celebrate.</h2>
             <p className="lead">
-              Two evenings of intensives at the Hashtag Rajouri Garden studio, then the floor heads to Glass Villa in Gurugram.
+              Two evenings of intensives at {intensiveVenueLabel}, then the floor heads to {partyVenueLabel}.
             </p>
           </div>
           <div className="days">
@@ -1452,7 +1473,8 @@ export default function EventLanding() {
                   ["6:00 - 7:30 PM", "Intensive 1", "Shivek & Priyanshi"],
                   ["8:00 - 9:30 PM", "Intensive 2", "Tarun, Dhriti & Divija"],
                 ],
-                venue: "Hashtag studio, Rajouri Garden · Styles announced closer to the date",
+                venue: `${intensiveVenueLabel} · Styles announced closer to the date`,
+                venueUrl: intensiveDirectionsUrl,
               },
               {
                 date: "10",
@@ -1463,14 +1485,16 @@ export default function EventLanding() {
                   ["6:00 - 7:30 PM", "Intensive 3", "Jahnvi & Rubani"],
                   ["8:00 - 9:30 PM", "Intensive 4", "Manas, Jhilmil & Ayushi"],
                 ],
-                venue: "Hashtag studio, Rajouri Garden · 120 seats per session",
+                venue: `${intensiveVenueLabel} · 120 seats per session`,
+                venueUrl: intensiveDirectionsUrl,
               },
               {
                 date: "11",
                 day: "Friday",
                 title: "The Pink'D party",
                 slots: [["9 PM - Late", "All-night party at Glass Villa", "DJ · Karaoke · Pool · Welcome drink + games"]],
-                venue: "Glass Villa, Sector 58, Baliawas, Gurugram · Entry includes wristband",
+                venue: `${partyVenueLabel} · Entry includes wristband`,
+                venueUrl: partyDirectionsUrl,
                 party: true,
               },
             ].map((day) => (
@@ -1508,7 +1532,7 @@ export default function EventLanding() {
                 ) : null}
                 <div className="venue">
                   <MapPin className="h-4 w-4" />
-                  <span>{day.venue}</span>
+                  <a href={day.venueUrl} target="_blank" rel="noreferrer">{day.venue}</a>
                 </div>
               </article>
             ))}
@@ -1846,16 +1870,29 @@ export default function EventLanding() {
               </div>
               <div className="mt-2 space-y-1 text-success/85">
                 {confirmedOrder.purchasedItems ? <div>{confirmedOrder.purchasedItems}</div> : null}
-                <div>{eventDateLabel} · {eventVenueLabel}</div>
-                <a
-                  href={eventDirectionsUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1 font-semibold underline underline-offset-4"
-                >
-                  Get directions
-                  <ArrowRight className="h-3.5 w-3.5" />
-                </a>
+                <div>{eventDateLabel}</div>
+                {confirmedOrder.includesIntensives ? (
+                  <a
+                    href={intensiveDirectionsUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 font-semibold underline underline-offset-4"
+                  >
+                    Intensives at {intensiveVenueLabel}
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </a>
+                ) : null}
+                {confirmedOrder.includesParty ? (
+                  <a
+                    href={partyDirectionsUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 font-semibold underline underline-offset-4"
+                  >
+                    Party at {partyVenueLabel}
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </a>
+                ) : null}
               </div>
               {confirmedOrder.status === "paid" ? (
                 <div className="mt-1 text-success/85">
