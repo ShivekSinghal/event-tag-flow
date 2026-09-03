@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
+import ErrorBoundary from "./components/ErrorBoundary";
 import Layout from "./components/layout/Layout";
 import Dashboard from "./pages/Dashboard";
 import IssueTag from "./pages/IssueTag";
@@ -37,14 +38,18 @@ const App = () => (
             <Route path="/auth" element={<Navigate to="/pinkd-login" replace />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route element={
-              <ProtectedRoute>
-                <Layout />
-              </ProtectedRoute>
+              <ErrorBoundary title="Dashboard area could not load">
+                <ProtectedRoute>
+                  <Layout />
+                </ProtectedRoute>
+              </ErrorBoundary>
             }>
               <Route path="dashboard" element={
-                <ProtectedRoute requiredRole="admin">
-                  <Dashboard />
-                </ProtectedRoute>
+                <ErrorBoundary title="Dashboard could not load">
+                  <ProtectedRoute requiredRole="admin">
+                    <Dashboard />
+                  </ProtectedRoute>
+                </ErrorBoundary>
               } />
               <Route path="issue-tag" element={<IssueTag />} />
               <Route path="topup" element={<TopUp />} />

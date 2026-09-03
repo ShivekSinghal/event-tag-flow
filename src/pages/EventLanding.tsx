@@ -4,7 +4,6 @@ import { flushSync } from "react-dom";
 import { Link } from "react-router-dom";
 import {
   ArrowRight,
-  CalendarDays,
   CheckCircle2,
   ChevronsUpDown,
   Coins,
@@ -18,10 +17,8 @@ import {
   ShieldCheck,
   ShoppingBag,
   Sparkles,
-  Ticket,
   Trash2,
   User,
-  Users,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -148,8 +145,12 @@ const STUDIO_OPTIONS = [
   "Not a Student",
 ];
 
-const posterImage = "/pinkd-event-poster.png";
-const logoImage = "/pinkd-logo.png";
+const posterImage = "/media/hero-poster.jpg";
+const logoImage = "/media/pinkd-logo.png";
+const hashtagLogoImage = "/hashtaglogo.png";
+const heroVideo = "/media/hero-reel.mp4";
+const heroPoster = "/media/hero-poster.jpg";
+const partyCardImage = "/media/party-card.jpg";
 const brandName = "PINK'D";
 const brandColor = "#ff007f";
 const eventDateLabel = "11 SEPTEMBER";
@@ -157,6 +158,46 @@ const eventVenueLabel = "GLASS VILLA, GURGAON";
 const eventDirectionsUrl = "https://www.google.com/maps/search/?api=1&query=Glass%20Villa%20Gurgaon";
 const cashfreeScriptId = "cashfree-checkout-js";
 const razorpayScriptId = "razorpay-checkout-js";
+
+const facultyCards = [
+  {
+    time: "Wed · 6:00 PM",
+    names: "Shivek & Priyanshi",
+    label: "Intensive 1",
+    image: "/media/faculty-01.jpg",
+  },
+  {
+    time: "Wed · 8:00 PM",
+    names: "Tarun, Dhriti & Divija",
+    label: "Intensive 2",
+    image: "/media/faculty-02.jpg",
+  },
+  {
+    time: "Thu · 6:00 PM",
+    names: "Jahnvi & Rubani",
+    label: "Intensive 3",
+    image: "/media/faculty-03.jpg",
+  },
+  {
+    time: "Thu · 8:00 PM",
+    names: "Manas, Jhilmil & Ayushi",
+    label: "Intensive 4",
+    image: "/media/faculty-04.jpg",
+  },
+];
+
+const legacyImages = [
+  ["/media/legacy-2025.jpg", "Pink'D 2025"],
+  ["/media/legacy-2024.jpg", "Pink'D 2024"],
+  ["/media/legacy-2023.jpg", "Pink'D 2023"],
+  ["/media/legacy-2022.jpg", "Pink'D 2022"],
+  ["/media/legacy-2021.jpg", "Pink'D 2021"],
+];
+
+const galleryImages = Array.from({ length: 12 }, (_, index) => {
+  const number = String(index + 1).padStart(2, "0");
+  return `/media/gallery-${number}.jpg`;
+});
 
 type CashfreeMode = "sandbox" | "production";
 type PaymentProvider = "cashfree" | "razorpay";
@@ -504,6 +545,7 @@ export default function EventLanding() {
   const [pendingSlots, setPendingSlots] = useState<string[]>([]);
   const [isPackageModalOpen, setIsPackageModalOpen] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [showBottomSticker, setShowBottomSticker] = useState(false);
   const [eventOptions, setEventOptions] = useState<EventPackageOption[]>(EVENT_PACKAGE_OPTIONS);
   const [coinPackages, setCoinPackages] = useState<CoinPackage[]>([]);
   const [pricingPhases, setPricingPhases] = useState<EventPricingPhase[]>([]);
@@ -613,6 +655,21 @@ export default function EventLanding() {
 
   useEffect(() => {
     captureLandingAttribution();
+  }, []);
+
+  useEffect(() => {
+    const updateBottomStickerVisibility = () => {
+      setShowBottomSticker(window.scrollY > window.innerHeight * 0.55);
+    };
+
+    updateBottomStickerVisibility();
+    window.addEventListener("scroll", updateBottomStickerVisibility, { passive: true });
+    window.addEventListener("resize", updateBottomStickerVisibility);
+
+    return () => {
+      window.removeEventListener("scroll", updateBottomStickerVisibility);
+      window.removeEventListener("resize", updateBottomStickerVisibility);
+    };
   }, []);
 
   const activePhase = useMemo(() => findCurrentPhase(pricingPhases), [pricingPhases]);
@@ -778,7 +835,7 @@ export default function EventLanding() {
     if (!urgency) return null;
 
     return (
-      <div className="mt-4 rounded-md border border-primary/25 bg-black/35 p-3">
+      <div className="mt-3 rounded-md border border-primary/25 bg-black/35 p-3">
         <div className="flex items-center justify-between gap-3 text-xs font-bold uppercase tracking-wide text-white/58">
           <span>{urgency.phaseName}</span>
           <span>{urgency.remaining} left</span>
@@ -1225,201 +1282,428 @@ export default function EventLanding() {
     }
   };
 
+  const attendeeCount = cartLines.reduce(
+    (sum, line) => sum + Math.max(line.option.pax || 1, 1) * line.quantity,
+    0,
+  );
+  const totalCartItems = cartLines.length + coinLines.length;
+  const firstCartLine = cartLines[0] || null;
+  const cartBannerTitle = totalCartItems === 0
+    ? "Pick a pass"
+    : totalCartItems === 1 && firstCartLine
+      ? firstCartLine.option.name
+      : `${totalCartItems} items selected`;
+  const cartBannerSub = totalCartItems === 0
+    ? "All passes are billed in INR"
+    : `${attendeeCount || cartCount} ${attendeeCount === 1 ? "attendee" : "attendees"}${coinsToReceive ? ` · ${formatCoins(coinsToReceive)}` : ""}`;
+  const phaseSummary = activePhase
+    ? `${activePhase.name} live until ${formatPhaseEnd(activePhase.ends_at)}`
+    : "Live pricing updates from admin controls";
+  const crewTenOption = groupedOptions.group.find((option) => option.id === "ten-pax-four-intensives-party" || option.pax === 10);
+  const crewSixOption = groupedOptions.group.find((option) => option.id === "six-pax-four-intensives-party" || option.pax === 6);
+  const primaryGroupOption = crewTenOption || selectedGroupOption;
+  const secondaryGroupOption = crewSixOption || groupedOptions.group.find((option) => option.id !== primaryGroupOption?.id);
+  const crewCtaLabel = primaryGroupOption?.pax
+    ? `Bring your crew · from ${formatEventPrice(Math.round(primaryGroupOption.priceInr / primaryGroupOption.pax))} per head`
+    : "Bring your crew";
+  const fourIntensivesOption = groupedOptions.intensives.find((option) => option.id === "four-intensives") || fourIntensiveOption;
+  const oneOrTwoIntensiveOptions = groupedOptions.intensives.filter((option) => option.id !== fourIntensivesOption?.id);
+  const individualPassOptions = [
+    fourIntensivesOption,
+    fullPassOption,
+    partyOption,
+    ...oneOrTwoIntensiveOptions,
+  ].filter((option, index, options): option is EventPackageOption =>
+    Boolean(option) && options.findIndex((candidate) => candidate?.id === option.id) === index,
+  );
+
   return (
-    <main className="min-h-screen bg-[#050307] pb-24 text-white">
-      <section className="border-b border-white/10">
-        <div className="mx-auto max-w-7xl px-5 py-5 sm:px-8 lg:px-10">
-          <nav className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <img src={logoImage} alt="Pink'D" className="h-11 w-auto max-w-[9.5rem] object-contain" />
-            </div>
-            <Button
-              asChild
+    <main className="pinkd-handoff-page">
+      <nav className="nav">
+        <div className="wrap">
+          <a href="#top" className="nav-logo" aria-label="Pink'D home">
+            <img src={hashtagLogoImage} alt="Hashtag For Dance" />
+          </a>
+          <div className="nav-links">
+            <a href="#schedule">Schedule</a>
+            <a href="#faculty">Faculty</a>
+            <a href="#cause">The Cause</a>
+            <a href="#passes">Passes</a>
+            <a href="#faq">FAQ</a>
+          </div>
+          <div className="nav-actions">
+            <Link to="/dashboard" className="dash-link">Dashboard</Link>
+            <button
               type="button"
-              variant="ghost"
-              className="hidden text-white/70 hover:bg-white/10 hover:text-white sm:inline-flex"
-            >
-              <Link to="/dashboard">Dashboard</Link>
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
               onClick={() => setIsCartOpen(true)}
-              className="border-white/15 bg-white/[0.06] text-white hover:bg-white/10 hover:text-white"
+              className={`nav-cart ${cartCount > 0 ? "has" : ""}`}
             >
-              <ShoppingBag className="mr-2 h-4 w-4 text-primary" />
+              <ShoppingBag className="h-4 w-4" />
               Cart
-              {cartCount > 0 ? <span className="ml-2 text-primary">{cartCount}</span> : null}
-            </Button>
-          </nav>
+              <span className="count">{cartCount}</span>
+            </button>
+          </div>
+        </div>
+      </nav>
 
-          <div className="grid gap-8 py-8 lg:grid-cols-[1fr_24rem] lg:items-end lg:py-12">
-            <div>
-              <Badge className="mb-5 border border-primary/35 bg-primary/15 text-white hover:bg-primary/20">
-                <Ticket className="mr-2 h-3.5 w-3.5" />
-                {eventDateLabel}
-              </Badge>
-              <h1 className="max-w-3xl text-5xl font-black leading-none sm:text-7xl lg:text-8xl">
-                PINK'D
-                <span className="block text-primary">EVENT PASSES</span>
-              </h1>
-              <div className="mt-5 flex flex-wrap gap-2 text-sm font-bold uppercase text-white/78">
-                <span className="inline-flex items-center rounded-md border border-white/12 bg-white/[0.06] px-3 py-2">
-                  <CalendarDays className="mr-2 h-4 w-4 text-primary" />
-                  11 September
-                </span>
-                <a
-                  href={eventDirectionsUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center rounded-md border border-white/12 bg-white/[0.06] px-3 py-2 transition hover:border-primary/45 hover:text-primary"
-                >
-                  <MapPin className="mr-2 h-4 w-4 text-primary" />
-                  {eventVenueLabel}
-                </a>
-              </div>
-              {activePhase ? (
-                <div className="mt-4 inline-flex max-w-full items-center rounded-lg border border-primary/35 bg-primary/12 px-4 py-3 text-sm font-bold text-white">
-                  <Sparkles className="mr-2 h-4 w-4 shrink-0 text-primary" />
-                  <span className="truncate">
-                    {activePhase.name} live until {formatPhaseEnd(activePhase.ends_at)}
-                  </span>
-                </div>
-              ) : null}
-              <p className="mt-5 max-w-2xl text-base leading-7 text-white/68 sm:text-lg">
-                Pick passes, add Pink'D Coins for games at the party, and pay in INR. Event bookings stay separate from NFC wallet balances.
-              </p>
-              <div className="mt-6 flex flex-wrap gap-2 text-xs font-black uppercase tracking-wide">
-                <a href="#party" className="rounded-md border border-white/12 px-3 py-2 text-white/74 transition hover:border-primary/45 hover:text-primary">Party</a>
-                <a href="#full-pass" className="rounded-md border border-primary/45 bg-primary/12 px-3 py-2 text-white transition hover:bg-primary/20">Full Pass</a>
-                <a href="#intensives" className="rounded-md border border-white/12 px-3 py-2 text-white/74 transition hover:border-primary/45 hover:text-primary">Intensives</a>
-                <a href="#groups" className="rounded-md border border-white/12 px-3 py-2 text-white/74 transition hover:border-primary/45 hover:text-primary">Groups</a>
-                <a href="#faq" className="rounded-md border border-white/12 px-3 py-2 text-white/74 transition hover:border-primary/45 hover:text-primary">FAQ</a>
-              </div>
+      <header className="hero" id="top">
+        <div className="hero-media">
+          <video src={heroVideo} poster={heroPoster} autoPlay muted loop playsInline aria-hidden="true" />
+        </div>
+        <div className="hero-glow a" />
+        <div className="hero-glow b" />
+        <div className="hero-grain" />
+        <div className="wrap">
+          <div>
+            <span className="kicker kicker-hero">A <em>FUN'draiser</em> by Hashtag For Dance · 7 years of Pink'D</span>
+            <img className="hero-logo" src={logoImage} alt="PINK'D" />
+            <h1>Two nights of <em>intensives.</em><br />One night that <em>doesn't end.</em></h1>
+            <div className="meta">
+              <span><i />9 - 11 September 2026</span>
+              <span><i />Rajouri Garden & Gurugram</span>
+              <span><i />4 intensives · 1 all-night party</span>
+              <span><i />Party is 18+</span>
             </div>
+            {activePhase ? <div className="phase-pill">{phaseSummary}</div> : null}
+            <div className="hero-cta">
+              <a className="btn btn-pink" href="#passes">Book your pass</a>
+              <a className="btn btn-ghost" href="#crew">{crewCtaLabel}</a>
+            </div>
+            <div className="cause-pill-wrap">
+              <span className="cause-pill">
+                <Sparkles className="h-4 w-4" />
+                <span>Every rupee after costs goes to <b>dance scholarships</b></span>
+              </span>
+            </div>
+          </div>
 
-            {fullPassOption ? (
-              <div id="full-pass" className="rounded-lg border border-primary/45 bg-primary/12 p-5 shadow-[0_0_42px_rgba(255,0,127,0.18)]">
-                <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wide text-primary">
-                  <Sparkles className="h-4 w-4" />
-                  Best value
+          <aside className="hero-side">
+            {primaryGroupOption ? (
+              <div className="hero-card crew">
+                <span className="kicker">Crew of {primaryGroupOption.pax || 10} · Best value</span>
+                <div className="big">
+                  {formatEventPrice(primaryGroupOption.priceInr)}
+                  {primaryGroupOption.pax ? <small>{formatEventPrice(Math.round(primaryGroupOption.priceInr / primaryGroupOption.pax))} per head</small> : null}
                 </div>
-                <div className="mt-3 text-2xl font-black">{fullPassOption.name}</div>
-                <p className="mt-2 text-sm leading-6 text-white/68">{fullPassOption.description}</p>
-                {renderUrgencyMeter(fullPassOption.id)}
-                <div className="mt-5 flex items-end justify-between gap-3">
-                  <div>
-                    <div className="text-4xl font-black text-primary">{formatEventPrice(fullPassOption.priceInr)}</div>
-                    {fullPassSavings > 0 ? (
-                      <div className="mt-1 text-sm text-white/62">
-                        Save {formatEventPrice(fullPassSavings)} vs buying separately
-                      </div>
-                    ) : null}
-                  </div>
-                  <Button type="button" onClick={() => openPackageModal(fullPassOption)} className="bg-primary text-black hover:bg-primary/90">
-                    Book Now
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
+                <p>{primaryGroupOption.description}</p>
+                {renderUrgencyMeter(primaryGroupOption.id)}
+                <div className="row">
+                  <span className="save">Seats held together</span>
+                  <button type="button" className="btn btn-pink btn-sm" onClick={() => openPackageModal(primaryGroupOption)}>
+                    Book crew
+                  </button>
                 </div>
               </div>
             ) : null}
+            {partyOption ? (
+              <div className="hero-card">
+                <span className="kicker">Party · {activePhase ? `${activePhase.name} live` : "Live pricing"}</span>
+                <div className="big">
+                  {formatEventPrice(partyOption.priceInr)}
+                  <small>{activePhase ? activePhase.name : "admin price"}</small>
+                </div>
+                <p>Welcome drink, wristband, and games powered by Pink'D Coins.</p>
+                {renderUrgencyMeter(partyOption.id)}
+                <div className="row">
+                  <span className="live-line"><i className="live-dot" />Live capacity</span>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => openPackageModal(partyOption)}>
+                    Add party
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </aside>
+        </div>
+      </header>
+
+      <div className="stats">
+        <div className="wrap">
+          {[
+            ["7 years", "of Pink'D · Hashtag's anniversary"],
+            ["600+", "Dancers expected across 3 days"],
+            ["120 seats", "Hard cap per intensive"],
+            ["4 faculty teams", "10 instructors, 4 sessions"],
+          ].map(([value, label]) => (
+            <div className="stat" key={value}>
+              <b>{value.includes("+") ? <span>{value}</span> : value}</b>
+              <small>{label}</small>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <section id="schedule">
+        <div className="wrap">
+          <div className="sec-head">
+            <span className="kicker">The three days · 7th anniversary edition</span>
+            <h2>Two days to elevate. One night to celebrate.</h2>
+            <p className="lead">
+              Two evenings of intensives at the Hashtag Rajouri Garden studio, then the floor heads to Glass Villa in Gurugram.
+            </p>
+          </div>
+          <div className="days">
+            {[
+              {
+                date: "09",
+                day: "Wednesday",
+                title: "September",
+                images: ["/media/faculty-01.jpg", "/media/faculty-02.jpg"],
+                slots: [
+                  ["6:00 - 7:30 PM", "Intensive 1", "Shivek & Priyanshi"],
+                  ["8:00 - 9:30 PM", "Intensive 2", "Tarun, Dhriti & Divija"],
+                ],
+                venue: "Hashtag studio, Rajouri Garden · Styles announced closer to the date",
+              },
+              {
+                date: "10",
+                day: "Thursday",
+                title: "September",
+                images: ["/media/faculty-03.jpg", "/media/faculty-04.jpg"],
+                slots: [
+                  ["6:00 - 7:30 PM", "Intensive 3", "Jahnvi & Rubani"],
+                  ["8:00 - 9:30 PM", "Intensive 4", "Manas, Jhilmil & Ayushi"],
+                ],
+                venue: "Hashtag studio, Rajouri Garden · 120 seats per session",
+              },
+              {
+                date: "11",
+                day: "Friday",
+                title: "The Pink'D party",
+                slots: [["9 PM - Late", "All-night party at Glass Villa", "DJ · Karaoke · Pool · Welcome drink + games"]],
+                venue: "Glass Villa, Sector 58, Baliawas, Gurugram · Entry includes wristband",
+                party: true,
+              },
+            ].map((day) => (
+              <article
+                className={`day ${day.party ? "party" : ""}`}
+                key={day.date}
+                style={day.party ? { backgroundImage: `linear-gradient(180deg,rgba(42,18,38,.55),rgba(27,20,32,.96) 70%),url(${partyCardImage})` } : undefined}
+              >
+                {!day.party ? (
+                  <div className="day-bg">
+                    {day.images?.map((image) => <img src={image} alt="" key={image} />)}
+                  </div>
+                ) : null}
+                <div className="day-date">
+                  <b>{day.date}</b>
+                  <div>{day.day}<em>{day.title}</em></div>
+                </div>
+                <div className="slots">
+                  {day.slots.map(([time, title, faculty]) => (
+                    <div className="slot" key={`${day.date}-${time}`}>
+                      <time>{time}</time>
+                      <div>
+                        <b>{title}</b>
+                        <small>{faculty}</small>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {day.party ? (
+                  <div className="tags">
+                    {["DJ set", "Karaoke", "4 free games", "Pink'D Coins", "18+ · ID at gate"].map((tag) => (
+                      <span className="tag" key={tag}>{tag}</span>
+                    ))}
+                  </div>
+                ) : null}
+                <div className="venue">
+                  <MapPin className="h-4 w-4" />
+                  <span>{day.venue}</span>
+                </div>
+              </article>
+            ))}
           </div>
         </div>
       </section>
 
-      <section id="book" className="mx-auto max-w-7xl px-5 py-8 sm:px-8 lg:px-10">
-        <div className="space-y-8">
-          {packagesLoading ? (
-            <div className="rounded-lg border border-white/10 bg-white/[0.04] p-4 text-sm text-white/58">
-              Loading available packages...
-            </div>
-          ) : null}
-          {selectedGroupOption ? (
-            <div id="groups" className="rounded-lg border border-white/12 bg-white/[0.04] p-4 sm:p-5">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-                <div>
-                  <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wide text-primary">
-                    <Users className="h-4 w-4" />
-                    Group deal picker
-                  </div>
-                  <h2 className="mt-2 text-2xl font-black">Bring the whole crew</h2>
-                  <p className="mt-2 max-w-2xl text-sm leading-6 text-white/62">
-                    Choose a group pass and see the total, per-person price, and value before adding it to cart.
-                  </p>
+      <section className="faculty" id="faculty">
+        <div className="wrap">
+          <div className="sec-head">
+            <span className="kicker">Faculty</span>
+            <h2>Four rooms. Ten teachers.</h2>
+            <p className="lead">
+              Every session is co-led by Hashtag company members. Your selected slots are stored with the booking.
+            </p>
+          </div>
+          <div className="fac-grid">
+            {facultyCards.map(({ time, names, label, image }) => (
+              <a className="fac" href="#passes" key={label}>
+                <img src={image} alt={names} />
+                <div className="info">
+                  <span className="kicker">{time}</span>
+                  <b>{names}</b>
+                  <small>{label}</small>
                 </div>
-                <div className="grid gap-2 sm:grid-cols-2 lg:w-[28rem]">
-                  {groupedOptions.group.map((option) => (
-                    <button
-                      key={option.id}
-                      type="button"
-                      onClick={() => setSelectedGroupPackageId(option.id)}
-                      className={`rounded-lg border p-3 text-left transition ${
-                        selectedGroupOption.id === option.id
-                          ? "border-primary bg-primary/15 text-white"
-                          : "border-white/12 bg-black/30 text-white/70 hover:border-primary/45"
-                      }`}
-                    >
-                      <div className="text-sm font-black">{option.pax} Pax</div>
-                      <div className="mt-1 text-xs">{formatEventPrice(option.priceInr)}</div>
+              </a>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="cause" id="cause">
+        <div className="wrap">
+          <div>
+            <span className="kicker">#DanceForACause</span>
+            <blockquote>Dancers shouldn't perform for free. <em>Pink'D exists so the next ones don't have to.</em></blockquote>
+            <p className="lead">
+              Seven years of Pink'D have helped fund scholarships at Hashtag. Your pass is the fee. The party is the thank-you.
+            </p>
+            <div className="facts">
+              {[
+                ["10%", "of every ticket goes straight into the scholarship fund"],
+                ["5 forms", "each scholarship student trains across five dance forms"],
+                ["~₹50K", "is what one month of full training for one student costs"],
+              ].map(([value, label]) => (
+                <div className="fact" key={value}>
+                  <b>{value}</b>
+                  <span>{label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="years">
+            {legacyImages.map(([image, label]) => (
+              <div className="year" key={image}>
+                <img src={image} alt={label} />
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="gallery" id="gallery">
+        <div className="wrap sec-head">
+          <span className="kicker">Last edition · September 2025</span>
+          <h2>This is what your pass looks like at midnight.</h2>
+        </div>
+        <div className="marquee" aria-hidden="true">
+          <div className="track">
+            {[...galleryImages, ...galleryImages].map((image, index) => (
+              <img src={image} alt="" key={`${image}-${index}`} loading="lazy" />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="pricing" id="passes">
+        <div className="wrap">
+          <div className="sec-head">
+            <span className="kicker">Passes</span>
+            <h2>Come alone. Or come as a crew and pay less.</h2>
+            <p className="lead">
+              Prices, phases, and availability stay live from the admin dashboard, so this page and checkout never disagree.
+            </p>
+          </div>
+
+          {packagesLoading ? <div className="loading-card">Loading available packages...</div> : null}
+
+          <div className="crew-grid" id="crew">
+            {primaryGroupOption ? (
+              <article className="crewcard">
+                <span className="ribbon">Best value · Crew of {primaryGroupOption.pax || 10}</span>
+                <div className="crew-in">
+                  <div>
+                    <h3>{primaryGroupOption.name}</h3>
+                    <div className="sub">{primaryGroupOption.description}</div>
+                  </div>
+                  <div className="price-row">
+                    <div className="price">{formatEventPrice(primaryGroupOption.priceInr)}</div>
+                    {primaryGroupOption.pax ? (
+                      <div className="perhead">
+                        <b>{formatEventPrice(Math.round(primaryGroupOption.priceInr / primaryGroupOption.pax))} per head</b>
+                        <small>vs solo full pass</small>
+                      </div>
+                    ) : null}
+                  </div>
+                  <span className="save">Seats held together across all four sessions</span>
+                  <ul className="incl">
+                    <li><CheckCircle2 />All four intensives for the full crew</li>
+                    <li><CheckCircle2 />Party entry, wristbands, and welcome drinks</li>
+                    <li><CheckCircle2 />Price saved to the order by the backend at checkout</li>
+                  </ul>
+                  {renderUrgencyMeter(primaryGroupOption.id)}
+                  <div className="crew-actions">
+                    <button type="button" className="btn btn-pink" onClick={() => openPackageModal(primaryGroupOption)}>
+                      Book crew · {formatEventPrice(primaryGroupOption.priceInr)}
                     </button>
-                  ))}
-                </div>
-              </div>
-              <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                <div className="rounded-lg border border-white/10 bg-black/35 p-3">
-                  <div className="text-xs uppercase text-white/45">Total</div>
-                  <div className="mt-1 text-xl font-black text-primary">{formatEventPrice(selectedGroupOption.priceInr)}</div>
-                </div>
-                <div className="rounded-lg border border-white/10 bg-black/35 p-3">
-                  <div className="text-xs uppercase text-white/45">Per person</div>
-                  <div className="mt-1 text-xl font-black">
-                    {formatEventPrice(Math.round(selectedGroupOption.priceInr / Math.max(selectedGroupOption.pax || 1, 1)))}
                   </div>
                 </div>
-                <Button
-                  type="button"
-                  onClick={() => openPackageModal(selectedGroupOption)}
-                  className="h-full min-h-16 bg-primary text-base font-black text-black hover:bg-primary/90"
-                >
-                  Add Group Pass
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-              </div>
-              {renderUrgencyMeter(selectedGroupOption.id)}
-            </div>
-          ) : null}
-          {(Object.keys(groupedOptions) as Array<keyof typeof groupedOptions>).map((category) => (
-            <div key={category} id={getCategoryAnchor(category)} className="scroll-mt-24 space-y-3">
-              <h2 className="text-sm font-bold uppercase tracking-[0.16em] text-white/58">{EVENT_CATEGORY_LABELS[category]}</h2>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {groupedOptions[category].map((option) => (
-                  <article
-                    key={option.id}
-                    className={`rounded-lg border p-4 transition hover:-translate-y-0.5 hover:border-primary/65 ${getCategoryTone(option.category)}`}
-                  >
-                    <div className="flex min-h-20 items-start justify-between gap-3">
-                      <div>
-                        <div className="font-bold">{option.name}</div>
-                        <p className="mt-1 text-sm leading-5 text-white/58">{option.description}</p>
+              </article>
+            ) : null}
+
+            {secondaryGroupOption ? (
+              <article className="crewcard secondary">
+                <span className="ribbon gold">Crew of {secondaryGroupOption.pax || 6}</span>
+                <div className="crew-in">
+                  <div>
+                    <h3>{secondaryGroupOption.name}</h3>
+                    <div className="sub">{secondaryGroupOption.description}</div>
+                  </div>
+                  <div className="price-row">
+                    <div className="price">{formatEventPrice(secondaryGroupOption.priceInr)}</div>
+                    {secondaryGroupOption.pax ? (
+                      <div className="perhead">
+                        <b>{formatEventPrice(Math.round(secondaryGroupOption.priceInr / secondaryGroupOption.pax))} per head</b>
+                        <small>flat group price</small>
                       </div>
-                      {option.featured ? <Sparkles className="h-4 w-4 shrink-0 text-amber-300" /> : null}
-                    </div>
-                    <div className="mt-5 flex items-end justify-between gap-3">
-                      <div>
-                        <div className="text-2xl font-black text-primary">{formatEventPrice(option.priceInr)}</div>
-                        {option.pax ? <div className="mt-1 text-xs text-white/50">{option.pax} pax</div> : null}
-                      </div>
-                      <Button type="button" onClick={() => openPackageModal(option)} className="bg-primary text-black hover:bg-primary/90">
-                        <Plus className="mr-2 h-4 w-4" />
-                        Add to Cart
-                      </Button>
+                    ) : null}
+                  </div>
+                  <ul className="incl">
+                    <li><CheckCircle2 />All four intensives for the full crew</li>
+                    <li><CheckCircle2 />Party entry and wristbands included</li>
+                    <li><CheckCircle2 />Phase-proof checkout total</li>
+                  </ul>
+                  {renderUrgencyMeter(secondaryGroupOption.id)}
+                  <div className="crew-actions">
+                    <button type="button" className="btn btn-pink" onClick={() => openPackageModal(secondaryGroupOption)}>
+                      Book crew · {formatEventPrice(secondaryGroupOption.priceInr)}
+                    </button>
+                  </div>
+                </div>
+              </article>
+            ) : null}
+          </div>
+
+          <p className="custom">
+            Event revenue is INR only. Pink'D Coins can be added in cart for games at the party.
+          </p>
+
+          <div className="divider">Individual passes</div>
+          <div className="solo-grid">
+            {individualPassOptions.map((option) => (
+              <article className={`solo ${option.featured ? "rec" : ""}`} key={option.id}>
+                {option.featured ? <span className="ribbon">Most popular</span> : null}
+                <div>
+                  <h3>{option.name}</h3>
+                  <div className="sub">{option.description}</div>
+                </div>
+                <div className="price">{formatEventPrice(option.priceInr)}</div>
+                <ul className="incl">
+                  {option.category === "party" || option.category === "package" ? <li><CheckCircle2 />Party entry and wristband included</li> : null}
+                  <li><CheckCircle2 />Stored as a full cart order in Supabase</li>
+                </ul>
+                {option.category === "party" ? (
+                  <div className="phase">
+                    <div className="row">
+                      <span>{activePhase ? activePhase.name : "Live phase"}</span>
+                      <b>{formatEventPrice(option.priceInr)}</b>
                     </div>
                     {renderUrgencyMeter(option.id)}
-                  </article>
-                ))}
-              </div>
-            </div>
-          ))}
+                  </div>
+                ) : renderUrgencyMeter(option.id)}
+                <button type="button" className={`btn ${option.featured ? "btn-pink" : "btn-ghost"}`} onClick={() => openPackageModal(option)}>
+                  Add to cart
+                </button>
+              </article>
+            ))}
+          </div>
+
+          <div className="trust">
+            <span><ShieldCheck />Secure payment via {getGatewayLabel(paymentProvider)}</span>
+            <span><Mail />Confirmation email after payment</span>
+            <span><Coins />Pink'D Coins available in cart</span>
+            <span><CreditCard />Event orders are INR only</span>
+          </div>
         </div>
       </section>
 
@@ -1611,16 +1895,6 @@ export default function EventLanding() {
                         <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
-
-                    {line.selectedTimeSlots.length > 0 ? (
-                      <div className="mt-3 space-y-1">
-                        {line.selectedTimeSlots.map((slot) => (
-                          <div key={slot} className="rounded-md bg-white/[0.05] px-2 py-1 text-xs text-white/70">
-                            {slot}
-                          </div>
-                        ))}
-                      </div>
-                    ) : null}
 
                     <div className="mt-3 flex items-center justify-between gap-3">
                       <div className="flex h-9 items-center rounded-md border border-white/12 bg-black/35">
@@ -1892,41 +2166,81 @@ export default function EventLanding() {
         </div>
       ) : null}
 
-      <section id="faq" className="mx-auto max-w-7xl scroll-mt-24 px-5 pb-8 sm:px-8 lg:px-10">
-        <div className="grid gap-3 sm:grid-cols-3">
-          <div className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
-            <div className="font-black uppercase">Venue</div>
-            <p className="mt-2 text-sm leading-6 text-white/62">
-              {eventVenueLabel}. Use the directions link for navigation.
+      <section className="faq" id="faq">
+        <div className="wrap">
+          <div>
+            <span className="kicker">Before you book</span>
+            <h2>Questions crews ask us.</h2>
+            <p className="lead">
+              Anything else, reach the team through the policy/contact page. Payment status updates after gateway verification.
             </p>
+            <button type="button" className="btn btn-ghost" onClick={() => setIsCartOpen(true)}>
+              Review cart
+            </button>
           </div>
-          <div className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
-            <div className="font-black uppercase">Payments</div>
-            <p className="mt-2 text-sm leading-6 text-white/62">
-              Prices are listed in INR. Bookings confirm only after the payment gateway verifies success.
-            </p>
-          </div>
-          <div className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
-            <div className="font-black uppercase">Entry</div>
-            <p className="mt-2 text-sm leading-6 text-white/62">
-              18+ only. Carry a valid ID. All bookings are non-refundable.
-            </p>
+          <div className="acc">
+          {[
+            [
+              "How does a group booking work?",
+              "One person pays for the crew in a single checkout. The order stores the package, quantity, selected time slots, customer details, and payment status for admin reporting.",
+            ],
+            [
+              "What's included in party entry?",
+              "Entry to Glass Villa on Friday 11 September, your Pink'D wristband, and a welcome drink. Pink'D Coins can be bought in the same cart for games at the party.",
+            ],
+            [
+              "Why can prices change?",
+              "Admins control Early Bird, Phase 1, and Last Call prices from the dashboard. The active phase price is frozen on the order when checkout is created.",
+            ],
+            [
+              "Do I pick my intensive sessions?",
+              "Yes for 1- and 2-intensive passes. Full intensive, full pass, and group packages automatically include all four slots.",
+            ],
+            [
+              "Is there an age limit?",
+              "The intensives are open to all. The party is 18+ with valid ID checked at the gate.",
+            ],
+            [
+              "Can I get a refund or transfer my ticket?",
+              "All bookings are non-refundable and non-transferable. Please double-check dates, package, and attendee plan before payment.",
+            ],
+          ].map(([question, answer], index) => (
+            <details key={question} open={index === 0}>
+              <summary>{question}</summary>
+              <p>{answer}</p>
+            </details>
+          ))}
           </div>
         </div>
       </section>
 
-      <footer className="border-t border-white/10 bg-black/30">
-        <div className="mx-auto grid max-w-7xl gap-5 px-5 py-7 text-sm text-white/58 sm:px-8 lg:grid-cols-[1.2fr_1fr] lg:px-10">
-          <div>
-            <div className="font-bold text-white">Pink'D event bookings</div>
-            <p className="mt-2 max-w-2xl leading-6">
-              Products and services are listed on this page with pricing in INR. Event passes, party entries, group bookings, and Pink'D Coin packs are billed in INR and remain separate from the NFC wallet ledger.
+      <section className="final">
+        <div className="wrap">
+          <div className="box">
+            <span className="kicker">9 - 11 September · Rajouri Garden & Gurugram</span>
+            <h2>Round up your people.</h2>
+            <p className="lead">
+              Four intensives, one all-night party, and a dancer somewhere gets to train because you showed up.
             </p>
+            <div className="hero-cta">
+            {primaryGroupOption ? (
+              <button type="button" className="btn btn-pink" onClick={() => openPackageModal(primaryGroupOption)}>
+                Book crew · {formatEventPrice(primaryGroupOption.priceInr)}
+              </button>
+            ) : null}
+              <a className="btn btn-ghost" href="#passes">See all passes</a>
+            </div>
           </div>
-          <nav className="flex flex-wrap items-center gap-x-5 gap-y-2 lg:justify-end" aria-label="Policy links">
-            <Link className="transition hover:text-primary" to="/contact-us">Contact Us</Link>
-            <Link className="transition hover:text-primary" to="/terms-and-conditions">Terms & Conditions</Link>
-            <Link className="transition hover:text-primary" to="/refunds-cancellations">Refunds & Cancellations</Link>
+        </div>
+      </section>
+
+      <footer>
+        <div className="wrap">
+          <span>Pink'D · A <b>FUN'draiser</b> by Hashtag For Dance · 7 years of Pink'D · 2026</span>
+          <nav aria-label="Policy links">
+            <Link to="/contact-us">Contact Us</Link>
+            <Link to="/terms-and-conditions">Terms & Conditions</Link>
+            <Link to="/refunds-cancellations">Refunds & Cancellations</Link>
           </nav>
         </div>
       </footer>
@@ -1939,16 +2253,17 @@ export default function EventLanding() {
             return;
           }
 
-          document.getElementById("book")?.scrollIntoView({ behavior: "smooth", block: "start" });
+          document.getElementById("passes")?.scrollIntoView({ behavior: "smooth", block: "start" });
         }}
-        className="fixed inset-x-3 bottom-3 z-40 flex items-center justify-between rounded-lg border border-primary/35 bg-black/90 px-4 py-3 shadow-2xl backdrop-blur sm:left-auto sm:w-80"
+        className={`sticky-cta ${showBottomSticker ? "show" : ""}`}
       >
-        <span className="flex items-center gap-2 font-bold">
-          <ShoppingBag className="h-4 w-4 text-primary" />
-          BOOK NOW
-          {cartCount > 0 ? <span className="text-primary">({cartCount})</span> : null}
+        <span className="pulse" />
+        <span className="t">
+          <b>{cartBannerTitle}</b>
+          <small>{cartBannerSub}</small>
         </span>
-        <span className="font-black text-primary">{formatEventPrice(grandTotal)}</span>
+        <span className="total">{formatEventPrice(grandTotal)}</span>
+        <span className="btn btn-pink btn-sm">Checkout</span>
       </button>
     </main>
   );

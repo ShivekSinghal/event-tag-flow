@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, Session } from '@supabase/supabase-js';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import type { AuthError, User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -18,8 +18,8 @@ interface AuthContextType {
   profileLoading: boolean;
   profileError: string | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: any }>;
-  signUp: (email: string, password: string, fullName?: string) => Promise<{ error: any }>;
+  signIn: (email: string, password: string) => Promise<{ error: AuthError | Error | null }>;
+  signUp: (email: string, password: string, fullName?: string) => Promise<{ error: AuthError | Error | null }>;
   signOut: () => Promise<void>;
   isAdmin: boolean;
   isStaff: boolean;
@@ -28,6 +28,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
@@ -44,10 +45,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [profileError, setProfileError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const profileRequestIdRef = useRef(0);
+  const mountedRef = useRef(true);
 
-  const fetchProfile = async (userId: string) => {
+  const resetProfileState = useCallback(() => {
+    profileRequestIdRef.current += 1;
+    setProfile(null);
+    setProfileLoading(false);
+    setProfileError(null);
+  }, []);
+
+  const fetchProfile = useCallback(async (userId: string) => {
+    const requestId = profileRequestIdRef.current + 1;
+    profileRequestIdRef.current = requestId;
     setProfileLoading(true);
     setProfileError(null);
+
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -56,23 +69,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .single();
 
       if (error) {
+        if (!mountedRef.current || profileRequestIdRef.current !== requestId) return;
         console.error('Error fetching profile:', error);
         setProfile(null);
         setProfileError(error.message || 'Could not load your access profile');
         return;
       }
 
+      if (!mountedRef.current || profileRequestIdRef.current !== requestId) return;
       setProfile(data as Profile);
     } catch (error) {
+      if (!mountedRef.current || profileRequestIdRef.current !== requestId) return;
       console.error('Error fetching profile:', error);
       setProfile(null);
       setProfileError('Could not load your access profile');
     } finally {
-      setProfileLoading(false);
+      if (mountedRef.current && profileRequestIdRef.current === requestId) {
+        setProfileLoading(false);
+      }
     }
-  };
+  }, []);
 
   useEffect(() => {
+    mountedRef.current = true;
+
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
@@ -83,12 +103,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setProfile(null);
           // Defer profile fetching to avoid blocking auth state changes
           setTimeout(() => {
-            fetchProfile(session.user.id);
+            if (mountedRef.current) {
+              fetchProfile(session.user.id);
+            }
           }, 0);
         } else {
-          setProfile(null);
-          setProfileLoading(false);
-          setProfileError(null);
+          resetProfileState();
         }
         
         setLoading(false);
@@ -103,18 +123,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (session?.user) {
         setProfile(null);
         setTimeout(() => {
-          fetchProfile(session.user.id);
+          if (mountedRef.current) {
+            fetchProfile(session.user.id);
+          }
         }, 0);
       } else {
-        setProfileLoading(false);
-        setProfileError(null);
+        resetProfileState();
       }
       
       setLoading(false);
+    }).catch((error: unknown) => {
+      console.error('Error getting auth session:', error);
+      resetProfileState();
+      setSession(null);
+      setUser(null);
+      setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
-  }, []);
+    return () => {
+      mountedRef.current = false;
+      subscription.unsubscribe();
+    };
+  }, [fetchProfile, resetProfileState]);
 
   const signIn = async (email: string, password: string) => {
     try {
@@ -132,13 +162,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       return { error };
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const authError = error instanceof Error ? error : new Error('An unexpected error occurred');
       toast({
         title: "Sign In Failed",
         description: "An unexpected error occurred",
         variant: "destructive",
       });
-      return { error };
+      return { error: authError };
     }
   };
 
@@ -169,13 +200,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       return { error };
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const authError = error instanceof Error ? error : new Error('An unexpected error occurred');
       toast({
         title: "Sign Up Failed",
         description: "An unexpected error occurred",
         variant: "destructive",
       });
-      return { error };
+      return { error: authError };
     }
   };
 
@@ -184,14 +216,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await supabase.auth.signOut();
       setUser(null);
       setSession(null);
-      setProfile(null);
-      setProfileLoading(false);
-      setProfileError(null);
+      resetProfileState();
       toast({
         title: "Signed Out",
         description: "You have been signed out successfully.",
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
+      console.error('Sign out failed:', error);
       toast({
         title: "Sign Out Failed",
         description: "An error occurred while signing out",

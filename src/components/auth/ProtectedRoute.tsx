@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { Gamepad2 } from 'lucide-react';
+import { Gamepad2, RefreshCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface ProtectedRouteProps {
@@ -11,13 +11,52 @@ interface ProtectedRouteProps {
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRole }) => {
   const { user, profile, profileLoading, profileError, loading } = useAuth();
+  const [loadingTimedOut, setLoadingTimedOut] = useState(false);
 
-  if (loading || profileLoading) {
+  const isRouteLoading = loading || profileLoading;
+
+  useEffect(() => {
+    if (!isRouteLoading) {
+      setLoadingTimedOut(false);
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setLoadingTimedOut(true);
+    }, 10000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [isRouteLoading]);
+
+  if (isRouteLoading && !loadingTimedOut) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="flex min-h-screen items-center justify-center bg-[#050307] p-4 text-white">
         <div className="text-center">
           <Gamepad2 className="h-12 w-12 mx-auto mb-4 text-primary animate-pulse" />
-          <p className="text-muted-foreground">Loading...</p>
+          <p className="font-semibold text-white/70">Loading dashboard access...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isRouteLoading && loadingTimedOut) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#050307] p-4 text-white">
+        <div className="max-w-md rounded-2xl border border-white/10 bg-[#111015] p-6 text-center shadow-[0_30px_90px_-40px_rgba(255,0,127,0.85)]">
+          <Gamepad2 className="h-12 w-12 mx-auto mb-4 text-primary" />
+          <h1 className="text-xl font-black">Dashboard access is taking too long</h1>
+          <p className="mt-2 text-sm leading-6 text-white/62">
+            Your session or staff profile did not finish loading. Refresh the page, or log in again from the Pink'D admin login.
+          </p>
+          <div className="mt-5 grid gap-2 sm:grid-cols-2">
+            <Button type="button" onClick={() => window.location.reload()} className="bg-primary font-bold text-black hover:bg-primary/90">
+              <RefreshCcw className="mr-2 h-4 w-4" />
+              Refresh
+            </Button>
+            <Button asChild variant="outline" className="border-white/15 bg-white/[0.04] text-white hover:bg-white/10 hover:text-white">
+              <Link to="/pinkd-login">Go to Login</Link>
+            </Button>
+          </div>
         </div>
       </div>
     );
@@ -29,16 +68,22 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRole 
 
   if (!profile) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <div className="max-w-md rounded-lg border border-border bg-card p-6 text-center shadow-lg">
+      <div className="flex min-h-screen items-center justify-center bg-[#050307] p-4 text-white">
+        <div className="max-w-md rounded-2xl border border-white/10 bg-[#111015] p-6 text-center shadow-[0_30px_90px_-40px_rgba(255,0,127,0.85)]">
           <Gamepad2 className="h-12 w-12 mx-auto mb-4 text-primary" />
-          <h1 className="text-xl font-bold text-foreground">Dashboard access unavailable</h1>
-          <p className="mt-2 text-sm leading-6 text-muted-foreground">
+          <h1 className="text-xl font-black">Dashboard access unavailable</h1>
+          <p className="mt-2 text-sm leading-6 text-white/62">
             {profileError || "Your login worked, but this account does not have a staff/admin profile yet."}
           </p>
-          <Button asChild className="mt-5">
-            <Link to="/pinkd-login">Go to Login</Link>
-          </Button>
+          <div className="mt-5 grid gap-2 sm:grid-cols-2">
+            <Button type="button" onClick={() => window.location.reload()} className="bg-primary font-bold text-black hover:bg-primary/90">
+              <RefreshCcw className="mr-2 h-4 w-4" />
+              Refresh
+            </Button>
+            <Button asChild variant="outline" className="border-white/15 bg-white/[0.04] text-white hover:bg-white/10 hover:text-white">
+              <Link to="/pinkd-login">Go to Login</Link>
+            </Button>
+          </div>
         </div>
       </div>
     );

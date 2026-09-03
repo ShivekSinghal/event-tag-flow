@@ -22,10 +22,12 @@ import {
   Search,
   XCircle,
   CheckCircle,
+  CalendarCheck,
   ChevronDown,
   ChevronUp,
   Download
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -115,6 +117,97 @@ interface DrinksSales {
   created_at: string;
 }
 
+interface WalletRecord {
+  id: string;
+  tag_id: string | null;
+  attendee_name: string | null;
+  attendee_phone: string | null;
+  coin_balance?: number | string | null;
+  balance?: number | string | null;
+  status: string | null;
+  studio?: string | null;
+}
+
+interface WalletJoin {
+  attendee_name?: string | null;
+  coin_balance?: number | string | null;
+  balance?: number | string | null;
+  studio?: string | null;
+}
+
+interface RecentTransactionRow {
+  id: string;
+  type: string;
+  description: string;
+  amount?: number | string | null;
+  inr_amount?: number | string | null;
+  coin_amount?: number | string | null;
+  created_at: string;
+  wallets: WalletJoin | WalletJoin[];
+}
+
+interface StudioTransactionRow {
+  amount?: number | string | null;
+  coin_amount?: number | string | null;
+  wallets: WalletJoin | WalletJoin[];
+}
+
+interface PosTransactionRow {
+  id: string;
+  description: string;
+  amount?: number | string | null;
+  coin_amount?: number | string | null;
+  created_at: string;
+}
+
+interface GameRow {
+  id: string;
+  name: string;
+  studio: string;
+  available: boolean;
+}
+
+interface GameSaleRow {
+  game_id: string;
+  quantity: number;
+  sale_price?: number | string | null;
+  coin_price?: number | string | null;
+  transaction_id?: string | null;
+  games: GameRow | GameRow[];
+}
+
+interface StatConfig {
+  title: string;
+  value: string;
+  change: string;
+  icon: LucideIcon;
+  color: string;
+  clickable?: boolean;
+}
+
+const DASHBOARD_SECTION_TIMEOUT_MS = 12000;
+
+async function runDashboardSection(label: string, operation: () => Promise<void>) {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+  const timeout = new Promise<void>((resolve) => {
+    timeoutId = setTimeout(() => {
+      console.warn(`${label} dashboard section timed out`);
+      resolve();
+    }, DASHBOARD_SECTION_TIMEOUT_MS);
+  });
+
+  try {
+    await Promise.race([operation(), timeout]);
+  } catch (error) {
+    console.error(`${label} dashboard section failed:`, error);
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
+}
+
 export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats>({
     totalWallets: 0,
@@ -144,8 +237,8 @@ export default function Dashboard() {
   // Block Tag functionality state
   const [isBlockTagOpen, setIsBlockTagOpen] = useState(false);
   const [phoneSearchQuery, setPhoneSearchQuery] = useState('');
-  const [foundWallet, setFoundWallet] = useState<any>(null);
-  const [blockedWallets, setBlockedWallets] = useState<any[]>([]);
+  const [foundWallet, setFoundWallet] = useState<WalletRecord | null>(null);
+  const [blockedWallets, setBlockedWallets] = useState<WalletRecord[]>([]);
   
   // Bookings search and expand state
   const [bookingSearchQuery, setBookingSearchQuery] = useState('');
@@ -156,6 +249,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchDashboardData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchDashboardData = async () => {
@@ -190,7 +284,7 @@ export default function Dashboard() {
 
       const totalInrCollected = allTransactions
         ?.filter((tx) => tx.type === 'load' || tx.type === 'coin_purchase')
-        .reduce((sum, tx: any) => sum + Number(tx.inr_amount ?? tx.amount ?? 0), 0) || 0;
+        .reduce((sum, tx) => sum + Number(tx.inr_amount ?? tx.amount ?? 0), 0) || 0;
 
       setStats({
         totalWallets,
@@ -201,68 +295,64 @@ export default function Dashboard() {
         activeTags
       });
 
-      // Fetch recent transactions with wallet data
-      const { data: transactionsData, error: recentTxError } = await supabase
-        .from('transactions')
-        .select(`
-          id,
-          type,
-          description,
-          amount,
-          inr_amount,
-          coin_amount,
-          created_at,
-          wallets!inner(attendee_name, coin_balance, balance)
-        `)
-        .order('created_at', { ascending: false })
-        .limit(5);
+      setIsLoading(false);
 
-      if (recentTxError) throw recentTxError;
+      await Promise.allSettled([
+        runDashboardSection("Recent transactions", async () => {
+          const { data: transactionsData, error: recentTxError } = await supabase
+            .from('transactions')
+            .select(`
+              id,
+              type,
+              description,
+              amount,
+              inr_amount,
+              coin_amount,
+              created_at,
+              wallets!inner(attendee_name, coin_balance, balance)
+            `)
+            .order('created_at', { ascending: false })
+            .limit(5);
 
-      // Transform the data to match our interface
-      const transformedTransactions: Transaction[] = transactionsData?.map(tx => ({
-        id: tx.id,
-        type: tx.type,
-        description: tx.description,
-        coinAmount: getCoinAmount(tx),
-        inrAmount: (tx as any).inr_amount,
-        created_at: tx.created_at,
-        wallet: {
-          attendee_name: (tx.wallets as any).attendee_name,
-          coin_balance: getCoinBalance(tx.wallets as any)
-        }
-      })) || [];
+          if (recentTxError) throw recentTxError;
 
-      setRecentTransactions(transformedTransactions);
+          const transactions = (transactionsData || []) as unknown as RecentTransactionRow[];
+          const transformedTransactions: Transaction[] = transactions.map(tx => {
+            const wallet = Array.isArray(tx.wallets) ? tx.wallets[0] : tx.wallets;
 
-      // Fetch low coin balance wallets.
-      const { data: lowBalanceWallets, error: lowBalanceError } = await supabase
-        .from('wallets')
-        .select('id, tag_id, attendee_name, attendee_phone, coin_balance, balance')
-        .lt('coin_balance', LOW_COIN_BALANCE_THRESHOLD)
-        .eq('status', 'active');
+            return {
+              id: tx.id,
+              type: tx.type,
+              description: tx.description,
+              coinAmount: getCoinAmount(tx),
+              inrAmount: tx.inr_amount ?? null,
+              created_at: tx.created_at,
+              wallet: {
+                attendee_name: wallet?.attendee_name || "Unknown",
+                coin_balance: getCoinBalance(wallet || {})
+              }
+            };
+          });
 
-      if (lowBalanceError) throw lowBalanceError;
+          setRecentTransactions(transformedTransactions);
+        }),
+        runDashboardSection("Low coin balance", async () => {
+          const { data: lowBalanceWallets, error: lowBalanceError } = await supabase
+            .from('wallets')
+            .select('id, tag_id, attendee_name, attendee_phone, coin_balance, balance')
+            .lt('coin_balance', LOW_COIN_BALANCE_THRESHOLD)
+            .eq('status', 'active');
 
-      setLowBalanceAlerts(lowBalanceWallets || []);
-
-      // Fetch studio sales data
-      await fetchStudioSalesData();
-
-      // Fetch game sales data
-      await fetchGameSalesData();
-
-      // Fetch food sales data
-      await fetchFoodSalesData();
-
-      // Fetch drinks sales data
-      await fetchDrinksSalesData();
-
-      // Fetch blocked wallets
-      await fetchBlockedWallets();
-
-      // Fetch bookings
-      await fetchBookings();
+          if (lowBalanceError) throw lowBalanceError;
+          setLowBalanceAlerts(lowBalanceWallets || []);
+        }),
+        runDashboardSection("Studio sales", fetchStudioSalesData),
+        runDashboardSection("Game sales", fetchGameSalesData),
+        runDashboardSection("Food sales", fetchFoodSalesData),
+        runDashboardSection("Drinks sales", fetchDrinksSalesData),
+        runDashboardSection("Blocked wallets", fetchBlockedWallets),
+        runDashboardSection("Bookings", fetchBookings),
+      ]);
 
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
@@ -294,8 +384,10 @@ export default function Dashboard() {
       // Group sales by studio
       const studioSalesMap = new Map<string, { totalCoinsSpent: number; transactionCount: number }>();
       
-      salesData?.forEach((transaction: any) => {
-        const studio = transaction.wallets.studio;
+      const transactions = (salesData || []) as unknown as StudioTransactionRow[];
+      transactions.forEach((transaction) => {
+        const wallet = Array.isArray(transaction.wallets) ? transaction.wallets[0] : transaction.wallets;
+        const studio = wallet?.studio || "Unknown";
         const coinAmount = Math.abs(getCoinAmount(transaction));
         
         if (studioSalesMap.has(studio)) {
@@ -343,7 +435,7 @@ export default function Dashboard() {
       if (error) throw error;
 
       // Transform to FoodSales format
-      const foodSalesData: FoodSales[] = foodTransactions?.map((tx: any) => ({
+      const foodSalesData: FoodSales[] = ((foodTransactions || []) as unknown as PosTransactionRow[]).map((tx) => ({
         id: tx.id,
         itemName: tx.description.replace(/^(Food Purchase: |POS Purchase: )/, ''),
         coinAmount: Math.abs(getCoinAmount(tx)),
@@ -373,7 +465,7 @@ export default function Dashboard() {
       if (error) throw error;
 
       // Transform to DrinksSales format
-      const drinksSalesData: DrinksSales[] = drinksTransactions?.map((tx: any) => ({
+      const drinksSalesData: DrinksSales[] = ((drinksTransactions || []) as unknown as PosTransactionRow[]).map((tx) => ({
         id: tx.id,
         itemName: tx.description.replace(/^(Drinks Purchase: |POS Purchase: )/, ''),
         coinAmount: Math.abs(getCoinAmount(tx)),
@@ -427,6 +519,10 @@ export default function Dashboard() {
 
       if (txError) throw txError;
 
+      const games = (allGames || []) as unknown as GameRow[];
+      const sales = (salesData || []) as unknown as GameSaleRow[];
+      const transactions = (gameTransactions || []) as unknown as PosTransactionRow[];
+
       // Group sales by game, deduplicating by transaction_id
       const gameSalesMap = new Map<string, { 
         game_name: string; 
@@ -438,11 +534,12 @@ export default function Dashboard() {
       }>();
       
       // Process game_sales entries, avoiding duplicates by transaction_id
-      salesData?.forEach((sale: any) => {
+      sales.forEach((sale) => {
+        const game = Array.isArray(sale.games) ? sale.games[0] : sale.games;
         const gameId = sale.game_id;
-        const gameName = sale.games.name;
-        const studio = sale.games.studio;
-        const available = sale.games.available;
+        const gameName = game.name;
+        const studio = game.studio;
+        const available = game.available;
         const quantity = sale.quantity;
         const coinsSpent = toIntegerCoins(sale.coin_price ?? sale.sale_price);
         const transactionId = sale.transaction_id;
@@ -479,7 +576,7 @@ export default function Dashboard() {
       });
 
       // Process game transactions that weren't already counted in game_sales
-      gameTransactions?.forEach((tx: any) => {
+      transactions.forEach((tx) => {
         // Skip if this transaction was already processed in game_sales
         if (processedTransactionIds.has(tx.id)) {
           return;
@@ -490,7 +587,7 @@ export default function Dashboard() {
         const coinsSpent = Math.abs(getCoinAmount(tx));
         
         // Find matching game in database
-        const gameInDb = allGames?.find(g => g.name.toLowerCase() === gameName.toLowerCase());
+        const gameInDb = games.find(g => g.name.toLowerCase() === gameName.toLowerCase());
         
         if (gameInDb) {
           if (!gameSalesMap.has(gameInDb.id)) {
@@ -512,7 +609,7 @@ export default function Dashboard() {
       });
 
       // Add games that haven't been sold yet
-      allGames?.forEach((game: any) => {
+      games.forEach((game) => {
         if (!gameSalesMap.has(game.id)) {
           gameSalesMap.set(game.id, {
             game_name: game.name,
@@ -604,7 +701,7 @@ export default function Dashboard() {
         .order('updated_at', { ascending: false });
 
       if (error) throw error;
-      setBlockedWallets(blocked || []);
+      setBlockedWallets(((blocked || []) as unknown as WalletRecord[]));
     } catch (error) {
       console.error('Error fetching blocked wallets:', error);
     }
@@ -812,7 +909,7 @@ export default function Dashboard() {
     }
   };
 
-  const statsConfig = [
+  const statsConfig: StatConfig[] = [
     {
       title: "Total Wallets",
       value: isLoading ? "..." : stats.totalWallets.toString(),
@@ -875,9 +972,9 @@ export default function Dashboard() {
               key={stat.title} 
               className={cn(
                 "shadow-card hover:shadow-hover transition-smooth",
-                (stat as any).clickable ? "cursor-pointer" : ""
+                stat.clickable ? "cursor-pointer" : ""
               )}
-              onClick={(stat as any).clickable ? handleTotalSalesClick : undefined}
+              onClick={stat.clickable ? handleTotalSalesClick : undefined}
             >
               <CardHeader className="flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
