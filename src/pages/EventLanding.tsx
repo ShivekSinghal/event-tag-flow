@@ -268,6 +268,36 @@ export default function EventLanding() {
   const [isPackageModalOpen, setIsPackageModalOpen] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [showBottomSticker, setShowBottomSticker] = useState(false);
+  const heroVideoRef = useRef<HTMLVideoElement | null>(null);
+
+  // Mobile autoplay: React sets `muted` as a property, not an attribute, and iOS Safari / Android
+  // Chrome only autoplay a video whose muted *attribute* is present at load. Set it by hand, start
+  // playback ourselves, and retry on the first touch for phones in Low Power / Data Saver mode.
+  useEffect(() => {
+    const video = heroVideoRef.current;
+    if (!video) return;
+    video.defaultMuted = true;
+    video.muted = true;
+    video.setAttribute("muted", "");
+    video.setAttribute("playsinline", "");
+    const tryPlay = () => {
+      const attempt = video.play();
+      if (attempt && typeof attempt.catch === "function") attempt.catch(() => {});
+    };
+    const onFirstTouch = () => tryPlay();
+    const onVisible = () => {
+      if (!document.hidden) tryPlay();
+    };
+    tryPlay();
+    window.addEventListener("touchstart", onFirstTouch, { once: true, passive: true });
+    window.addEventListener("pointerdown", onFirstTouch, { once: true, passive: true });
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("touchstart", onFirstTouch);
+      window.removeEventListener("pointerdown", onFirstTouch);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, []);
   const [eventOptions, setEventOptions] = useState<EventPackageOption[]>(EVENT_PACKAGE_OPTIONS);
   const [packagesLoading, setPackagesLoading] = useState(true);
   const { status: partyStatus, isLive: partyStatusLive, refresh: refreshPartyStatus } = usePartyStatus();
@@ -964,7 +994,7 @@ export default function EventLanding() {
 
       <header className="hero" id="top">
         <div className="hero-media">
-          <video src={heroVideo} poster={heroPoster} autoPlay muted loop playsInline aria-hidden="true" />
+          <video ref={heroVideoRef} src={heroVideo} poster={heroPoster} autoPlay muted loop playsInline preload="auto" aria-hidden="true" />
         </div>
         <div className="hero-glow a" />
         <div className="hero-glow b" />
