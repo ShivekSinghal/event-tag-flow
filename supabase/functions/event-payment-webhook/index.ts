@@ -107,15 +107,18 @@ serve(async (req: Request) => {
     const secret = Deno.env.get("CASHFREE_WEBHOOK_SECRET") || Deno.env.get("CASHFREE_CLIENT_SECRET") || "";
 
     if (!signature || !timestamp || !secret) {
+      console.warn("cashfree webhook: missing signature headers or secret");
       return jsonResponse({ error: "Missing Cashfree webhook signature configuration" }, 400);
     }
 
     if (!(await verifyCashfreeSignature(rawBody, timestamp, signature, secret))) {
+      console.warn("cashfree webhook: invalid signature", { type: payload.type, order: readCashfreeOrderId(payload) });
       return jsonResponse({ error: "Invalid Cashfree webhook signature" }, 400);
     }
 
     const cashfreeOrderId = readCashfreeOrderId(payload);
     const cashfreeStatus = readCashfreeStatus(payload);
+    console.log("cashfree webhook", { type: payload.type, order: cashfreeOrderId, status: cashfreeStatus });
 
     if (!cashfreeOrderId) {
       return jsonResponse({ error: "Webhook does not include Cashfree order id" }, 400);
@@ -139,6 +142,7 @@ serve(async (req: Request) => {
       .maybeSingle();
 
     if (error) throw error;
+    console.log("cashfree webhook applied", { order: cashfreeOrderId, matched: Boolean(updatedOrder?.id), paymentStatus });
 
     const creditResult =
       paymentStatus === "paid" && updatedOrder?.id
