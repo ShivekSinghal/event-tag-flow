@@ -1022,6 +1022,11 @@ export type Database = {
         Args: { p_load_prepaid?: boolean; p_parent_order_id: string; p_wallet_id: string }
         Returns: Json
       }
+      reissue_wallet: {
+        Args: { p_new_tag_id: string; p_old_wallet_id: string; p_reason?: string }
+        Returns: Json
+      }
+      staff_list_bands_for_order: { Args: { p_parent_order_id: string }; Returns: Json }
       get_current_user_role: { Args: never; Returns: string }
       spend_wallet_coins: {
         Args: {

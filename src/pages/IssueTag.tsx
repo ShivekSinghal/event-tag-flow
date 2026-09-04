@@ -58,6 +58,16 @@ interface BookingLookup {
   attendees: BookingAttendee[];
 }
 
+interface OrderBand {
+  wallet_id: string;
+  attendee_name: string;
+  attendee_phone: string;
+  tag_id: string;
+  band_hint: string;
+  coin_balance: number;
+  status: string;
+}
+
 interface CreditResult {
   credited: number;
   prepaid_coins: number;
@@ -172,15 +182,85 @@ export default function IssueTag() {
   const [lookupQuery, setLookupQuery] = useState("");
   const [isLookingUp, setIsLookingUp] = useState(false);
   const [booking, setBooking] = useState<BookingLookup | null>(null);
+  const bookingOrderId = booking?.order_id ?? null;
   const [lookupMiss, setLookupMiss] = useState<string | null>(null);
 
   // Prepaid coins that failed to load after the wallet was created (retry)
   const [pendingCredit, setPendingCredit] = useState<PendingCredit | null>(null);
   const [loadPrepaidOnThisBand, setLoadPrepaidOnThisBand] = useState(true);
   const [duplicatePhoneAcknowledged, setDuplicatePhoneAcknowledged] = useState(false);
+  const [orderBands, setOrderBands] = useState<OrderBand[]>([]);
+  const [reissuingWalletId, setReissuingWalletId] = useState<string | null>(null);
+
+  const loadOrderBands = async (orderId: string) => {
+    const { data, error } = await rpc("staff_list_bands_for_order", { p_parent_order_id: orderId });
+    if (error || !Array.isArray(data)) {
+      setOrderBands([]);
+      return;
+    }
+    setOrderBands(
+      (data as Array<Record<string, unknown>>).map((band) => ({
+        wallet_id: String(band.wallet_id),
+        attendee_name: String(band.attendee_name ?? ""),
+        attendee_phone: String(band.attendee_phone ?? ""),
+        tag_id: String(band.tag_id ?? ""),
+        band_hint: String(band.band_hint ?? ""),
+        coin_balance: Number(band.coin_balance ?? 0),
+        status: String(band.status ?? "active"),
+      })),
+    );
+  };
+
+  // Lost or broken band: block it, move the balance onto the band just scanned.
+  const handleReissue = async (band: OrderBand) => {
+    if (!scannedTag) {
+      toast({
+        title: "Scan the replacement first",
+        description: "Scan the new band, then tap Reissue on the lost one.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!window.confirm(`Block band ···${band.band_hint} (${band.attendee_name}) and move ${band.coin_balance.toLocaleString("en-IN")} Pink'd Coins onto ${scannedTag}?`)) {
+      return;
+    }
+    setReissuingWalletId(band.wallet_id);
+    try {
+      const { data, error } = await rpc("reissue_wallet", {
+        p_old_wallet_id: band.wallet_id,
+        p_new_tag_id: scannedTag,
+        p_reason: "lost",
+      });
+      if (error) throw new Error(error.message);
+      const result = (data ?? {}) as { moved_coins?: number; new_tag_id?: string };
+      toast({
+        title: "Band Reissued",
+        description: `${band.attendee_name} is now on ${result.new_tag_id || scannedTag} with ${Number(result.moved_coins || 0).toLocaleString("en-IN")} Pink'd Coins. The old band is blocked.`,
+      });
+      setScannedTag(null);
+      if (booking) await loadOrderBands(booking.order_id);
+    } catch (error) {
+      toast({
+        title: "Reissue Failed",
+        description: error instanceof Error ? error.message : "Could not reissue this band.",
+        variant: "destructive",
+      });
+    } finally {
+      setReissuingWalletId(null);
+    }
+  };
   const [isRetryingCredit, setIsRetryingCredit] = useState(false);
 
   const coinsWaiting = booking ? Math.max(0, booking.prepaid_coins - booking.coins_credited) : 0;
+
+  useEffect(() => {
+    if (bookingOrderId) {
+      void loadOrderBands(bookingOrderId);
+    } else {
+      setOrderBands([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bookingOrderId]);
 
   useEffect(() => {
     // Set up scan state callback
@@ -432,6 +512,7 @@ export default function IssueTag() {
         title: "Wallet Created Successfully",
         description: `Digital wallet created for ${attendeeName} with tag ${scannedTag}`,
       });
+      if (booking) void loadOrderBands(booking.order_id);
 
       // Link the band to the booking and load coins bought online (once per order).
       if (booking) {
@@ -589,6 +670,39 @@ export default function IssueTag() {
                       {item.quantity} × {item.package_name}
                     </Badge>
                   ))}
+                </div>
+              )}
+
+              {orderBands.length > 0 && (
+                <div className="rounded-md border border-border bg-background/60 p-3 space-y-2">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Bands already issued on this booking
+                  </div>
+                  {orderBands.map((band) => (
+                    <div key={band.wallet_id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                      <div className="min-w-0">
+                        <span className="font-medium text-foreground">{band.attendee_name}</span>
+                        <span className="text-muted-foreground"> · ···{band.band_hint} · {band.coin_balance.toLocaleString("en-IN")} coins</span>
+                        {band.status !== "active" ? <Badge variant="outline" className="ml-2 font-normal">{band.status}</Badge> : null}
+                      </div>
+                      {band.status === "active" ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={!scannedTag || reissuingWalletId === band.wallet_id}
+                          onClick={() => handleReissue(band)}
+                          title={scannedTag ? `Move this person onto ${scannedTag}` : "Scan the replacement band first"}
+                        >
+                          <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${reissuingWalletId === band.wallet_id ? "animate-spin" : ""}`} />
+                          Reissue lost band
+                        </Button>
+                      ) : null}
+                    </div>
+                  ))}
+                  <p className="text-xs text-muted-foreground">
+                    Lost a band? Scan the replacement above, then tap Reissue. The old band is blocked and the balance moves across.
+                  </p>
                 </div>
               )}
 
