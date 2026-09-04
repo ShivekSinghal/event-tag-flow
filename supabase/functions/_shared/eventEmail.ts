@@ -55,6 +55,21 @@ function formatInr(value: number) {
   return `₹${Number(value || 0).toLocaleString("en-IN")}`;
 }
 
+function providerLabel(provider: string | null | undefined) {
+  const key = (provider || "").toLowerCase();
+  if (key === "cashfree") return "Cashfree";
+  if (key === "razorpay") return "Razorpay";
+  if (key === "manual") return "Manual";
+  return "Online";
+}
+
+function formatIst(value: string) {
+  const formatted = new Date(value).toLocaleString("en-IN", {
+    timeZone: "Asia/Kolkata", day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true,
+  });
+  return `${formatted.replace(",", "")} IST`;
+}
+
 function escapeHtml(value: string) {
   return String(value ?? "")
     .replace(/&/g, "&amp;")
@@ -136,7 +151,7 @@ function shell(title: string, subtitle: string, body: string) {
     <div style="margin:0;padding:0;background:#08050b;font-family:Arial,Helvetica,sans-serif;color:#111;">
       <div style="max-width:640px;margin:0 auto;padding:28px 16px;">
         <div style="background:#ffffff;border-radius:16px;overflow:hidden;">
-          <div style="background:${PINK};padding:24px;">
+          <div style="background:#0b070f;padding:24px;border-bottom:4px solid ${PINK};">
             <img src="${getSiteUrl()}/media/pinkd-logo.png" alt="${BRAND}" width="120" style="display:block;height:auto;max-width:120px;" />
             <div style="margin-top:12px;color:#fff;font-size:20px;font-weight:900;">${escapeHtml(title)}</div>
             <div style="margin-top:4px;color:#fff;font-size:14px;opacity:.92;">${escapeHtml(subtitle)}</div>
@@ -157,7 +172,7 @@ function shell(title: string, subtitle: string, body: string) {
 function renderTicketEmail(order: EventOrder, prepaidCoins: number) {
   const ref = orderRef(order);
   const items = order.event_order_items || [];
-  const paidAt = order.paid_at ? new Date(order.paid_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }) : "";
+  const paidAt = order.paid_at ? formatIst(order.paid_at) : "";
   const includesIntensives = items.some(itemIncludesIntensives);
   const includesParty = items.some(itemIncludesParty);
   const entries = partyEntries(items);
@@ -214,7 +229,7 @@ function renderTicketEmail(order: EventOrder, prepaidCoins: number) {
         ${row("Booked by", escapeHtml(order.customer_name))}
         ${row("Phone", escapeHtml(order.customer_phone))}
         ${order.customer_studio ? row("Studio", escapeHtml(order.customer_studio)) : ""}
-        ${row("Payment", `${escapeHtml(order.payment_provider || "online")}${paidAt ? ` · ${escapeHtml(paidAt)}` : ""}`)}
+        ${row("Payment", `${providerLabel(order.payment_provider)}${paidAt ? ` · ${escapeHtml(paidAt)}` : ""}`)}
       </table>
     </div>
 
@@ -262,7 +277,7 @@ function renderCoinEmail(order: EventOrder, parent: EventOrder | null, onBandNow
         ${row("Coin order", ref)}
         ${parentRef ? row("Party ticket", parentRef) : ""}
         ${row("Name", escapeHtml(order.customer_name))}
-        ${row("Payment", escapeHtml(order.payment_provider || "online"))}
+        ${row("Payment", providerLabel(order.payment_provider))}
       </table>
     </div>
 
