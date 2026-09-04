@@ -23,6 +23,24 @@ function readCashfreeStatus(payload: Record<string, unknown>) {
   return String(payment?.payment_status || order?.order_status || data?.order_status || payload.order_status || "");
 }
 
+// Cashfree sends *payment* statuses (SUCCESS / FAILED / USER_DROPPED) on PAYMENT_* webhooks and
+// *order* statuses (PAID / ACTIVE / EXPIRED) elsewhere. mapCashfreeOrderStatus only knows the
+// latter, so a PAYMENT_SUCCESS_WEBHOOK used to land as "pending" (4 Sep 2026 hosted test).
+function mapCashfreeWebhookStatus(payload: Record<string, unknown>, fallbackStatus: string) {
+  const type = String(payload.type || "").toUpperCase();
+  const data = payload.data as Record<string, unknown> | undefined;
+  const order = data?.order as Record<string, unknown> | undefined;
+  const payment = data?.payment as Record<string, unknown> | undefined;
+  const paymentStatus = String(payment?.payment_status || "").toUpperCase();
+  const orderStatus = String(order?.order_status || data?.order_status || payload.order_status || "").toUpperCase();
+
+  if (type === "PAYMENT_SUCCESS_WEBHOOK" || paymentStatus === "SUCCESS" || orderStatus === "PAID") return "paid";
+  if (type === "PAYMENT_FAILED_WEBHOOK" || paymentStatus === "FAILED") return "failed";
+  // USER_DROPPED and PENDING keep the 15-minute hold; the customer can still retry in the same session.
+  if (paymentStatus === "USER_DROPPED" || paymentStatus === "PENDING" || paymentStatus === "NOT_ATTEMPTED") return "pending";
+  return mapCashfreeOrderStatus(orderStatus || fallbackStatus);
+}
+
 function readRazorpayPayment(payload: Record<string, unknown>) {
   const paymentEntity = (((payload.payload as Record<string, unknown> | undefined)?.payment as Record<string, unknown> | undefined)
     ?.entity || {}) as Record<string, unknown>;
@@ -124,7 +142,7 @@ serve(async (req: Request) => {
       return jsonResponse({ error: "Webhook does not include Cashfree order id" }, 400);
     }
 
-    const paymentStatus = mapCashfreeOrderStatus(cashfreeStatus);
+    const paymentStatus = mapCashfreeWebhookStatus(payload, cashfreeStatus);
     const now = new Date().toISOString();
     const { data: updatedOrder, error } = await supabase
       .from("event_orders")
@@ -138,6 +156,8 @@ serve(async (req: Request) => {
         paid_at: paymentStatus === "paid" ? now : null,
       })
       .eq("cashfree_order_id", cashfreeOrderId)
+      // Never downgrade a paid order (late or duplicate webhooks), and never re-send the confirmation email.
+      .neq("payment_status", "paid")
       .select("id")
       .maybeSingle();
 
