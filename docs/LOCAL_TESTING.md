@@ -82,3 +82,25 @@ builds. Use any id like `NFC0TEST1`.
 * Real Cashfree checkout modal and webhook signature (needs sandbox keys in edge-function secrets).
 * Confirmation emails (Resend key). The templates render server-side in `supabase/functions/_shared/eventEmail.ts`.
 * `/api/party-status` as a Vercel function. Locally the page falls back to the same database function directly.
+
+## Hosted disposable test stack (4 Sep 2026)
+
+Same code and seed as the local stack, but reachable from any phone, with the real Cashfree
+sandbox modal, webhook, Resend emails and the Vercel `/api/party-status` function.
+
+* Site: https://pinkd-e2e-test.vercel.app (Vercel project `pinkd-e2e-test`, team hashtag-mentorship).
+  Only the production URL is public; preview deployments sit behind Vercel Authentication.
+* Database: Supabase project `gauftkiluglpheqtzmuw` (Singapore, org "Pinkd Test"). Schema was loaded
+  from `supabase db dump --local` in seven chunks via the Supabase connector, then the catalog rows
+  (packages, phases, sessions, coin packs, POS items), the `on_auth_user_created` trigger and
+  `supabase/seed.sql` were run by hand. The project's migration history is therefore empty; do not
+  `supabase db push` against it without `supabase migration repair` first.
+* Logins are the seed logins (`admin@pinkd.local` / `staff@pinkd.local`, `Pinkd-Test-2026`).
+* Edge functions + secrets: `supabase functions deploy --project-ref gauftkiluglpheqtzmuw` and
+  `supabase secrets set --env-file supabase/functions/.env --project-ref gauftkiluglpheqtzmuw`.
+  Cashfree sandbox webhook must point at
+  `https://gauftkiluglpheqtzmuw.supabase.co/functions/v1/event-payment-webhook`.
+* Redeploy the site after code changes: `vercel --prod` from the repo (env vars already set).
+* Reset data: run the "Seed logins + bookings" part of `supabase/seed.sql` again after
+  `TRUNCATE public.event_orders, public.wallets, public.transactions, public.event_order_attendees CASCADE`.
+  Nothing here is production; the whole project can be deleted after the event.
