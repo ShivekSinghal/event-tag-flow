@@ -146,7 +146,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     
     const emailResult = await resend.emails.send({
-      from: "Game POS <onboarding@resend.dev>",
+      from: "Pink'd <universal@hashtag.dance>",
       to: [user.email],
       subject: subject,
       html: htmlContent,
@@ -162,16 +162,17 @@ const handler = async (req: Request): Promise<Response> => {
         ...corsHeaders,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const normalizedError = error instanceof Error ? error : new Error(String(error));
     console.error("=== ERROR IN WEBHOOK ===");
-    console.error("Error type:", error.constructor.name);
-    console.error("Error message:", error.message);
-    console.error("Error stack:", error.stack);
+    console.error("Error type:", normalizedError.constructor.name);
+    console.error("Error message:", normalizedError.message);
+    console.error("Error stack:", normalizedError.stack);
     console.error("========================");
     return new Response(
       JSON.stringify({ 
-        error: error.message,
-        type: error.constructor.name,
+        error: normalizedError.message,
+        type: normalizedError.constructor.name,
         timestamp: new Date().toISOString()
       }),
       {
