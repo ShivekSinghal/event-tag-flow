@@ -11,7 +11,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 // --- RPC shapes (mirrors supabase/migrations/20260904120000_event_order_attendees.sql) ---
 
 type SlotItem = { package_name: string; quantity: number; pax: number | null };
-type SavedAttendee = { position: number; attendee_name: string; attendee_phone: string };
+type SavedAttendee = {
+  position: number;
+  attendee_name: string;
+  attendee_phone: string;
+  issued?: boolean;
+  band_hint?: string | null;
+  locked?: boolean;
+};
 type AttendeeSlots = {
   order_id: string;
   order_ref: string;
@@ -19,10 +26,11 @@ type AttendeeSlots = {
   booker_phone: string;
   party_entries: number;
   requires_form: boolean;
+  event_locked?: boolean;
   items: SlotItem[];
   attendees: SavedAttendee[];
 };
-type Row = { name: string; phone: string };
+type Row = { name: string; phone: string; locked: boolean; bandHint: string | null };
 type RpcResult = { data: unknown; error: { message: string } | null };
 
 // Cast so this compiles before the generated types pick up the new RPCs
@@ -43,11 +51,14 @@ function buildRows(slots: AttendeeSlots): Row[] {
   return Array.from({ length: slots.party_entries }, (_, i) => {
     const position = i + 1;
     const hit = saved.get(position);
-    if (hit) return { name: hit.attendee_name, phone: hit.attendee_phone };
-    if (position === 1 && slots.attendees.length === 0) {
-      return { name: slots.booker_name, phone: slots.booker_phone };
+    const eventLocked = slots.event_locked === true;
+    if (hit) {
+      return { name: hit.attendee_name, phone: hit.attendee_phone, locked: eventLocked || hit.locked === true, bandHint: hit.band_hint ?? null };
     }
-    return { name: "", phone: "" };
+    if (position === 1 && slots.attendees.length === 0) {
+      return { name: slots.booker_name, phone: slots.booker_phone, locked: eventLocked, bandHint: null };
+    }
+    return { name: "", phone: "", locked: eventLocked, bandHint: null };
   });
 }
 
@@ -130,7 +141,7 @@ const AttendeesPage = () => {
   };
 
   const updateRow = (index: number, patch: Partial<Row>) => {
-    setRows((current) => current.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+    setRows((current) => current.map((row, i) => (i === index && !row.locked ? { ...row, ...patch } : row)));
   };
 
   const handleSave = async (event: FormEvent) => {
@@ -170,7 +181,7 @@ const AttendeesPage = () => {
     const { data, error } = await rpc("submit_order_attendees", {
       p_order_ref: orderRef.trim() || slots.order_ref,
       p_contact: contact.trim(),
-      p_attendees: filled,
+      p_attendees: filled.filter((entry) => !rows[entry.position - 1]?.locked),
     });
     setSaving(false);
 
@@ -328,9 +339,14 @@ const AttendeesPage = () => {
 
                   <ol className="flex flex-col gap-4">
                     {rows.map((row, index) => (
-                      <li key={index} className="rounded-lg border border-white/10 bg-black/30 p-3 sm:p-4">
-                        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-primary">
-                          Wristband {index + 1}
+                      <li key={index} className={`rounded-lg border p-3 sm:p-4 ${row.locked ? "border-primary/40 bg-primary/5" : "border-white/10 bg-black/30"}`}>
+                        <p className="mb-2 flex items-center justify-between gap-2 text-xs font-medium uppercase tracking-wide text-primary">
+                          <span>Wristband {index + 1}</span>
+                          {row.locked ? (
+                            <span className="rounded-full border border-primary/40 px-2 py-0.5 normal-case tracking-normal text-white/80">
+                              {row.bandHint ? `Issued · band ···${row.bandHint}` : "Locked"}
+                            </span>
+                          ) : null}
                         </p>
                         <div className="grid gap-3 sm:grid-cols-2">
                           <div className="flex flex-col gap-1.5">
@@ -342,7 +358,9 @@ const AttendeesPage = () => {
                               placeholder="Full name"
                               autoComplete="off"
                               maxLength={120}
-                              className={inputClass}
+                              readOnly={row.locked}
+                              aria-readonly={row.locked}
+                              className={`${inputClass} ${row.locked ? "opacity-60" : ""}`}
                             />
                           </div>
                           <div className="flex flex-col gap-1.5">
@@ -356,7 +374,9 @@ const AttendeesPage = () => {
                               placeholder="98765 43210"
                               autoComplete="off"
                               maxLength={40}
-                              className={inputClass}
+                              readOnly={row.locked}
+                              aria-readonly={row.locked}
+                              className={`${inputClass} ${row.locked ? "opacity-60" : ""}`}
                             />
                           </div>
                         </div>
@@ -366,10 +386,11 @@ const AttendeesPage = () => {
 
                   <p className="text-xs leading-relaxed text-white/60">
                     One name per wristband. Everyone at the party must be 18+ with ID at the gate. Tickets are
-                    non-refundable and non-transferable.
+                    non-refundable and non-transferable. Once a wristband has been issued at the gate, that row is
+                    frozen — ask the team there for corrections.
                   </p>
 
-                  <Button type="submit" disabled={isBusy} className="w-full">
+                  <Button type="submit" disabled={isBusy || slots.event_locked === true || rows.every((row) => row.locked)} className="w-full">
                     {saving ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
                     ) : (
