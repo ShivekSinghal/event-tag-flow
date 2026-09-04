@@ -190,6 +190,7 @@ export default function IssueTag() {
   const [loadPrepaidOnThisBand, setLoadPrepaidOnThisBand] = useState(true);
   const [duplicatePhoneAcknowledged, setDuplicatePhoneAcknowledged] = useState(false);
   const [orderBands, setOrderBands] = useState<OrderBand[]>([]);
+  const [devTagInput, setDevTagInput] = useState("");
   const [reissuingWalletId, setReissuingWalletId] = useState<string | null>(null);
 
   const loadOrderBands = async (orderId: string) => {
@@ -810,6 +811,29 @@ export default function IssueTag() {
                 <div className="absolute inset-0 rounded-md bg-primary/20 animate-ping pointer-events-none" />
               )}
             </div>
+
+            {import.meta.env.DEV ? (
+              <form
+                className="mx-auto flex max-w-xs items-center gap-2"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const value = devTagInput.trim().toUpperCase();
+                  if (value.length < 4) return;
+                  setScannedTag(value);
+                  setDuplicatePhoneAcknowledged(false);
+                  setDevTagInput("");
+                }}
+              >
+                <Input
+                  value={devTagInput}
+                  onChange={(event) => setDevTagInput(event.target.value)}
+                  placeholder="Type a tag ID (dev only, no NFC on desktop)"
+                  autoComplete="off"
+                  className="text-sm"
+                />
+                <Button type="submit" variant="outline" size="sm">Use</Button>
+              </form>
+            ) : null}
 
             {/* Scanning Status */}
             {scanState.isScanning && (
