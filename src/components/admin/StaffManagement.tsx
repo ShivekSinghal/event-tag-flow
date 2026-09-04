@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -45,12 +45,7 @@ export default function StaffManagement() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const { toast } = useToast();
 
-  useEffect(() => {
-    fetchStaffMembers();
-    fetchGames();
-  }, []);
-
-  const fetchStaffMembers = async () => {
+  const fetchStaffMembers = useCallback(async () => {
     try {
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
@@ -95,9 +90,9 @@ export default function StaffManagement() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [toast]);
 
-  const fetchGames = async () => {
+  const fetchGames = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('games')
@@ -109,7 +104,12 @@ export default function StaffManagement() {
     } catch (error) {
       console.error('Error fetching games:', error);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    void fetchStaffMembers();
+    void fetchGames();
+  }, [fetchGames, fetchStaffMembers]);
 
   const handleUpdateUser = async (userId: string, updates: { role?: 'staff' | 'admin' | 'studio_manager'; assigned_game_id?: string | null }) => {
     try {

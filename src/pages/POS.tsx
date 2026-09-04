@@ -10,7 +10,7 @@ import { useFlyingCards } from "@/hooks/use-flying-cards";
 import { useStaffPermissions } from "@/hooks/use-staff-permissions";
 import { nfcManager } from "@/utils/nfc";
 import { formatCoins, getCoinBalance } from "@/lib/coins";
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Package, CreditCard, DollarSign, Scan, AlertCircle, ArrowRight, CheckCircle, Calculator } from "lucide-react";
 
 interface Game {
@@ -46,6 +46,17 @@ interface PosItem {
   display_order: number;
 }
 
+type PosSection = "games" | "drinks" | "food" | "custom-games";
+
+interface ScannedWallet {
+  id: string;
+  attendeeName: string;
+  attendeePhone: string;
+  tagId: string;
+  currentBalance: number;
+  status: string;
+}
+
 function getErrorDetail(error: unknown, key: "message" | "code" | "details" | "hint") {
   return typeof error === "object" && error !== null && key in error
     ? String((error as Record<string, unknown>)[key] || "")
@@ -56,13 +67,13 @@ export default function POS() {
   const { toast } = useToast();
   const { addCard } = useFlyingCards();
   const {
-    getGamePermissions,
+    gamePermissions,
     hasFoodPermission,
     hasDrinksPermission,
     isLoading: permissionsLoading,
   } = useStaffPermissions();
   const [isScanning, setIsScanning] = useState(false);
-  const [scannedWallet, setScannedWallet] = useState<any>(null);
+  const [scannedWallet, setScannedWallet] = useState<ScannedWallet | null>(null);
   const [selectedGame, setSelectedGame] = useState<Game | null>(null);
   const [selectedDrink, setSelectedDrink] = useState<DrinkItem | null>(null);
   const [selectedCustomItem, setSelectedCustomItem] = useState<CustomItem | null>(null);
@@ -76,7 +87,21 @@ export default function POS() {
   const [foodItems, setFoodItems] = useState<DrinkItem[]>([]);
   const [customItems, setCustomItems] = useState<CustomItem[]>([]);
   const [isLoadingGames, setIsLoadingGames] = useState(false);
-  const [activeSection, setActiveSection] = useState<"games" | "drinks" | "food" | "custom-games">("games");
+  const [activeSection, setActiveSection] = useState<PosSection>("games");
+
+  const hasCustomGames = useMemo(
+    () => gamePermissions.some((game) => ["Dunk a Company Member", "Karaoke"].includes(game.name)),
+    [gamePermissions],
+  );
+  const availableSections = useMemo<PosSection[]>(() => {
+    const sections: PosSection[] = [];
+    if (gamePermissions.length > 0) sections.push("games");
+    if (hasCustomGames) sections.push("custom-games");
+    if (hasDrinksPermission) sections.push("drinks");
+    if (hasFoodPermission) sections.push("food");
+    return sections;
+  }, [gamePermissions.length, hasCustomGames, hasDrinksPermission, hasFoodPermission]);
+  const permittedGameIds = useMemo(() => gamePermissions.map((game) => game.id), [gamePermissions]);
 
   useEffect(() => {
     const fetchPosItems = async () => {
@@ -124,41 +149,26 @@ export default function POS() {
 
   // Handle section switching based on permissions
   useEffect(() => {
-    if (!permissionsLoading) {
-      const hasGames = getGamePermissions().length > 0;
-      const hasFood = hasFoodPermission();
-      const hasDrinks = hasDrinksPermission();
-      const hasCustomGames = getGamePermissions().some((game) =>
-        ["Dunk a Company Member", "Karaoke"].includes(game.name),
-      );
-
-      // If no active section is set or current section is not available, set default
-      const availableSections = [];
-      if (hasGames) availableSections.push("games");
-      if (hasCustomGames) availableSections.push("custom-games");
-      if (hasDrinks) availableSections.push("drinks");
-      if (hasFood) availableSections.push("food");
-
-      if (availableSections.length > 0 && !availableSections.includes(activeSection)) {
-        setActiveSection(availableSections[0] as any);
-      }
+    if (!permissionsLoading && availableSections.length > 0 && !availableSections.includes(activeSection)) {
+      setActiveSection(availableSections[0]);
     }
-  }, [permissionsLoading, getGamePermissions, hasFoodPermission, hasDrinksPermission, activeSection]);
+  }, [activeSection, availableSections, permissionsLoading]);
 
   // Load games from database with actual prices
   useEffect(() => {
+    let isCurrent = true;
+
     const fetchGames = async () => {
       if (!permissionsLoading) {
-        const permittedGameIds = getGamePermissions().map((g) => g.id);
-
         if (permittedGameIds.length > 0) {
+          setIsLoadingGames(true);
           const { data: gamesData, error } = await supabase
             .from("games")
             .select("*")
             .in("id", permittedGameIds)
             .eq("available", true);
 
-          if (!error && gamesData) {
+          if (isCurrent && !error && gamesData) {
             // Filter out games that should only appear as custom amount items
             const regularGames = gamesData.filter((g) => !["Dunk a Company Member", "Karaoke"].includes(g.name));
 
@@ -173,15 +183,18 @@ export default function POS() {
               })),
             );
           }
-        } else {
+        } else if (isCurrent) {
           setGames([]);
         }
-        setIsLoadingGames(false);
+        if (isCurrent) setIsLoadingGames(false);
       }
     };
 
-    fetchGames();
-  }, [getGamePermissions, permissionsLoading]);
+    void fetchGames();
+    return () => {
+      isCurrent = false;
+    };
+  }, [permissionsLoading, permittedGameIds]);
 
   const handleGameSelect = async (game: Game) => {
     if (!game.available) {
@@ -349,7 +362,7 @@ export default function POS() {
   };
 
   const processPayment = async (
-    wallet: any,
+    wallet: ScannedWallet,
     price: number,
     itemName: string,
     gameId: string | null,
@@ -442,7 +455,7 @@ export default function POS() {
       </div>
 
       {/* Check if user has any permissions */}
-      {!permissionsLoading && getGamePermissions().length === 0 && !hasFoodPermission() && !hasDrinksPermission() && (
+      {!permissionsLoading && gamePermissions.length === 0 && !hasFoodPermission && !hasDrinksPermission && (
         <Card className="shadow-card">
           <CardContent className="text-center py-8">
             <AlertCircle className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
@@ -457,14 +470,11 @@ export default function POS() {
 
       {/* Show sections only if user has permissions */}
       {!permissionsLoading &&
-        (getGamePermissions().length > 0 ||
-          hasFoodPermission() ||
-          hasDrinksPermission() ||
-          getGamePermissions().some((game) => ["Dunk a Company Member", "Karaoke"].includes(game.name))) && (
+        (gamePermissions.length > 0 || hasFoodPermission || hasDrinksPermission || hasCustomGames) && (
           <>
             {/* Section Tabs */}
             <div className="flex flex-wrap justify-center gap-2 px-4">
-              {getGamePermissions().length > 0 && (
+              {gamePermissions.length > 0 && (
                 <Button
                   variant={activeSection === "games" ? "default" : "outline"}
                   onClick={() => setActiveSection("games")}
@@ -476,7 +486,7 @@ export default function POS() {
                   <span className="xs:hidden">🎮</span>
                 </Button>
               )}
-              {hasDrinksPermission() && (
+              {hasDrinksPermission && (
                 <Button
                   variant={activeSection === "drinks" ? "default" : "outline"}
                   onClick={() => setActiveSection("drinks")}
@@ -488,7 +498,7 @@ export default function POS() {
                   <span className="xs:hidden">🥤</span>
                 </Button>
               )}
-              {getGamePermissions().some((game) => ["Dunk a Company Member", "Karaoke"].includes(game.name)) && (
+              {hasCustomGames && (
                 <Button
                   variant={activeSection === "custom-games" ? "default" : "outline"}
                   onClick={() => setActiveSection("custom-games")}
@@ -500,7 +510,7 @@ export default function POS() {
                   <span className="xs:hidden">🎯</span>
                 </Button>
               )}
-              {hasFoodPermission() && (
+              {hasFoodPermission && (
                 <Button
                   variant={activeSection === "food" ? "default" : "outline"}
                   onClick={() => setActiveSection("food")}
@@ -812,7 +822,7 @@ export default function POS() {
                           {customItems
                             .filter((item) => {
                               // Show food items if user has food permission
-                              if (item.type === "food") return hasFoodPermission();
+                              if (item.type === "food") return hasFoodPermission;
                               // Don't show game items here - they are in Custom Games section
                               return false;
                             })
@@ -904,7 +914,6 @@ export default function POS() {
                             .filter((item) => {
                               // Only show game-type custom items that the user has specific permission for
                               if (item.type === "game") {
-                                const gamePermissions = getGamePermissions();
                                 return gamePermissions.some((game) => game.name === item.name);
                               }
                               return false;

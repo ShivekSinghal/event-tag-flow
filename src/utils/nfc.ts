@@ -15,9 +15,34 @@ export interface NFCScanState {
   lastError?: string;
 }
 
+interface NFCRecord {
+  data?: DataView | ArrayBuffer;
+}
+
+interface NFCReadingEvent extends Event {
+  serialNumber?: string;
+  message?: {
+    records?: NFCRecord[];
+  };
+}
+
+interface NDEFReaderLike {
+  onreading: ((event: NFCReadingEvent) => void) | null;
+  onreadingerror: ((event: Event) => void) | null;
+  scan: () => Promise<void>;
+}
+
+interface WindowWithNDEFReader extends Window {
+  NDEFReader?: new () => NDEFReaderLike;
+}
+
+function normalizeError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
+}
+
 export class NFCManager {
   private static instance: NFCManager;
-  private reader: any = null;
+  private reader: NDEFReaderLike | null = null;
   private isScanning: boolean = false;
   private scanTimeout: ReturnType<typeof setTimeout> | null = null;
   private scanStartTime: number = 0;
@@ -96,7 +121,8 @@ export class NFCManager {
       console.log('NFC available:', 'NDEFReader' in window);
       
       // Proper feature detection as per Chrome docs
-      if (!('NDEFReader' in window)) {
+      const NDEFReader = (window as WindowWithNDEFReader).NDEFReader;
+      if (!NDEFReader) {
         console.log('NDEFReader not available - use Chrome on Android');
         return {
           tagId: '',
@@ -108,10 +134,11 @@ export class NFCManager {
       console.log('Creating NDEFReader instance...');
       
       // Create new NDEFReader instance
-      this.reader = new (window as any).NDEFReader();
-      console.log('NDEFReader created successfully:', this.reader);
+      const reader = new NDEFReader();
+      this.reader = reader;
+      console.log('NDEFReader created successfully:', reader);
       
-      return new Promise(async (resolve) => {
+      return await new Promise<NFCReadResult>((resolve) => {
         let resolved = false;
         
         const cleanup = () => {
@@ -137,7 +164,7 @@ export class NFCManager {
         console.log('Setting up Promise for NFC scan...');
 
         // Set up event handlers BEFORE calling scan()
-        this.reader.onreading = (event: any) => {
+        reader.onreading = (event) => {
           console.log('✅ NFC tag detected!', event);
           const tagId = this.extractTagId(event);
           console.log('Extracted tag ID:', tagId);
@@ -151,7 +178,7 @@ export class NFCManager {
           });
         };
 
-        this.reader.onreadingerror = (error: any) => {
+        reader.onreadingerror = (error) => {
           console.warn('❌ NFC reading error (continuing scan):', error);
           // Don't stop scanning on read errors - just update state with error info
           this.updateScanState('NFC read error - keep trying...');
@@ -167,55 +194,61 @@ export class NFCManager {
           });
         }, 7000);
 
-        try {
-          console.log('Attempting to start NFC scan...');
-          await this.reader.scan();
-          console.log('✅ NFC scan started successfully! Place your tag near the device...');
-          
-          // Start scan state tracking
-          this.scanStartTime = Date.now();
-          this.startProgressTracking();
-          this.updateScanState();
-          
-        } catch (scanError: any) {
-          console.error('❌ Failed to start NFC scan:', scanError);
-          console.error('Scan error name:', scanError?.name);
-          console.error('Scan error message:', scanError?.message);
-          
-          let errorMessage = 'Failed to start NFC scanning. ';
-          if (scanError?.name === 'NotAllowedError') {
-            errorMessage += 'NFC permission denied. Please enable NFC and try again.';
-          } else if (scanError?.name === 'NotSupportedError') {
-            errorMessage += 'NFC not supported on this device.';
-          } else if (scanError?.name === 'InvalidStateError' || scanError?.name === 'InvalidState') {
-            errorMessage += 'Scanner already active. Please wait and try again.';
-          } else {
-            errorMessage += `Error: ${scanError?.message || 'Unknown error'}`;
+        const beginScan = async () => {
+          try {
+            console.log('Attempting to start NFC scan...');
+            await reader.scan();
+            console.log('✅ NFC scan started successfully! Place your tag near the device...');
+
+            // Start scan state tracking
+            this.scanStartTime = Date.now();
+            this.startProgressTracking();
+            this.updateScanState();
+
+          } catch (scanError: unknown) {
+            const normalizedError = normalizeError(scanError);
+            console.error('❌ Failed to start NFC scan:', normalizedError);
+            console.error('Scan error name:', normalizedError.name);
+            console.error('Scan error message:', normalizedError.message);
+
+            let errorMessage = 'Failed to start NFC scanning. ';
+            if (normalizedError.name === 'NotAllowedError') {
+              errorMessage += 'NFC permission denied. Please enable NFC and try again.';
+            } else if (normalizedError.name === 'NotSupportedError') {
+              errorMessage += 'NFC not supported on this device.';
+            } else if (normalizedError.name === 'InvalidStateError' || normalizedError.name === 'InvalidState') {
+              errorMessage += 'Scanner already active. Please wait and try again.';
+            } else {
+              errorMessage += `Error: ${normalizedError.message || 'Unknown error'}`;
+            }
+
+            resolveOnce({
+              tagId: '',
+              success: false,
+              error: errorMessage
+            });
           }
-          
-          resolveOnce({
-            tagId: '',
-            success: false,
-            error: errorMessage
-          });
-        }
+        };
+
+        void beginScan();
       });
       
-    } catch (error: any) {
-      console.error('❌ NFC scan error in try/catch:', error);
-      console.error('Error name:', error?.name);
-      console.error('Error message:', error?.message);
-      console.error('Error stack:', error?.stack);
+    } catch (error: unknown) {
+      const normalizedError = normalizeError(error);
+      console.error('❌ NFC scan error in try/catch:', normalizedError);
+      console.error('Error name:', normalizedError.name);
+      console.error('Error message:', normalizedError.message);
+      console.error('Error stack:', normalizedError.stack);
       
       // Handle different error types
       let errorMessage = 'NFC scanning failed. ';
       
-      if (error?.name === 'NotAllowedError') {
+      if (normalizedError.name === 'NotAllowedError') {
         errorMessage += 'NFC permission denied or not available.';
-      } else if (error?.name === 'NotSupportedError') {
+      } else if (normalizedError.name === 'NotSupportedError') {
         errorMessage += 'NFC not supported on this device. Use Chrome on Android with NFC enabled.';
-      } else if (error?.message) {
-        errorMessage += error.message;
+      } else if (normalizedError.message) {
+        errorMessage += normalizedError.message;
       } else {
         errorMessage += 'Please try again or check if NFC is enabled.';
       }
@@ -312,7 +345,7 @@ export class NFCManager {
   /**
    * Extract tag ID from NFC reading event
    */
-  private extractTagId(event: any): string {
+  private extractTagId(event: NFCReadingEvent): string {
     try {
       // Try to get serial number first
       if (event.serialNumber) {
@@ -323,7 +356,7 @@ export class NFCManager {
       if (event.message && event.message.records) {
         const record = event.message.records[0];
         if (record && record.data) {
-          const dataView = new DataView(record.data);
+          const dataView = record.data instanceof DataView ? record.data : new DataView(record.data);
           let id = '';
           for (let i = 0; i < Math.min(4, dataView.byteLength); i++) {
             id += dataView.getUint8(i).toString(16).padStart(2, '0');

@@ -1,7 +1,6 @@
-type SupabaseAdminClient = {
-  from: (table: string) => any;
-  rpc: (fn: string, args?: Record<string, unknown>) => any;
-};
+import type { SupabaseClient } from "npm:@supabase/supabase-js@2.56.0";
+
+type SupabaseAdminClient = Pick<SupabaseClient, "from" | "rpc">;
 
 export type CoinCreditOutcome = {
   attempted: boolean;

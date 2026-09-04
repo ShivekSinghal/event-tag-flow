@@ -1,4 +1,4 @@
-import { useState, useEffect, FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { nfcManager, NFCScanState } from "@/utils/nfc";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesInsert } from "@/integrations/supabase/types";
 import {
   NfcIcon as Nfc,
   Scan,
@@ -193,7 +194,7 @@ export default function IssueTag() {
   const [devTagInput, setDevTagInput] = useState("");
   const [reissuingWalletId, setReissuingWalletId] = useState<string | null>(null);
 
-  const loadOrderBands = async (orderId: string) => {
+  const loadOrderBands = useCallback(async (orderId: string) => {
     const { data, error } = await rpc("staff_list_bands_for_order", { p_parent_order_id: orderId });
     if (error || !Array.isArray(data)) {
       setOrderBands([]);
@@ -210,7 +211,7 @@ export default function IssueTag() {
         status: String(band.status ?? "active"),
       })),
     );
-  };
+  }, []);
 
   // Lost or broken band: block it, move the balance onto the band just scanned.
   const handleReissue = async (band: OrderBand) => {
@@ -260,8 +261,7 @@ export default function IssueTag() {
     } else {
       setOrderBands([]);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bookingOrderId]);
+  }, [bookingOrderId, loadOrderBands]);
 
   useEffect(() => {
     // Set up scan state callback
@@ -489,17 +489,19 @@ export default function IssueTag() {
       }
 
       // Create wallet in Supabase
+      const walletInsert: TablesInsert<"wallets"> = {
+        tag_id: scannedTag,
+        attendee_name: attendeeName.trim(),
+        attendee_phone: attendeePhone.trim(),
+        studio: selectedStudio,
+        balance: 0.00,
+        coin_balance: 0,
+        status: 'active'
+      };
+
       const { data, error } = await supabase
         .from('wallets')
-        .insert({
-          tag_id: scannedTag,
-          attendee_name: attendeeName.trim(),
-          attendee_phone: attendeePhone.trim(),
-          studio: selectedStudio,
-          balance: 0.00,
-          coin_balance: 0,
-          status: 'active'
-        } as any)
+        .insert(walletInsert)
         .select('id')
         .single();
 

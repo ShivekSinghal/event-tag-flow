@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CircularProgress } from "@/components/ui/circular-progress";
@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Maximize, Minimize, Download, FileText, Sparkles, Music, Users, Lock } from "lucide-react";
 import { useFlyingCards } from "@/hooks/use-flying-cards";
 import { formatCoins, formatInr, getCoinAmount } from "@/lib/coins";
+import type { Tables } from "@/integrations/supabase/types";
 import * as XLSX from 'xlsx';
 
 
@@ -14,6 +15,34 @@ interface DonationStats {
   totalRaised: number;
   goal: number;
   percentage: number;
+}
+
+type DonationTransaction = Pick<
+  Tables<"transactions">,
+  "id" | "amount" | "inr_amount" | "coin_amount" | "type" | "created_at"
+> & {
+  wallets: Pick<Tables<"wallets">, "attendee_name" | "studio"> | null;
+};
+
+type SalesTransaction = Pick<
+  Tables<"transactions">,
+  | "id"
+  | "amount"
+  | "inr_amount"
+  | "coin_amount"
+  | "item_name"
+  | "item_category"
+  | "type"
+  | "description"
+  | "reference"
+  | "created_at"
+> & {
+  wallets: Pick<Tables<"wallets">, "attendee_name" | "attendee_phone" | "studio"> | null;
+  games: Pick<Tables<"games">, "name" | "price"> | null;
+};
+
+interface NavigatorWithBlobSave extends Navigator {
+  msSaveOrOpenBlob?: (blob: Blob, defaultName?: string) => boolean;
 }
 
 // Perks board: the public target is ₹1,00,000. Perks unlock as the total climbs.
@@ -89,7 +118,7 @@ const DonationProgress = () => {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [lastTransactionId, setLastTransactionId] = useState<string | null>(null);
+  const lastTransactionIdRef = useRef<string | null>(null);
   const [showLabels, setShowLabels] = useState(true);
 
   const fetchDonationStats = useCallback(async (showGratitude = false) => {
@@ -114,34 +143,35 @@ const DonationProgress = () => {
         return;
       }
 
-      console.log('Fetched transactions:', transactions?.length, 'transactions');
+      const typedTransactions = (transactions ?? []) as DonationTransaction[];
+      console.log('Fetched transactions:', typedTransactions.length, 'transactions');
       
       // Calculate real money collected from coin purchases/top-ups.
-      const totalRaised = transactions
-        ?.reduce((sum, transaction) => {
+      const totalRaised = typedTransactions
+        .reduce((sum, transaction) => {
           if (transaction.type === 'load' || transaction.type === 'coin_purchase') {
-            return sum + Number((transaction as any).inr_amount ?? transaction.amount ?? 0);
+            return sum + Number(transaction.inr_amount ?? transaction.amount ?? 0);
           }
           return sum;
-        }, 0) || 0;
+        }, 0);
 
       console.log('Calculated total raised:', totalRaised);
 
-      const percentage = Math.min(100, (totalRaised / stats.goal) * 100);
+      const percentage = Math.min(100, (totalRaised / PERKS_GOAL_INR) * 100);
 
       // On initial load, show existing top-up transactions as dots
-      if (!showGratitude && transactions) {
-        const existingTopUps = transactions.filter(t => t.type === 'load' || t.type === 'coin_purchase');
+      if (!showGratitude) {
+        const existingTopUps = typedTransactions.filter(t => t.type === 'load' || t.type === 'coin_purchase');
         loadExistingTransactions(existingTopUps);
       }
 
       // Show gratitude and flying animation for new transactions (both top-ups and payments)
-      if (showGratitude && transactions && transactions.length > 0) {
-        const latestTransaction = transactions[0]; // Get the most recent transaction
-        if (latestTransaction && latestTransaction.id !== lastTransactionId) {
-          const walletData = latestTransaction.wallets as any;
-          const latestCoins = getCoinAmount(latestTransaction as any);
-          const latestInr = Number((latestTransaction as any).inr_amount ?? latestTransaction.amount ?? 0);
+      if (showGratitude && typedTransactions.length > 0) {
+        const latestTransaction = typedTransactions[0]; // Get the most recent transaction
+        if (latestTransaction && latestTransaction.id !== lastTransactionIdRef.current) {
+          const walletData = latestTransaction.wallets;
+          const latestCoins = getCoinAmount(latestTransaction);
+          const latestInr = Number(latestTransaction.inr_amount ?? latestTransaction.amount ?? 0);
           
           // Add flying card for both top-ups and payments
           addCard({
@@ -171,7 +201,7 @@ const DonationProgress = () => {
               { duration: 4000 }
             );
           }
-          setLastTransactionId(latestTransaction.id);
+          lastTransactionIdRef.current = latestTransaction.id;
         }
       }
 
@@ -186,12 +216,12 @@ const DonationProgress = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [stats.goal, lastTransactionId, addCard, loadExistingTransactions]);
+  }, [addCard, loadExistingTransactions]);
 
   const downloadSalesReport = async (format: 'csv' | 'excel' = 'csv', startAfter: number = 0) => {
     try {
       // Fetch ALL transactions by removing limit and using pagination if needed
-      let allTransactions: any[] = [];
+      let allTransactions: SalesTransaction[] = [];
       let hasMore = true;
       let page = 0;
       const pageSize = 1000;
@@ -225,7 +255,7 @@ const DonationProgress = () => {
         if (!transactions || transactions.length === 0) {
           hasMore = false;
         } else {
-          allTransactions = [...allTransactions, ...transactions];
+          allTransactions = [...allTransactions, ...(transactions as SalesTransaction[])];
           hasMore = transactions.length === pageSize;
           page++;
         }
@@ -255,8 +285,8 @@ const DonationProgress = () => {
       ];
 
       const data = filteredTransactions.map(transaction => {
-        const walletData = transaction.wallets as any;
-        const gameData = transaction.games as any;
+        const walletData = transaction.wallets;
+        const gameData = transaction.games;
         
         const inrPaid = transaction.inr_amount ? Number(transaction.inr_amount) : '';
         const coinAmount = getCoinAmount(transaction);
@@ -307,9 +337,10 @@ const DonationProgress = () => {
           const filename = `transactions_${startAfter > 0 ? `after_${startAfter}_` : ''}${new Date().toISOString().split('T')[0]}.xlsx`;
           
           // Try multiple download approaches for better compatibility
-          if ((window.navigator as any).msSaveOrOpenBlob) {
+          const legacyNavigator = window.navigator as NavigatorWithBlobSave;
+          if (legacyNavigator.msSaveOrOpenBlob) {
             // IE/Edge fallback
-            (window.navigator as any).msSaveOrOpenBlob(blob, filename);
+            legacyNavigator.msSaveOrOpenBlob(blob, filename);
             toast.success(`Excel report downloaded with ${filteredTransactions.length} transactions`);
           } else {
             // Modern browsers with enhanced approach
@@ -395,9 +426,10 @@ const DonationProgress = () => {
       const filename = `sales_report_${startAfter > 0 ? `after_${startAfter}_` : ''}${new Date().toISOString().split('T')[0]}.csv`;
       
       // Try multiple download approaches for better compatibility
-      if ((window.navigator as any).msSaveOrOpenBlob) {
+      const legacyNavigator = window.navigator as NavigatorWithBlobSave;
+      if (legacyNavigator.msSaveOrOpenBlob) {
         // IE/Edge fallback
-        (window.navigator as any).msSaveOrOpenBlob(blob, filename);
+        legacyNavigator.msSaveOrOpenBlob(blob, filename);
         toast.success(`CSV report downloaded with ${filteredTransactions.length} transactions`);
       } else {
         // Modern browsers
@@ -487,7 +519,7 @@ const DonationProgress = () => {
       console.log('Cleaning up realtime subscription');
       supabase.removeChannel(channel);
     };
-  }, [lastTransactionId]); // Include lastTransactionId in dependencies to track latest transaction
+  }, [fetchDonationStats]);
 
   useEffect(() => {
     const handleFullscreenChange = () => {

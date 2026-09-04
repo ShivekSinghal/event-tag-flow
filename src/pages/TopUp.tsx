@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,21 +27,26 @@ interface CoinPackage {
   display_order: number;
 }
 
+interface ScannedWallet {
+  id: string;
+  attendeeName: string;
+  attendeePhone: string;
+  tagId: string;
+  currentBalance: number;
+  status: string;
+}
+
 export default function TopUp() {
   const { toast } = useToast();
   const { addCard } = useFlyingCards();
   const [isScanning, setIsScanning] = useState(false);
-  const [scannedWallet, setScannedWallet] = useState<any>(null);
+  const [scannedWallet, setScannedWallet] = useState<ScannedWallet | null>(null);
   const [coinPackages, setCoinPackages] = useState<CoinPackage[]>([]);
   const [selectedPackageId, setSelectedPackageId] = useState("");
   const [paymentReference, setPaymentReference] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
 
-  useEffect(() => {
-    fetchCoinPackages();
-  }, []);
-
-  const fetchCoinPackages = async () => {
+  const fetchCoinPackages = useCallback(async () => {
     const { data, error } = await supabase
       .from("coin_packages")
       .select("*")
@@ -58,7 +63,11 @@ export default function TopUp() {
     }
 
     setCoinPackages((data || []) as CoinPackage[]);
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    void fetchCoinPackages();
+  }, [fetchCoinPackages]);
 
   const handleScanWallet = async () => {
     setIsScanning(true);

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -15,22 +15,13 @@ interface StaffPermission {
 
 export function useStaffPermissions() {
   const { user, profile } = useAuth();
+  const userId = user?.id;
+  const isAdmin = profile?.role === 'admin';
   const [permissions, setPermissions] = useState<StaffPermission[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [allGames, setAllGames] = useState<{ id: string; name: string; studio: string; }[]>([]);
 
-  useEffect(() => {
-    if (user) {
-      fetchPermissions();
-      fetchAllGames();
-    } else {
-      setPermissions([]);
-      setAllGames([]);
-      setIsLoading(false);
-    }
-  }, [user]);
-
-  const fetchAllGames = async () => {
+  const fetchAllGames = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('games')
@@ -43,18 +34,17 @@ export function useStaffPermissions() {
       console.error('Error fetching all games:', error);
       setAllGames([]);
     }
-  };
+  }, []);
 
-  const fetchPermissions = async () => {
-    if (!user) return;
+  const fetchPermissions = useCallback(async () => {
+    if (!userId) return;
 
     try {
       setIsLoading(true);
       
       // Admin users don't need specific permissions - they have access to everything
-      if (profile?.role === 'admin') {
+      if (isAdmin) {
         setPermissions([]);
-        setIsLoading(false);
         return;
       }
 
@@ -66,7 +56,7 @@ export function useStaffPermissions() {
           game_id,
           game:games(id, name, studio)
         `)
-        .eq('user_id', user.id);
+        .eq('user_id', userId);
 
       if (error) throw error;
       setPermissions((data || []) as StaffPermission[]);
@@ -76,11 +66,22 @@ export function useStaffPermissions() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [isAdmin, userId]);
 
-  const hasPermission = (type: 'game' | 'food' | 'drinks', gameId?: string) => {
+  useEffect(() => {
+    if (userId) {
+      void fetchPermissions();
+      void fetchAllGames();
+    } else {
+      setPermissions([]);
+      setAllGames([]);
+      setIsLoading(false);
+    }
+  }, [fetchAllGames, fetchPermissions, userId]);
+
+  const hasPermission = useCallback((type: 'game' | 'food' | 'drinks', gameId?: string) => {
     // Admin users have access to everything
-    if (profile?.role === 'admin') {
+    if (isAdmin) {
       return true;
     }
     
@@ -88,11 +89,11 @@ export function useStaffPermissions() {
       p.permission_type === type && 
       (type === 'food' || type === 'drinks' || p.game_id === gameId)
     );
-  };
+  }, [isAdmin, permissions]);
 
-  const getGamePermissions = () => {
+  const gamePermissions = useMemo(() => {
     // Admin users have access to all games
-    if (profile?.role === 'admin') {
+    if (isAdmin) {
       return allGames;
     }
     
@@ -100,16 +101,16 @@ export function useStaffPermissions() {
       .filter(p => p.permission_type === 'game' && p.game)
       .map(p => p.game!)
       .filter(Boolean);
-  };
+  }, [allGames, isAdmin, permissions]);
 
-  const hasFoodPermission = () => hasPermission('food');
-  const hasDrinksPermission = () => hasPermission('drinks');
+  const hasFoodPermission = useMemo(() => hasPermission('food'), [hasPermission]);
+  const hasDrinksPermission = useMemo(() => hasPermission('drinks'), [hasPermission]);
 
   return {
     permissions,
     isLoading,
     hasPermission,
-    getGamePermissions,
+    gamePermissions,
     hasFoodPermission,
     hasDrinksPermission,
     refetch: fetchPermissions

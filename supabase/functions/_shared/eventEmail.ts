@@ -1,9 +1,7 @@
 import { Resend } from "npm:resend@4.0.0";
+import type { SupabaseClient } from "npm:@supabase/supabase-js@2.56.0";
 
-type SupabaseAdminClient = {
-  from: (table: string) => any;
-  rpc?: (fn: string, args?: Record<string, unknown>) => any;
-};
+type SupabaseAdminClient = Pick<SupabaseClient, "from" | "rpc">;
 
 type EventOrderItem = {
   package_name: string;

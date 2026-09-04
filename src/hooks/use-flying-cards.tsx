@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { FlyingCard } from "@/components/ui/flying-card";
 import { getCoinAmount } from "@/lib/coins";
+import type { Tables } from "@/integrations/supabase/types";
 
 interface FlyingCardData {
   id: string;
@@ -19,6 +20,10 @@ interface DotPosition {
   studio: string;
 }
 
+type ExistingTransaction = Pick<Tables<"transactions">, "id" | "amount" | "coin_amount"> & {
+  wallets: Pick<Tables<"wallets">, "attendee_name" | "studio"> | null;
+};
+
 export function useFlyingCards() {
   const [cards, setCards] = useState<FlyingCardData[]>([]);
   const [dots, setDots] = useState<DotPosition[]>([]);
@@ -28,9 +33,9 @@ export function useFlyingCards() {
     setCards(prev => [...prev, { ...cardData, id }]);
   }, []);
 
-  const loadExistingTransactions = useCallback((transactions: any[]) => {
+  const loadExistingTransactions = useCallback((transactions: ExistingTransaction[]) => {
     const existingDots = transactions.map(transaction => {
-      const walletData = transaction.wallets as any;
+      const walletData = transaction.wallets;
       // Generate random position across entire screen
       let x = Math.random() * window.innerWidth;
       let y = Math.random() * window.innerHeight;

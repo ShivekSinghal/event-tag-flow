@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { nfcManager } from "@/utils/nfc";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
 import { formatCoins, formatInr, getCoinAmount, getCoinBalance } from "@/lib/coins";
 import { 
   CreditCard, 
@@ -17,12 +18,40 @@ import {
   User
 } from "lucide-react";
 
-const sampleTransactions: any[] = [];
+type WalletTransaction = Pick<
+  Tables<"transactions">,
+  "id" | "type" | "amount" | "inr_amount" | "coin_amount" | "description" | "created_at"
+>;
+
+type WalletWithTransactions = Tables<"wallets"> & {
+  transactions: WalletTransaction[] | null;
+};
+
+interface DisplayTransaction {
+  id: string;
+  type: "Coin Purchase" | "Sale";
+  amount: number;
+  inrAmount: number | null;
+  description: string;
+  timestamp: string;
+}
+
+interface WalletBalanceView {
+  attendeeName: string;
+  attendeePhone: string;
+  tagId: string;
+  issuedDate: string;
+  status: string;
+  currentBalance: number;
+  totalTopUp: number;
+  totalSpent: number;
+  transactions: DisplayTransaction[];
+}
 
 export default function Balance() {
   const { toast } = useToast();
   const [isScanning, setIsScanning] = useState(false);
-  const [walletData, setWalletData] = useState<any>(null);
+  const [walletData, setWalletData] = useState<WalletBalanceView | null>(null);
 
   const handleScanWallet = async () => {
     setIsScanning(true);
@@ -59,14 +88,17 @@ export default function Balance() {
           return;
         }
 
+        const walletWithTransactions = wallet as WalletWithTransactions;
+        const transactions = walletWithTransactions.transactions ?? [];
+
         // Calculate totals
-        const totalTopUp = wallet.transactions
-          ?.filter((t: any) => t.type === 'load' || t.type === 'coin_purchase')
-          .reduce((sum: number, t: any) => sum + Math.max(0, getCoinAmount(t)), 0) || 0;
+        const totalTopUp = transactions
+          .filter((transaction) => transaction.type === 'load' || transaction.type === 'coin_purchase')
+          .reduce((sum, transaction) => sum + Math.max(0, getCoinAmount(transaction)), 0);
         
-        const totalSpent = wallet.transactions
-          ?.filter((t: any) => ['spend', 'games', 'drinks', 'food'].includes(t.type))
-          .reduce((sum: number, t: any) => sum + Math.abs(getCoinAmount(t)), 0) || 0;
+        const totalSpent = transactions
+          .filter((transaction) => ['spend', 'games', 'drinks', 'food'].includes(transaction.type))
+          .reduce((sum, transaction) => sum + Math.abs(getCoinAmount(transaction)), 0);
 
         // Format data for UI
         const formattedWallet = {
@@ -78,14 +110,14 @@ export default function Balance() {
           currentBalance: getCoinBalance(wallet),
           totalTopUp,
           totalSpent,
-          transactions: wallet.transactions?.map((t: any) => ({
-            id: t.id,
-            type: t.type === 'load' || t.type === 'coin_purchase' ? 'Coin Purchase' : 'Sale',
-            amount: getCoinAmount(t),
-            inrAmount: t.inr_amount,
-            description: t.description,
-            timestamp: new Date(t.created_at).toLocaleString()
-          })) || []
+          transactions: transactions.map((transaction): DisplayTransaction => ({
+            id: transaction.id,
+            type: transaction.type === 'load' || transaction.type === 'coin_purchase' ? 'Coin Purchase' : 'Sale',
+            amount: getCoinAmount(transaction),
+            inrAmount: transaction.inr_amount,
+            description: transaction.description,
+            timestamp: new Date(transaction.created_at).toLocaleString()
+          }))
         };
 
         setWalletData(formattedWallet);
@@ -268,7 +300,7 @@ export default function Balance() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {walletData.transactions.map((transaction: any) => (
+                {walletData.transactions.map((transaction) => (
                   <div key={transaction.id} className="flex items-center justify-between p-4 border rounded-lg">
                     <div className="flex items-center space-x-3">
                       <div className={`p-2 rounded-lg ${
