@@ -40,6 +40,12 @@ function normalizeError(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error));
 }
 
+// Test-stack fallback: on a build with VITE_ALLOW_TYPED_TAG=true (or a dev build), devices without Web NFC
+// (laptops, iPhones) can type a band id instead of tapping. Never set that flag on production.
+export function allowTypedTag(): boolean {
+  return import.meta.env.DEV || import.meta.env.VITE_ALLOW_TYPED_TAG === "true";
+}
+
 export class NFCManager {
   private static instance: NFCManager;
   private reader: NDEFReaderLike | null = null;
@@ -122,6 +128,14 @@ export class NFCManager {
       
       // Proper feature detection as per Chrome docs
       const NDEFReader = (window as WindowWithNDEFReader).NDEFReader;
+      if (!NDEFReader && allowTypedTag()) {
+        const typed = window.prompt("No NFC on this device. Type the band's tag ID (test mode):", "");
+        const value = (typed || "").trim();
+        if (value.length >= 4) {
+          return { tagId: this.formatTagId(value), success: true };
+        }
+        return { tagId: '', success: false, error: 'No tag ID entered.' };
+      }
       if (!NDEFReader) {
         console.log('NDEFReader not available - use Chrome on Android');
         return {

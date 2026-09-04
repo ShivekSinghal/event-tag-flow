@@ -104,3 +104,36 @@ sandbox modal, webhook, Resend emails and the Vercel `/api/party-status` functio
 * Reset data: run the "Seed logins + bookings" part of `supabase/seed.sql` again after
   `TRUNCATE public.event_orders, public.wallets, public.transactions, public.event_order_attendees CASCADE`.
   Nothing here is production; the whole project can be deleted after the event.
+
+## Coins at the event and prepaid coins — hosted walkthrough
+
+The test site has `VITE_ALLOW_TYPED_TAG=true`, so every staff page that would tap a band
+instead asks you to type a band id when the device has no NFC (laptop, iPhone). On an
+Android phone with NFC the real tap works as on production. Log in at
+https://pinkd-e2e-test.vercel.app/pinkd-login as `admin@pinkd.local` / `Pinkd-Test-2026`.
+
+Ready-made bands and bookings on the hosted database:
+
+| Person | Booking | Band | Coins | Meaning |
+|---|---|---|---|---|
+| Karan Singh · 9876500002 | full pass | `NFC0K4R4N` | 6,000 | bought a ₹5,000 pack after his band was issued |
+| Scenario Prepaid · 9000000001 | party entry | `NFC0SCEN01` | 8,000 | ₹2,000 prepaid before the band + ₹5,000 at the event |
+| Manas's crew · 9205488417 | crew of 6 | none yet | 2,000 waiting | prepaid pack, loads when the first crew band is issued |
+
+1. **Prepaid, loaded at issue.** Issue Tag → find `9811022334` (Priya, on Manas's crew) → type
+   band `NFC0PRIYA` → tick "load waiting coins onto this band" → Create. Balance shows 2,000.
+   Repeat with Rahul (`9987011223`, band `NFC0RAHUL`): no coins are waiting any more.
+2. **Bought at the event from the attendee's phone.** On any phone open `/coins`, type
+   `9876500002` (Karan) → his band ···R4N with 6,000 → add the ₹2,000 pack → Pay with the
+   Cashfree sandbox (Net Banking → any bank → OTP 111000 → SUCCESS). Within a few seconds the
+   page shows 8,000; Issue Tag → find Karan → `bands` shows the same.
+3. **Crew: whose band?** `/coins` with `9205488417` (Manas) → "Whose band are these coins for?"
+   → choose Priya → pay → only `NFC0PRIYA` moves.
+4. **Desk top-up (cash/UPI).** Top-Up → type band `NFC0PRIYA` → pick a pack → enter any
+   receipt reference → Credit. `inr_amount` is recorded on the ledger row.
+5. **Spend.** Log in as `staff@pinkd.local` → POS → pick a drink → type band `NFC0SCEN01` →
+   balance drops, ledger row type `drinks`.
+6. **Lost band.** Issue Tag → find `9000000001` → Reissue → type `NFC0SCEN02` → old band
+   blocked, full balance on the new one; `/coins` for that phone now shows ···N02.
+
+Admin → Event Bookings shows ticket vs coin revenue for all of the above; nothing here is real money.

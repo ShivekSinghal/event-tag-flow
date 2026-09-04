@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { nfcManager, NFCScanState } from "@/utils/nfc";
+import { nfcManager, NFCScanState , allowTypedTag } from "@/utils/nfc";
 import { supabase } from "@/integrations/supabase/client";
 import type { TablesInsert } from "@/integrations/supabase/types";
 import {
@@ -814,7 +814,7 @@ export default function IssueTag() {
               )}
             </div>
 
-            {import.meta.env.DEV ? (
+            {allowTypedTag() ? (
               <form
                 className="mx-auto flex max-w-xs items-center gap-2"
                 onSubmit={(event) => {
@@ -829,7 +829,7 @@ export default function IssueTag() {
                 <Input
                   value={devTagInput}
                   onChange={(event) => setDevTagInput(event.target.value)}
-                  placeholder="Type a tag ID (dev only, no NFC on desktop)"
+                  placeholder="Type a tag ID (test mode, no NFC on this device)"
                   autoComplete="off"
                   className="text-sm"
                 />
