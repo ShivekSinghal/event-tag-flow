@@ -176,6 +176,7 @@ export default function IssueTag() {
 
   // Prepaid coins that failed to load after the wallet was created (retry)
   const [pendingCredit, setPendingCredit] = useState<PendingCredit | null>(null);
+  const [loadPrepaidOnThisBand, setLoadPrepaidOnThisBand] = useState(true);
   const [isRetryingCredit, setIsRetryingCredit] = useState(false);
 
   const coinsWaiting = booking ? Math.max(0, booking.prepaid_coins - booking.coins_credited) : 0;
@@ -308,12 +309,13 @@ export default function IssueTag() {
    * Loads the coins bought online against the booking onto the wallet.
    * Returns the number of coins credited (0 when nothing was waiting).
    */
-  const creditPrepaidCoins = async (orderId: string, walletId: string): Promise<CreditResult> => {
+  const creditPrepaidCoins = async (orderId: string, walletId: string, loadPrepaid = true): Promise<CreditResult> => {
     // Links the band to the booking (so later online top-ups land on it automatically)
-    // and loads anything already paid for. Idempotent on the server.
+    // and, when asked, loads anything already paid for. Idempotent on the server.
     const { data, error } = await rpc("link_wallet_to_event_order", {
       p_wallet_id: walletId,
       p_parent_order_id: orderId,
+      p_load_prepaid: loadPrepaid,
     });
     if (error) {
       throw new Error(error.message);
@@ -421,11 +423,16 @@ export default function IssueTag() {
           coins: coinsWaiting,
         };
         try {
-          const result = await creditPrepaidCoins(booking.order_id, walletId);
+          const result = await creditPrepaidCoins(booking.order_id, walletId, coinsWaiting > 0 ? loadPrepaidOnThisBand : true);
           if (result.credited > 0) {
             toast({
               title: "Prepaid Coins Loaded",
               description: `Loaded ${result.credited.toLocaleString("en-IN")} prepaid Pink'd Coins onto the band.`,
+            });
+          } else if (coinsWaiting > 0 && !loadPrepaidOnThisBand) {
+            toast({
+              title: "Band Linked",
+              description: `${formatPinkdCoins(coinsWaiting)} from order ${booking.order_ref} are still waiting for another band.`,
             });
           }
           setBooking({ ...booking, coins_credited: result.coins_credited, prepaid_coins: result.prepaid_coins });
@@ -533,6 +540,17 @@ export default function IssueTag() {
                 <CheckCircle className="w-5 h-5 text-success shrink-0" />
               </div>
 
+              {coinsWaiting > 0 && booking.party_entries > 1 ? (
+                <label className="flex items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 accent-primary"
+                    checked={loadPrepaidOnThisBand}
+                    onChange={(event) => setLoadPrepaidOnThisBand(event.target.checked)}
+                  />
+                  <span>Load the {coinsWaiting.toLocaleString("en-IN")} waiting coins onto THIS band (untick if they belong to someone else in the group)</span>
+                </label>
+              ) : null}
               <div className="flex items-center space-x-2 text-sm">
                 <Coins className={`w-4 h-4 ${coinsWaiting > 0 ? "text-primary" : "text-muted-foreground"}`} />
                 <span className={coinsWaiting > 0 ? "font-medium text-foreground" : "text-muted-foreground"}>

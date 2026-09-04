@@ -120,6 +120,7 @@ export type Database = {
       }
       event_order_coin_credits: {
         Row: {
+          coin_order_id: string | null
           coins: number
           created_at: string
           credited_by: string | null
@@ -128,6 +129,7 @@ export type Database = {
           wallet_id: string
         }
         Insert: {
+          coin_order_id?: string | null
           coins: number
           created_at?: string
           credited_by?: string | null
@@ -136,6 +138,7 @@ export type Database = {
           wallet_id: string
         }
         Update: {
+          coin_order_id?: string | null
           coins?: number
           created_at?: string
           credited_by?: string | null
@@ -406,6 +409,7 @@ export type Database = {
           last_payment_verified_at: string | null
           paid_at: string | null
           parent_order_id: string | null
+          target_wallet_id: string | null
           payment_provider: string
           payment_reference: string | null
           payment_status: string
@@ -441,6 +445,7 @@ export type Database = {
           last_payment_verified_at?: string | null
           paid_at?: string | null
           parent_order_id?: string | null
+          target_wallet_id?: string | null
           payment_provider?: string
           payment_reference?: string | null
           payment_status?: string
@@ -476,6 +481,7 @@ export type Database = {
           last_payment_verified_at?: string | null
           paid_at?: string | null
           parent_order_id?: string | null
+          target_wallet_id?: string | null
           payment_provider?: string
           payment_reference?: string | null
           payment_status?: string
@@ -961,6 +967,7 @@ export type Database = {
           p_checkout_token_hash: string
           p_parent_order_id: string
           p_proof: string
+          p_target_wallet_id?: string | null
         }
         Returns: {
           order_id: string
@@ -1012,7 +1019,7 @@ export type Database = {
       }
       auto_credit_coin_order: { Args: { p_coin_order_id: string }; Returns: Json }
       link_wallet_to_event_order: {
-        Args: { p_parent_order_id: string; p_wallet_id: string }
+        Args: { p_load_prepaid?: boolean; p_parent_order_id: string; p_wallet_id: string }
         Returns: Json
       }
       get_current_user_role: { Args: never; Returns: string }

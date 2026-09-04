@@ -41,9 +41,19 @@ type PartyLookup = {
   coins_pending: number;
   coins_waiting: number;
   wallet_linked: boolean;
+  band_count: number;
+  bands: PartyBand[];
+  matched_wallet_id: string | null;
   coin_balance: number;
   band_hint: string | null;
   paid_at: string | null;
+};
+
+type PartyBand = {
+  wallet_id: string;
+  name: string;
+  band_hint: string;
+  coin_balance: number;
 };
 
 type LookupState = "idle" | "loading" | "not_found" | "found";
@@ -66,6 +76,18 @@ function parseLookup(data: unknown): PartyLookup | null {
     coins_pending: toIntegerCoins(record.coins_pending),
     coins_waiting: toIntegerCoins(record.coins_waiting),
     wallet_linked: record.wallet_linked === true,
+    band_count: toIntegerCoins(record.band_count),
+    bands: Array.isArray(record.bands)
+      ? (record.bands as Array<Record<string, unknown>>)
+          .filter((band) => typeof band?.wallet_id === "string")
+          .map((band) => ({
+            wallet_id: String(band.wallet_id),
+            name: typeof band.name === "string" && band.name ? band.name : "Guest",
+            band_hint: typeof band.band_hint === "string" ? band.band_hint : "",
+            coin_balance: toIntegerCoins(band.coin_balance),
+          }))
+      : [],
+    matched_wallet_id: typeof record.matched_wallet_id === "string" ? record.matched_wallet_id : null,
     coin_balance: toIntegerCoins(record.coin_balance),
     band_hint: typeof record.band_hint === "string" ? record.band_hint : null,
     paid_at: typeof record.paid_at === "string" ? record.paid_at : null,
@@ -88,6 +110,7 @@ export default function CoinsPage() {
   const [lookupState, setLookupState] = useState<LookupState>("idle");
   const [lookup, setLookup] = useState<PartyLookup | null>(null);
   const [proof, setProof] = useState(""); // what the visitor typed; re-sent as proof when ordering
+  const [selectedBandId, setSelectedBandId] = useState<string | null>(null);
 
   const [packs, setPacks] = useState<CoinPack[]>([]);
   const [packsLoading, setPacksLoading] = useState(true);
@@ -173,6 +196,7 @@ export default function CoinsPage() {
 
       const parsed = parseLookup(data);
       setLookup(parsed);
+      setSelectedBandId(parsed ? parsed.matched_wallet_id ?? (parsed.bands.length === 1 ? parsed.bands[0].wallet_id : null) : null);
       setProof(useRef ? cleanRef : cleanContact);
       setLookupState(parsed ? "found" : "not_found");
     },
@@ -218,6 +242,10 @@ export default function CoinsPage() {
 
   const handlePay = async () => {
     if (!lookup || selection.lines.length === 0 || isPaying) return;
+    if (lookup.bands.length > 1 && !selectedBandId) {
+      toast({ title: "Pick a band first", description: "Choose whose wristband these coins are for.", variant: "destructive" });
+      return;
+    }
 
     setIsPaying(true);
     setIsGatewayOpening(true);
@@ -236,6 +264,7 @@ export default function CoinsPage() {
           })),
           p_checkout_token_hash: await sha256Hex(checkoutToken),
           p_attribution: getLandingAttribution(),
+          p_target_wallet_id: selectedBandId,
         })
         .single();
 
@@ -408,11 +437,37 @@ export default function CoinsPage() {
                     Not you?
                   </Button>
                 </div>
-                {lookup.wallet_linked ? (
+                {lookup.bands.length > 1 ? (
+                  <div className="mt-4 rounded-xl border border-primary/30 bg-primary/10 p-3 text-sm">
+                    <div className="mb-2 font-semibold">Whose band are these coins for?</div>
+                    <div className="grid gap-2">
+                      {lookup.bands.map((band) => {
+                        const active = selectedBandId === band.wallet_id;
+                        return (
+                          <button
+                            type="button"
+                            key={band.wallet_id}
+                            onClick={() => setSelectedBandId(band.wallet_id)}
+                            className={`flex items-center justify-between rounded-lg border px-3 py-2 text-left transition ${
+                              active ? "border-primary bg-primary/20" : "border-white/15 bg-black/30 hover:border-white/40"
+                            }`}
+                          >
+                            <span className="flex items-center gap-2">
+                              <CheckCircle2 className={`h-4 w-4 shrink-0 ${active ? "text-primary" : "text-white/30"}`} />
+                              {band.name}
+                              {band.band_hint ? <span className="text-white/50">···{band.band_hint}</span> : null}
+                            </span>
+                            <span className="font-bold">{formatCoinLabel(band.coin_balance)}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : lookup.wallet_linked ? (
                   <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-primary/30 bg-primary/10 px-3 py-2 text-sm">
                     <span className="flex items-center gap-2">
                       <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" />
-                      Band{lookup.band_hint ? ` ···${lookup.band_hint}` : ""} linked
+                      {lookup.bands[0]?.name ? `${lookup.bands[0].name}'s band` : "Band"}{lookup.band_hint ? ` ···${lookup.band_hint}` : ""} linked
                     </span>
                     <span className="font-bold">{formatCoinLabel(lookup.coin_balance)}</span>
                   </div>
@@ -506,7 +561,7 @@ export default function CoinsPage() {
                   <Button
                     type="button"
                     size="lg"
-                    disabled={selection.lines.length === 0 || isPaying}
+                    disabled={selection.lines.length === 0 || isPaying || (lookup.bands.length > 1 && !selectedBandId)}
                     onClick={() => void handlePay()}
                     className="min-h-[52px] rounded-xl text-base font-bold"
                   >
