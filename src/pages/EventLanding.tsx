@@ -1801,7 +1801,7 @@ export default function EventLanding() {
 
           document.getElementById("passes")?.scrollIntoView({ behavior: "smooth", block: "start" });
         }}
-        className={`sticky-cta ${showBottomSticker ? "show" : ""}`}
+        className={`sticky-cta ${showBottomSticker && !isCartOpen && !isGatewayActive ? "show" : ""}`}
       >
         <span className="pulse" />
         <span className="t">
