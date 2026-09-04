@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react
 import { Link, useSearchParams } from "react-router-dom";
 import { CheckCircle2, Clock, Loader2, Minus, Plus, Search, Ticket } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -263,7 +264,7 @@ export default function CoinsPage() {
             quantity: line.quantity,
           })),
           p_checkout_token_hash: await sha256Hex(checkoutToken),
-          p_attribution: getLandingAttribution(),
+          p_attribution: getLandingAttribution() as unknown as Json,
           p_target_wallet_id: selectedBandId,
         })
         .single();

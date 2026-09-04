@@ -20,6 +20,7 @@ import {
   User,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 import { useToast } from "@/hooks/use-toast";
 import {
   createCheckoutToken,
@@ -628,7 +629,7 @@ export default function EventLanding() {
           p_customer_email: form.email.trim(),
           p_customer_studio: form.studio,
           p_checkout_token_hash: checkoutTokenHash,
-          p_attribution: getLandingAttribution(),
+          p_attribution: getLandingAttribution() as unknown as Json,
           p_cart_items: cartLines.map((line) => ({
             item_type: "event_package",
             package_key: line.packageId,
