@@ -1,3 +1,21 @@
+-- Replay fix (4 Sep 2026): the legacy bookings table was created by hand in production
+-- and has no migration of its own. Create it when missing so fresh databases replay.
+-- Already-applied databases are unaffected (IF NOT EXISTS).
+CREATE TABLE IF NOT EXISTS public.bookings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_name TEXT NOT NULL,
+  user_phone TEXT NOT NULL,
+  user_email TEXT,
+  studio_location TEXT NOT NULL DEFAULT '',
+  package_name TEXT,
+  amount NUMERIC(10,2) NOT NULL DEFAULT 0,
+  payment_id TEXT,
+  payment_status TEXT DEFAULT 'pending',
+  booking_date TIMESTAMPTZ DEFAULT now(),
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
 -- Extend event landing-page bookings while keeping wallet/Pink'D Coin accounting separate.
 
 ALTER TABLE public.bookings

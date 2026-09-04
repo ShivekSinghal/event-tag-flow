@@ -334,8 +334,8 @@ BEGIN
 
   -- Not the booker? Try the phone given at the gate, then the attendee form.
   IF v_order.id IS NULL AND length(v_phone) = 10 THEN
-    SELECT orders.*, wallets.id
-    INTO v_order, v_matched_wallet
+    SELECT wallets.id
+    INTO v_matched_wallet
     FROM public.wallets
     JOIN public.event_orders orders ON orders.id = wallets.event_order_id
     WHERE wallets.status = 'active'
@@ -343,6 +343,13 @@ BEGIN
       AND public.event_order_is_paid(orders.payment_status)
     ORDER BY wallets.created_at DESC
     LIMIT 1;
+
+    IF v_matched_wallet IS NOT NULL THEN
+      SELECT orders.* INTO v_order
+      FROM public.event_orders orders
+      JOIN public.wallets ON wallets.id = v_matched_wallet
+      WHERE orders.id = wallets.event_order_id;
+    END IF;
 
     IF v_order.id IS NULL THEN
       SELECT orders.* INTO v_order
