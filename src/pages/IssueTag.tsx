@@ -177,6 +177,7 @@ export default function IssueTag() {
   // Prepaid coins that failed to load after the wallet was created (retry)
   const [pendingCredit, setPendingCredit] = useState<PendingCredit | null>(null);
   const [loadPrepaidOnThisBand, setLoadPrepaidOnThisBand] = useState(true);
+  const [duplicatePhoneAcknowledged, setDuplicatePhoneAcknowledged] = useState(false);
   const [isRetryingCredit, setIsRetryingCredit] = useState(false);
 
   const coinsWaiting = booking ? Math.max(0, booking.prepaid_coins - booking.coins_credited) : 0;
@@ -195,6 +196,7 @@ export default function IssueTag() {
     setScannedTag(null);
     setAttendeeName("");
     setAttendeePhone("");
+    setDuplicatePhoneAcknowledged(false);
     setSelectedStudio("");
   };
 
@@ -385,6 +387,24 @@ export default function IssueTag() {
           variant: "destructive",
         });
         return;
+      }
+
+      // Same phone already wearing a band on this booking? Warn, but let staff decide.
+      if (booking) {
+        const { data: bandCheck } = await rpc("phone_has_band_on_order", {
+          p_parent_order_id: booking.order_id,
+          p_phone: attendeePhone.trim(),
+        });
+        const check = (bandCheck ?? {}) as { has_band?: boolean; attendee_name?: string; band_hint?: string };
+        if (check.has_band && !duplicatePhoneAcknowledged) {
+          setDuplicatePhoneAcknowledged(true);
+          toast({
+            title: "This phone already has a band",
+            description: `${check.attendee_name || "Someone"} on order ${booking.order_ref} already has band ···${check.band_hint || "?"} with this number. Each guest needs their own phone for top-ups. Tap Create again to issue anyway.`,
+            variant: "destructive",
+          });
+          return;
+        }
       }
 
       // Create wallet in Supabase
@@ -747,7 +767,7 @@ export default function IssueTag() {
               id="phone"
               placeholder="Enter phone number"
               value={attendeePhone}
-              onChange={(e) => setAttendeePhone(e.target.value)}
+              onChange={(e) => { setAttendeePhone(e.target.value); setDuplicatePhoneAcknowledged(false); }}
               inputMode="tel"
               autoComplete="off"
               className="transition-smooth focus:shadow-hover text-base"

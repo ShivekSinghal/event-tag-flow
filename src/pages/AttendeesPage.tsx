@@ -177,6 +177,22 @@ const AttendeesPage = () => {
       return;
     }
 
+    // One phone per wristband: the number is how a person is matched to their band.
+    const seenPhones = new Map<string, number>();
+    for (const entry of filled) {
+      const digits = entry.attendee_phone.replace(/\D/g, "").slice(-10);
+      const firstPosition = seenPhones.get(digits);
+      if (firstPosition) {
+        toast({
+          title: `Wristbands ${firstPosition} and ${entry.position} share a phone`,
+          description: "Each person needs their own number — it's how we match them to their band.",
+          variant: "destructive",
+        });
+        return;
+      }
+      seenPhones.set(digits, entry.position);
+    }
+
     setSaving(true);
     const { data, error } = await rpc("submit_order_attendees", {
       p_order_ref: orderRef.trim() || slots.order_ref,
