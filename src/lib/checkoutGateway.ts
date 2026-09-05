@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
  *
  * The browser never decides a price: it creates an order through a
  * server-side RPC, asks `event-payment-create` for a gateway session,
- * opens the gateway, then asks `event-payment-verify` to confirm.
+ * opens the gateway, observes webhook status, then verifies once if needed.
  */
 
 export type CashfreeMode = "sandbox" | "production";
@@ -295,10 +295,184 @@ export type GatewayPaymentResult = {
   confirmationEmailError: string | null;
 };
 
+type PaymentStatusPayload = {
+  payment_status?: string;
+  confirmation_email_sent?: boolean;
+  confirmation_email_error?: string | null;
+};
+
+const finalPaymentStatuses = new Set(["paid", "completed", "failed", "cancelled", "expired"]);
+
+function toGatewayPaymentResult(provider: PaymentProvider, payload: PaymentStatusPayload): GatewayPaymentResult {
+  const paymentStatus = String(payload.payment_status || "pending").toLowerCase();
+  return {
+    provider,
+    paymentStatus,
+    isPaid: paymentStatus === "paid" || paymentStatus === "completed",
+    confirmationEmailSent: Boolean(payload.confirmation_email_sent),
+    confirmationEmailError:
+      "confirmation_email_error" in payload && payload.confirmation_email_error
+        ? String(payload.confirmation_email_error)
+        : null,
+  };
+}
+
+function pollingShouldStop(signal?: AbortSignal) {
+  return signal?.aborted;
+}
+
+function waitUntilPageIsVisible(signal?: AbortSignal) {
+  if (signal?.aborted) {
+    return Promise.resolve(false);
+  }
+
+  if (typeof document === "undefined" || document.visibilityState !== "hidden") {
+    return Promise.resolve(true);
+  }
+
+  return new Promise<boolean>((resolve) => {
+    const cleanup = () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      signal?.removeEventListener("abort", handleAbort);
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") return;
+      cleanup();
+      resolve(true);
+    };
+    const handleAbort = () => {
+      cleanup();
+      resolve(false);
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    signal?.addEventListener("abort", handleAbort, { once: true });
+    if (signal?.aborted) handleAbort();
+  });
+}
+
+function waitForPollingInterval(milliseconds: number, signal?: AbortSignal) {
+  return new Promise<boolean>((resolve) => {
+    if (signal?.aborted) {
+      resolve(false);
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      signal?.removeEventListener("abort", handleAbort);
+      resolve(true);
+    }, milliseconds);
+
+    const handleAbort = () => {
+      window.clearTimeout(timeout);
+      resolve(false);
+    };
+
+    signal?.addEventListener("abort", handleAbort, { once: true });
+  });
+}
+
+async function pollEventPaymentStatus(params: {
+  orderId: string;
+  checkoutToken: string;
+  timeoutMs: number;
+  signal?: AbortSignal;
+}) {
+  const startedAt = Date.now();
+  let latest: PaymentStatusPayload | null = null;
+
+  while (!pollingShouldStop(params.signal)) {
+    if (!(await waitUntilPageIsVisible(params.signal))) {
+      return latest;
+    }
+
+    const { data, error } = await supabase.functions.invoke("event-payment-status", {
+      body: { event_order_id: params.orderId, checkout_token: params.checkoutToken },
+    });
+
+    if (error) {
+      throw new Error(await getFunctionErrorMessage(error, data));
+    }
+
+    latest = (data || {}) as PaymentStatusPayload;
+    const status = String(latest.payment_status || "pending").toLowerCase();
+    if (finalPaymentStatuses.has(status) || Date.now() - startedAt >= params.timeoutMs) {
+      return latest;
+    }
+
+    if (!(await waitForPollingInterval(2000, params.signal))) {
+      return latest;
+    }
+  }
+
+  return latest;
+}
+
+async function waitForWebhookThenVerify(params: {
+  provider: PaymentProvider;
+  orderId: string;
+  checkoutToken: string;
+  verificationBody: Record<string, string>;
+  signal?: AbortSignal;
+}) {
+  let statusEndpointAvailable = true;
+  let polledStatus: PaymentStatusPayload | null = null;
+
+  try {
+    polledStatus = await pollEventPaymentStatus({
+      orderId: params.orderId,
+      checkoutToken: params.checkoutToken,
+      timeoutMs: 20000,
+      signal: params.signal,
+    });
+  } catch (error) {
+    statusEndpointAvailable = false;
+    console.warn("Payment status polling unavailable; using verification fallback.", error);
+  }
+
+  const polledResult = polledStatus ? toGatewayPaymentResult(params.provider, polledStatus) : null;
+  if (polledResult && finalPaymentStatuses.has(polledResult.paymentStatus)) {
+    return polledResult;
+  }
+
+  if (pollingShouldStop(params.signal)) {
+    return polledResult || toGatewayPaymentResult(params.provider, { payment_status: "pending" });
+  }
+
+  const { data: verificationData, error: verificationError } = await supabase.functions.invoke("event-payment-verify", {
+    body: params.verificationBody,
+  });
+
+  if (!verificationError) {
+    const verificationResult = toGatewayPaymentResult(params.provider, verificationData || {});
+    if (finalPaymentStatuses.has(verificationResult.paymentStatus)) {
+      return verificationResult;
+    }
+
+    polledStatus = verificationData || polledStatus;
+  } else if (!statusEndpointAvailable) {
+    throw new Error(await getFunctionErrorMessage(verificationError, verificationData));
+  }
+
+  try {
+    const finalStatus = await pollEventPaymentStatus({
+      orderId: params.orderId,
+      checkoutToken: params.checkoutToken,
+      timeoutMs: 10000,
+      signal: params.signal,
+    });
+    if (finalStatus) polledStatus = finalStatus;
+  } catch (error) {
+    console.warn("Final payment status poll did not complete.", error);
+  }
+
+  return toGatewayPaymentResult(params.provider, polledStatus || { payment_status: "pending" });
+}
+
 /**
  * Runs the full gateway round-trip for an order that already exists in
- * `event_orders`: create the gateway session, open the gateway modal, then
- * verify the outcome server-side. Resolves with the verified status, or
+ * `event_orders`: create the gateway session, open the gateway modal, wait
+ * briefly for its webhook, then verify once as a fallback. Resolves with the final status, or
  * rejects when the gateway could not be opened / the buyer dismissed it.
  */
 export async function runGatewayPayment(params: {
@@ -308,6 +482,7 @@ export async function runGatewayPayment(params: {
   description?: string;
   onProviderKnown?: (provider: PaymentProvider) => void;
   onGatewayVisible?: () => void;
+  signal?: AbortSignal;
 }): Promise<GatewayPaymentResult> {
   const { data: paymentData, error: paymentError } = await supabase.functions.invoke("event-payment-create", {
     body: { event_order_id: params.orderId, checkout_token: params.checkoutToken },
@@ -344,8 +519,12 @@ export async function runGatewayPayment(params: {
       throw new Error("Razorpay checkout was closed before payment completed");
     }
 
-    const { data: verificationData, error: verificationError } = await supabase.functions.invoke("event-payment-verify", {
-      body: {
+    return waitForWebhookThenVerify({
+      provider,
+      orderId: params.orderId,
+      checkoutToken: params.checkoutToken,
+      signal: params.signal,
+      verificationBody: {
         provider: "razorpay",
         event_order_id: params.orderId,
         checkout_token: params.checkoutToken,
@@ -354,18 +533,6 @@ export async function runGatewayPayment(params: {
         razorpay_signature: checkoutResponse.razorpay_signature,
       },
     });
-
-    if (verificationError) throw new Error(await getFunctionErrorMessage(verificationError, verificationData));
-
-    return {
-      provider,
-      paymentStatus: String(verificationData?.payment_status || "pending"),
-      isPaid: verificationData?.payment_status === "paid",
-      confirmationEmailSent: Boolean(verificationData?.confirmation_email_sent),
-      confirmationEmailError: verificationData?.confirmation_email_error
-        ? String(verificationData.confirmation_email_error)
-        : null,
-    };
   }
 
   const paymentSessionId = paymentData?.payment_session_id as string | undefined;
@@ -392,24 +559,16 @@ export async function runGatewayPayment(params: {
     redirectTarget: "_modal",
   });
 
-  const { data: verificationData, error: verificationError } = await supabase.functions.invoke("event-payment-verify", {
-    body: {
+  return waitForWebhookThenVerify({
+    provider,
+    orderId: params.orderId,
+    checkoutToken: params.checkoutToken,
+    signal: params.signal,
+    verificationBody: {
       provider: "cashfree",
       event_order_id: params.orderId,
       checkout_token: params.checkoutToken,
       cashfree_order_id: cashfreeOrderId,
     },
   });
-
-  if (verificationError) throw new Error(await getFunctionErrorMessage(verificationError, verificationData));
-
-  return {
-    provider,
-    paymentStatus: String(verificationData?.payment_status || "pending"),
-    isPaid: verificationData?.payment_status === "paid",
-    confirmationEmailSent: Boolean(verificationData?.confirmation_email_sent),
-    confirmationEmailError: verificationData?.confirmation_email_error
-      ? String(verificationData.confirmation_email_error)
-      : null,
-  };
 }

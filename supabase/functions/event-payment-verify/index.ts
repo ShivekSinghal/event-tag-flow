@@ -48,7 +48,7 @@ serve(async (req: Request) => {
 
     const { data: order, error: orderError } = await supabase
       .from("event_orders")
-      .select("id, cashfree_order_id, razorpay_order_id, checkout_token_hash, checkout_token_expires_at")
+      .select("id, payment_provider, payment_status, cashfree_order_id, razorpay_order_id, checkout_token_hash, checkout_token_expires_at, confirmation_email_sent_at, confirmation_email_error")
       .eq("id", event_order_id)
       .single();
 
@@ -64,6 +64,16 @@ serve(async (req: Request) => {
 
     if (!tokenValid) {
       return jsonResponse({ error: "Checkout session expired. Please create the booking again." }, 401);
+    }
+
+    if (["paid", "completed"].includes(order.payment_status)) {
+      return jsonResponse({
+        provider: order.payment_provider || provider || "cashfree",
+        event_order_id: order.id,
+        payment_status: "paid",
+        confirmation_email_sent: Boolean(order.confirmation_email_sent_at),
+        confirmation_email_error: order.confirmation_email_error,
+      });
     }
 
     if (provider === "razorpay") {
@@ -91,7 +101,7 @@ serve(async (req: Request) => {
       const paymentStatus = razorpayStatus === "captured" ? "paid" : "pending";
       const now = new Date().toISOString();
 
-      const { error: updateError } = await supabase
+      const { data: updatedOrder, error: updateError } = await supabase
         .from("event_orders")
         .update({
           payment_provider: "razorpay",
@@ -105,14 +115,29 @@ serve(async (req: Request) => {
           last_payment_verified_at: now,
           paid_at: paymentStatus === "paid" ? now : null,
         })
-        .eq("id", order.id);
+        .eq("id", order.id)
+        .neq("payment_status", "paid")
+        .neq("payment_status", "completed")
+        .select("id")
+        .maybeSingle();
 
       if (updateError) throw updateError;
 
       const creditResult =
-        paymentStatus === "paid" ? await autoCreditCoinOrder(supabase, order.id) : { attempted: false, credited: 0, reason: null, error: null };
+        paymentStatus === "paid" && updatedOrder?.id
+          ? await autoCreditCoinOrder(supabase, order.id)
+          : { attempted: false, credited: 0, reason: null, error: null };
       const emailResult =
-        paymentStatus === "paid" ? await sendEventConfirmationEmail(supabase, order.id) : { sent: false };
+        paymentStatus === "paid" && updatedOrder?.id
+          ? await sendEventConfirmationEmail(supabase, order.id)
+          : { sent: false };
+      const { data: finalOrder, error: finalOrderError } = await supabase
+        .from("event_orders")
+        .select("payment_status, confirmation_email_sent_at, confirmation_email_error")
+        .eq("id", order.id)
+        .single();
+
+      if (finalOrderError) throw finalOrderError;
 
       return jsonResponse({
         provider: "razorpay",
@@ -121,9 +146,10 @@ serve(async (req: Request) => {
         event_order_id: order.id,
         razorpay_order_id: expectedOrderId,
         razorpay_payment_status: razorpayStatus,
-        payment_status: paymentStatus,
-        confirmation_email_sent: emailResult.sent,
-        confirmation_email_error: "error" in emailResult ? emailResult.error : null,
+        payment_status: finalOrder.payment_status,
+        confirmation_email_sent: emailResult.sent || Boolean(finalOrder.confirmation_email_sent_at),
+        confirmation_email_error:
+          ("error" in emailResult ? emailResult.error : null) || finalOrder.confirmation_email_error,
       });
     }
 
@@ -137,7 +163,7 @@ serve(async (req: Request) => {
     const paymentStatus = mapCashfreeOrderStatus(orderStatus);
     const now = new Date().toISOString();
 
-    const { error: updateError } = await supabase
+    const { data: updatedOrder, error: updateError } = await supabase
       .from("event_orders")
       .update({
         payment_provider: "cashfree",
@@ -149,14 +175,29 @@ serve(async (req: Request) => {
         last_payment_verified_at: now,
         paid_at: paymentStatus === "paid" ? now : null,
       })
-      .eq("id", order.id);
+      .eq("id", order.id)
+      .neq("payment_status", "paid")
+      .neq("payment_status", "completed")
+      .select("id")
+      .maybeSingle();
 
     if (updateError) throw updateError;
 
     const creditResult =
-      paymentStatus === "paid" ? await autoCreditCoinOrder(supabase, order.id) : { attempted: false, credited: 0, reason: null, error: null };
+      paymentStatus === "paid" && updatedOrder?.id
+        ? await autoCreditCoinOrder(supabase, order.id)
+        : { attempted: false, credited: 0, reason: null, error: null };
     const emailResult =
-      paymentStatus === "paid" ? await sendEventConfirmationEmail(supabase, order.id) : { sent: false };
+      paymentStatus === "paid" && updatedOrder?.id
+        ? await sendEventConfirmationEmail(supabase, order.id)
+        : { sent: false };
+    const { data: finalOrder, error: finalOrderError } = await supabase
+      .from("event_orders")
+      .select("payment_status, confirmation_email_sent_at, confirmation_email_error")
+      .eq("id", order.id)
+      .single();
+
+    if (finalOrderError) throw finalOrderError;
 
     return jsonResponse({
       provider: "cashfree",
@@ -165,9 +206,10 @@ serve(async (req: Request) => {
       event_order_id: order.id,
       cashfree_order_id: expectedCashfreeOrderId,
       cashfree_order_status: orderStatus,
-      payment_status: paymentStatus,
-      confirmation_email_sent: emailResult.sent,
-      confirmation_email_error: "error" in emailResult ? emailResult.error : null,
+      payment_status: finalOrder.payment_status,
+      confirmation_email_sent: emailResult.sent || Boolean(finalOrder.confirmation_email_sent_at),
+      confirmation_email_error:
+        ("error" in emailResult ? emailResult.error : null) || finalOrder.confirmation_email_error,
     });
   } catch (error) {
     console.error("event-payment-verify failed:", error);

@@ -98,6 +98,9 @@ serve(async (req: Request) => {
           paid_at: paymentStatus === "paid" ? now : null,
         })
         .eq("razorpay_order_id", payment.orderId)
+        // A late failure or duplicate delivery must never overwrite a confirmed payment.
+        .neq("payment_status", "paid")
+        .neq("payment_status", "completed")
         .select("id")
         .maybeSingle();
 
@@ -159,6 +162,7 @@ serve(async (req: Request) => {
       .eq("cashfree_order_id", cashfreeOrderId)
       // Never downgrade a paid order (late or duplicate webhooks), and never re-send the confirmation email.
       .neq("payment_status", "paid")
+      .neq("payment_status", "completed")
       .select("id")
       .maybeSingle();
 

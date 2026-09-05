@@ -269,6 +269,9 @@ export default function EventLanding() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [showBottomSticker, setShowBottomSticker] = useState(false);
   const heroVideoRef = useRef<HTMLVideoElement | null>(null);
+  const paymentAbortControllerRef = useRef<AbortController | null>(null);
+
+  useEffect(() => () => paymentAbortControllerRef.current?.abort(), []);
 
   // Mobile autoplay: React sets `muted` as a property, not an attribute, and iOS Safari / Android
   // Chrome only autoplay a video whose muted *attribute* is present at load. Set it by hand, start
@@ -612,6 +615,7 @@ export default function EventLanding() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    let paymentAbortController: AbortController | null = null;
 
     if (!hasCheckoutItems) {
       toast({
@@ -685,9 +689,13 @@ export default function EventLanding() {
       });
 
       try {
+        paymentAbortControllerRef.current?.abort();
+        paymentAbortController = new AbortController();
+        paymentAbortControllerRef.current = paymentAbortController;
         const result = await runGatewayPayment({
           orderId,
           checkoutToken,
+          signal: paymentAbortController.signal,
           fallbackCustomer: {
             name: form.name.trim(),
             email: form.email.trim(),
@@ -775,6 +783,9 @@ export default function EventLanding() {
         variant: "destructive",
       });
     } finally {
+      if (paymentAbortControllerRef.current === paymentAbortController) {
+        paymentAbortControllerRef.current = null;
+      }
       setIsGatewayOpening(false);
       setIsGatewayActive(false);
       setIsSubmitting(false);

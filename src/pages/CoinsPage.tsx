@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { CheckCircle2, Clock, Loader2, Minus, Plus, Search, Ticket } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -121,6 +121,9 @@ export default function CoinsPage() {
   const [isPaying, setIsPaying] = useState(false);
   const [isGatewayOpening, setIsGatewayOpening] = useState(false);
   const [paid, setPaid] = useState<PaidState | null>(null);
+  const paymentAbortControllerRef = useRef<AbortController | null>(null);
+
+  useEffect(() => () => paymentAbortControllerRef.current?.abort(), []);
 
   // Page chrome: attribution, noindex, title.
   useEffect(() => {
@@ -252,6 +255,8 @@ export default function CoinsPage() {
     setIsGatewayOpening(true);
     let activeProvider = provider;
 
+    let paymentAbortController: AbortController | null = null;
+
     try {
       const checkoutToken = createCheckoutToken();
       const { data: order, error: orderError } = await supabase
@@ -272,9 +277,13 @@ export default function CoinsPage() {
       if (orderError) throw new Error(orderError.message);
       if (!order?.order_id) throw new Error("The coin order could not be created");
 
+      paymentAbortControllerRef.current?.abort();
+      paymentAbortController = new AbortController();
+      paymentAbortControllerRef.current = paymentAbortController;
       const result = await runGatewayPayment({
         orderId: order.order_id,
         checkoutToken,
+        signal: paymentAbortController.signal,
         fallbackCustomer: { name: lookup.first_name, email: "", phone: "" },
         description: "Pink'd Coins",
         onProviderKnown: (known) => {
@@ -303,6 +312,9 @@ export default function CoinsPage() {
     } catch (error) {
       toast({ title: "Payment not completed", description: getPaymentErrorMessage(error, activeProvider), variant: "destructive" });
     } finally {
+      if (paymentAbortControllerRef.current === paymentAbortController) {
+        paymentAbortControllerRef.current = null;
+      }
       setIsGatewayOpening(false);
       setIsPaying(false);
     }
