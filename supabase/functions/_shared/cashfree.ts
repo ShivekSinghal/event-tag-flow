@@ -69,9 +69,13 @@ function readFirstSecret(keys: string[]) {
   return keys.map((key) => Deno.env.get(key)?.trim()).find(Boolean) || null;
 }
 
+export function getCashfreeClientSecret() {
+  return readFirstSecret(CASHFREE_CLIENT_SECRET_KEYS);
+}
+
 export function getCashfreeConfig(modeOverride?: string | null) {
   const clientId = readFirstSecret(CASHFREE_CLIENT_ID_KEYS);
-  const clientSecret = readFirstSecret(CASHFREE_CLIENT_SECRET_KEYS);
+  const clientSecret = getCashfreeClientSecret();
   const mode = normalizeCashfreeMode(modeOverride || Deno.env.get("CASHFREE_ENV"));
 
   if (!clientId || !clientSecret) {

@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import {
   corsHeaders,
+  getCashfreeClientSecret,
   getSupabaseAdmin,
   jsonResponse,
   mapCashfreeOrderStatus,
@@ -122,7 +123,7 @@ serve(async (req: Request) => {
 
     const signature = req.headers.get("x-webhook-signature") || "";
     const timestamp = req.headers.get("x-webhook-timestamp") || "";
-    const secret = Deno.env.get("CASHFREE_WEBHOOK_SECRET") || Deno.env.get("CASHFREE_CLIENT_SECRET") || "";
+    const secret = getCashfreeClientSecret() || Deno.env.get("CASHFREE_WEBHOOK_SECRET")?.trim() || "";
 
     if (!signature || !timestamp || !secret) {
       console.warn("cashfree webhook: missing signature headers or secret");
