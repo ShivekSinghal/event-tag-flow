@@ -30,6 +30,8 @@ export type FoundWallet = {
 
 type Props = {
   onSelect: (wallet: FoundWallet) => void;
+  /** Called as soon as manual lookup takes over from an in-progress scanner. */
+  onLookupStart?: () => void;
   /** Optional: hide the trigger link and always show the panel (e.g. on Check Coins). */
   alwaysOpen?: boolean;
   disabled?: boolean;
@@ -45,7 +47,13 @@ const MATCH_LABEL: Record<FoundWallet["match_kind"], string> = {
 
 export const LOOKUP_REFERENCE_TAG = "via:phone-lookup";
 
-export function FindWalletFallback({ onSelect, alwaysOpen = false, disabled = false, className = "" }: Props) {
+export function FindWalletFallback({
+  onSelect,
+  onLookupStart,
+  alwaysOpen = false,
+  disabled = false,
+  className = "",
+}: Props) {
   const [open, setOpen] = useState(alwaysOpen);
   const [query, setQuery] = useState("");
   const [rows, setRows] = useState<FoundWallet[]>([]);
@@ -109,7 +117,10 @@ export function FindWalletFallback({ onSelect, alwaysOpen = false, disabled = fa
       <button
         type="button"
         disabled={disabled}
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          onLookupStart?.();
+          setOpen(true);
+        }}
         className={`mt-2 w-full text-center text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
       >
         Can't scan? Find by phone or name

@@ -143,7 +143,7 @@ Admin → Event Bookings shows ticket vs coin revenue for all of the above; noth
 Digital reward ticket for winning a paid game. 1 Pinkredible = ₹100 off course registration on
 hashtag.dance. Nothing is printed. Migration `20260906090000_pinkredibles.sql`.
 
-* **Rounds on the POS.** Selecting a prize game (Hurdle 1 v 1, Cricket 3 a side = 6, Issue With a
+* **Rounds on the POS.** Selecting a prize game (Cricket 3 a side = 6, Issue With a
   Tissue 5 a side = 10, Hurdle and Minute to Win It 1 v 1, Limbo / Bombastic individual with at least 5) opens a
   round on that phone instead of a single sale. Each player's band is scanned to take the entry;
   "Game over · pick the winner" unlocks once the minimum is in; tapping or scanning the winner
@@ -153,14 +153,18 @@ hashtag.dance. Nothing is printed. Migration `20260906090000_pinkredibles.sql`.
 * **Attendee view.** `/coins` shows each band's Pinkredibles and its coupon code `PINK-XXXXXX`
   (tap to copy). Seed: Karan's band `NFC0K4R4N` has 2 on code `PINK-TEST01`.
 * **Redeem.** `/pinkredibles` (admin, studio manager): type the code, see the balance, take off
-  the Pinkredibles being used, note the student and course. Staff can only check codes.
+  the Pinkredibles being used, note the student and course. Staff can only check individual codes;
+  they cannot see totals, ledger history, or redeem rewards.
 * **hashtag.dance integration.** The registration form can validate a code with no login:
   `POST {SUPABASE_URL}/rest/v1/rpc/check_pinkredible_code` with the anon key and
-  `{"p_code":"PINK-XXXXXX"}` → `{valid, pinkredibles, value_inr, first_name}`. Redeeming from a
+  `{"p_code":"PINK-XXXXXX"}` → `{valid, pinkredibles, value_inr, first_name, expires_at}`. Redeeming from a
   server needs the service-role key: `POST .../rpc/redeem_pinkredibles` with
   `{"p_code":..., "p_count":1, "p_note":"..."}`.
 * **Expiry.** Codes stop working after 11 October 2026 23:59 IST (`pinkredible_expires_at()`); the check returns `reason: "expired"` and redeem refuses.
 * **Lost band.** Reissue moves the Pinkredibles and the code to the new band.
-* **Test script step 12.** Log in as staff, POS → Cricket → type six tag IDs (any six issued bands,
-  or issue test bands first) → "Game over" → tap a winner → `/coins` for that person shows +1 and
-  the code → `/pinkredibles` as admin: check the code, redeem 1 with a note → balance drops.
+* **Test script step 12.** Assign Cricket to a staff account, then log in as that staff member:
+  POS → Cricket → add six issued bands by NFC, typed test tag, or confirmed phone/name lookup →
+  "Game over" → tap a paid player as winner → `/coins` for that person shows +1 and the code →
+  `/pinkredibles` as admin: check the code, redeem 1 with a note → balance drops. A lookup entry's
+  coin transaction reference must contain `via:phone-lookup`; tapping the band after lookup takes
+  over must not create another debit.

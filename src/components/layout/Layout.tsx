@@ -39,7 +39,7 @@ export default function Layout() {
   // Filter navigation based on user role
   const filteredNavigation = navigation.filter(item => {
     if (isAdmin) return true; // Admin can see all
-    if (isStaff) return item.href === '/pos'; // Staff can only see POS (Pinkredibles are awarded from the POS after a game sale)
+    if (isStaff) return item.href === '/pos' || item.href === '/pinkredibles'; // Staff can run assigned games and check Pinkredible codes.
     if (isStudioManager) return item.href === '/issue-tag' || item.href === '/topup' || item.href === '/pinkredibles'; // Studio manager: bands, top up, redeem Pinkredibles at registration
     return false;
   });

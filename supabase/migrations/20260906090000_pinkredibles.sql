@@ -15,7 +15,7 @@
 --   games.players_min / players_max / team_size / awards_pinkredible   the format per game
 --   game_rounds, game_round_players                                     one round, its paid players
 --   open_game_round(game)            staff: the open round for this game on this phone (created if none)
---   pay_game_round(round, wallet)    staff: charge the entry and add the player
+--   pay_game_round(round, wallet, via_lookup)  operator: charge the entry and add the player
 --   award_game_round(round, winner)  staff: close the round, +1 Pinkredible on the winner's band
 --   close_game_round(round, reason)  staff: close with no winner or not enough players (no refunds)
 --   my_open_game_rounds()            staff: rounds still open on this phone (restores the POS after a reload)
@@ -59,12 +59,15 @@ WITH sop(name, description, price, players_min, players_max, team_size) AS (
     ('Minute to Win It',    'One on one: drink, flip cup, dice, 7 ball taps, stack 7 cups. Fastest valid completion wins.', 1000, 2, 2, 1)
 )
 UPDATE public.games g
-SET players_min = sop.players_min,
+SET description = sop.description,
+    price = sop.price,
+    players_min = sop.players_min,
     players_max = sop.players_max,
     team_size = sop.team_size,
     awards_pinkredible = true
 FROM sop
-WHERE lower(g.name) = lower(sop.name);
+WHERE lower(g.name) = lower(sop.name)
+  AND NOT g.awards_pinkredible;
 
 WITH sop(name, description, price, players_min, players_max, team_size) AS (
   VALUES
@@ -124,6 +127,8 @@ COMMENT ON TABLE public.game_rounds IS
 
 CREATE INDEX IF NOT EXISTS game_rounds_staff_open_idx ON public.game_rounds (staff_user_id, status) WHERE status = 'open';
 CREATE INDEX IF NOT EXISTS game_rounds_opened_at_idx ON public.game_rounds (opened_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS game_rounds_one_open_per_operator_game_idx
+  ON public.game_rounds (staff_user_id, game_id) WHERE status = 'open';
 
 CREATE TABLE IF NOT EXISTS public.game_round_players (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -144,10 +149,25 @@ GRANT ALL ON TABLE public.game_rounds, public.game_round_players TO service_role
 
 DROP POLICY IF EXISTS "Team can view game rounds" ON public.game_rounds;
 CREATE POLICY "Team can view game rounds" ON public.game_rounds FOR SELECT TO authenticated
-  USING (public.get_current_user_role() IN ('admin', 'staff', 'studio_manager'));
+  USING (
+    public.get_current_user_role() = 'admin'
+    OR (
+      public.get_current_user_role() IN ('staff', 'studio_manager')
+      AND staff_user_id = auth.uid()
+    )
+  );
 DROP POLICY IF EXISTS "Team can view game round players" ON public.game_round_players;
 CREATE POLICY "Team can view game round players" ON public.game_round_players FOR SELECT TO authenticated
-  USING (public.get_current_user_role() IN ('admin', 'staff', 'studio_manager'));
+  USING (
+    public.get_current_user_role() = 'admin'
+    OR EXISTS (
+      SELECT 1
+      FROM public.game_rounds rounds
+      WHERE rounds.id = game_round_players.round_id
+        AND rounds.staff_user_id = auth.uid()
+        AND public.get_current_user_role() IN ('staff', 'studio_manager')
+    )
+  );
 
 CREATE TABLE IF NOT EXISTS public.pinkredible_ledger (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -177,7 +197,7 @@ GRANT ALL ON TABLE public.pinkredible_ledger TO service_role;
 DROP POLICY IF EXISTS "Team can view pinkredible ledger" ON public.pinkredible_ledger;
 CREATE POLICY "Team can view pinkredible ledger"
   ON public.pinkredible_ledger FOR SELECT TO authenticated
-  USING (public.get_current_user_role() IN ('admin', 'staff', 'studio_manager'));
+  USING (public.get_current_user_role() IN ('admin', 'studio_manager'));
 
 -- ---------------------------------------------------------------------------
 -- Helpers
@@ -218,6 +238,118 @@ BEGIN
     EXIT WHEN NOT EXISTS (SELECT 1 FROM public.wallets WHERE pinkredible_code = v_code);
   END LOOP;
   RETURN v_code;
+END;
+$$;
+
+-- Keep every POS debit behind the same permission model. Admins can sell every item; staff and
+-- studio managers need the corresponding assignment. For custom games, a NULL game id means any
+-- assigned game permission, matching the existing POS section access rule.
+CREATE OR REPLACE FUNCTION public.spend_wallet_coins(
+  p_wallet_id UUID,
+  p_coin_amount INTEGER,
+  p_transaction_type TEXT,
+  p_item_name TEXT,
+  p_item_category TEXT DEFAULT NULL,
+  p_game_id UUID DEFAULT NULL,
+  p_reference TEXT DEFAULT NULL
+)
+RETURNS TABLE (
+  wallet_id UUID,
+  new_coin_balance INTEGER,
+  spent_coin_amount INTEGER,
+  transaction_id UUID
+)
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_wallet public.wallets%ROWTYPE;
+  v_transaction_id UUID;
+  v_type TEXT;
+  v_item_name TEXT;
+  v_reference TEXT;
+  v_role TEXT := public.get_current_user_role();
+BEGIN
+  IF (SELECT auth.uid()) IS NULL THEN
+    RAISE EXCEPTION 'Authentication required';
+  END IF;
+
+  IF v_role IS NULL OR v_role NOT IN ('admin', 'staff', 'studio_manager') THEN
+    RAISE EXCEPTION 'Only admins, staff and studio managers can spend coins';
+  END IF;
+
+  v_type := COALESCE(NULLIF(TRIM(p_transaction_type), ''), 'food');
+  IF v_type NOT IN ('games', 'drinks', 'food') THEN
+    RAISE EXCEPTION 'Invalid transaction type';
+  END IF;
+
+  IF v_role <> 'admin' AND NOT public.user_has_permission(
+    (SELECT auth.uid()),
+    CASE WHEN v_type = 'games' THEN 'game' ELSE v_type END,
+    CASE WHEN v_type = 'games' THEN p_game_id ELSE NULL END
+  ) THEN
+    RAISE EXCEPTION 'This % sale is not assigned to your account', v_type;
+  END IF;
+
+  IF p_coin_amount IS NULL OR p_coin_amount <= 0 THEN
+    RAISE EXCEPTION 'Coin amount must be greater than zero';
+  END IF;
+
+  v_item_name := COALESCE(NULLIF(TRIM(p_item_name), ''), 'POS Item');
+  v_reference := COALESCE(NULLIF(TRIM(p_reference), ''), UPPER(v_type) || '_' || extract(epoch from clock_timestamp())::bigint::text);
+
+  SELECT * INTO v_wallet
+  FROM public.wallets
+  WHERE id = p_wallet_id
+  FOR UPDATE;
+
+  IF v_wallet.id IS NULL THEN
+    RAISE EXCEPTION 'Wallet not found';
+  END IF;
+  IF v_wallet.status <> 'active' THEN
+    RAISE EXCEPTION 'Wallet is %', v_wallet.status;
+  END IF;
+  IF COALESCE(v_wallet.coin_balance, 0) < p_coin_amount THEN
+    RAISE EXCEPTION 'Insufficient Pink''D Coins';
+  END IF;
+
+  UPDATE public.wallets
+  SET coin_balance = COALESCE(coin_balance, 0) - p_coin_amount,
+      balance = COALESCE(coin_balance, 0) - p_coin_amount,
+      updated_at = now()
+  WHERE id = v_wallet.id
+  RETURNING * INTO v_wallet;
+
+  INSERT INTO public.transactions (
+    wallet_id, type, amount, inr_amount, coin_amount, description, reference,
+    game_id, item_name, item_category, staff_user_id
+  ) VALUES (
+    v_wallet.id,
+    v_type,
+    -p_coin_amount,
+    NULL,
+    -p_coin_amount,
+    CASE
+      WHEN v_type = 'drinks' THEN 'Drinks Purchase: '
+      WHEN v_type = 'games' THEN 'Game Purchase: '
+      ELSE 'Food Purchase: '
+    END || v_item_name,
+    v_reference,
+    p_game_id,
+    v_item_name,
+    COALESCE(NULLIF(TRIM(p_item_category), ''), v_type),
+    (SELECT auth.uid())
+  ) RETURNING id INTO v_transaction_id;
+
+  IF p_game_id IS NOT NULL THEN
+    INSERT INTO public.game_sales (game_id, transaction_id, quantity, sale_price, coin_price)
+    VALUES (p_game_id, v_transaction_id, 1, p_coin_amount, p_coin_amount);
+  END IF;
+
+  RETURN QUERY
+  SELECT v_wallet.id, v_wallet.coin_balance, p_coin_amount, v_transaction_id;
 END;
 $$;
 
@@ -269,7 +401,7 @@ BEGIN
 END;
 $$;
 
--- Round owner or an admin may act on a round.
+-- Round owner with the assigned game permission, or an admin, may act on a round.
 CREATE OR REPLACE FUNCTION public.assert_round_operator(p_round public.game_rounds)
 RETURNS VOID
 LANGUAGE plpgsql
@@ -277,12 +409,23 @@ STABLE
 SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
+DECLARE
+  v_role TEXT := public.get_current_user_role()::TEXT;
 BEGIN
   IF auth.uid() IS NULL THEN
     RAISE EXCEPTION 'Sign in as staff';
   END IF;
-  IF p_round.staff_user_id IS DISTINCT FROM auth.uid() AND public.get_current_user_role() <> 'admin' THEN
+  IF v_role IS NULL OR v_role NOT IN ('admin', 'staff', 'studio_manager') THEN
+    RAISE EXCEPTION 'This account cannot operate game rounds';
+  END IF;
+  IF p_round.staff_user_id IS DISTINCT FROM auth.uid() AND v_role <> 'admin' THEN
     RAISE EXCEPTION 'This round belongs to another POS phone';
+  END IF;
+  IF v_role <> 'admin' AND (
+    p_round.game_id IS NULL
+    OR NOT public.user_has_permission(auth.uid(), 'game', p_round.game_id)
+  ) THEN
+    RAISE EXCEPTION 'This game is not assigned to your account';
   END IF;
 END;
 $$;
@@ -300,12 +443,13 @@ AS $$
 DECLARE
   v_game public.games;
   v_round_id UUID;
+  v_role TEXT := public.get_current_user_role()::TEXT;
 BEGIN
   IF auth.uid() IS NULL THEN
     RAISE EXCEPTION 'Sign in as staff to run a game';
   END IF;
-  IF public.get_current_user_role() NOT IN ('admin', 'staff') THEN
-    RAISE EXCEPTION 'Only admins and staff run games';
+  IF v_role IS NULL OR v_role NOT IN ('admin', 'staff', 'studio_manager') THEN
+    RAISE EXCEPTION 'This account cannot operate game rounds';
   END IF;
   SELECT * INTO v_game FROM public.games WHERE id = p_game_id;
   IF v_game.id IS NULL THEN
@@ -313,6 +457,9 @@ BEGIN
   END IF;
   IF NOT v_game.available THEN
     RAISE EXCEPTION '% is not available right now', v_game.name;
+  END IF;
+  IF v_role <> 'admin' AND NOT public.user_has_permission(auth.uid(), 'game', v_game.id) THEN
+    RAISE EXCEPTION 'This game is not assigned to your account';
   END IF;
 
   SELECT id INTO v_round_id
@@ -324,7 +471,16 @@ BEGIN
   IF v_round_id IS NULL THEN
     INSERT INTO public.game_rounds (game_id, game_name, staff_user_id, entry_coins, players_needed, players_max, team_size, awards_pinkredible)
     VALUES (v_game.id, v_game.name, auth.uid(), round(v_game.price)::INTEGER, v_game.players_min, v_game.players_max, v_game.team_size, v_game.awards_pinkredible)
+    ON CONFLICT (staff_user_id, game_id) WHERE status = 'open' DO NOTHING
     RETURNING id INTO v_round_id;
+
+    IF v_round_id IS NULL THEN
+      SELECT id INTO v_round_id
+      FROM public.game_rounds
+      WHERE game_id = v_game.id AND staff_user_id = auth.uid() AND status = 'open'
+      ORDER BY opened_at DESC
+      LIMIT 1;
+    END IF;
   END IF;
 
   RETURN public.game_round_payload(v_round_id);
@@ -334,7 +490,11 @@ $$;
 -- ---------------------------------------------------------------------------
 -- pay_game_round: charge one player's entry and add them to the round
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION public.pay_game_round(p_round_id UUID, p_wallet_id UUID)
+CREATE OR REPLACE FUNCTION public.pay_game_round(
+  p_round_id UUID,
+  p_wallet_id UUID,
+  p_via_phone_lookup BOOLEAN DEFAULT false
+)
 RETURNS JSONB
 LANGUAGE plpgsql
 VOLATILE
@@ -379,6 +539,7 @@ BEGIN
     FROM public.spend_wallet_coins(
       v_wallet.id, v_round.entry_coins, 'games', v_round.game_name, 'games', v_round.game_id,
       'ROUND_' || replace(v_round.id::TEXT, '-', '')
+        || CASE WHEN p_via_phone_lookup THEN ' via:phone-lookup' ELSE '' END
     ) AS s;
   ELSE
     v_new_balance := COALESCE(v_wallet.coin_balance, 0);
@@ -521,26 +682,25 @@ BEGIN
   IF v_wallet.id IS NULL THEN
     RETURN jsonb_build_object('valid', false, 'reason', 'unknown');
   END IF;
+  IF v_wallet.status <> 'active' THEN
+    RETURN jsonb_build_object('valid', false, 'reason', 'inactive');
+  END IF;
   IF now() > public.pinkredible_expires_at() THEN
     RETURN jsonb_build_object('valid', false, 'reason', 'expired', 'expires_at', public.pinkredible_expires_at(),
-                              'code', v_wallet.pinkredible_code, 'pinkredibles', v_wallet.pinkredible_balance);
+                              'pinkredibles', v_wallet.pinkredible_balance);
   END IF;
   RETURN jsonb_build_object(
     'valid', true,
     'expires_at', public.pinkredible_expires_at(),
-    'code', v_wallet.pinkredible_code,
     'first_name', split_part(trim(v_wallet.attendee_name), ' ', 1),
-    'band_hint', right(v_wallet.tag_id, 3),
-    'active', v_wallet.status = 'active',
     'pinkredibles', v_wallet.pinkredible_balance,
-    'value_inr', v_wallet.pinkredible_balance * public.pinkredible_value_inr(),
-    'value_each_inr', public.pinkredible_value_inr()
+    'value_inr', v_wallet.pinkredible_balance * public.pinkredible_value_inr()
   );
 END;
 $$;
 
 COMMENT ON FUNCTION public.check_pinkredible_code(TEXT) IS
-  'Public: validates a Pinkredible coupon code and returns the balance and ₹ value. First name only, no phone or email.';
+  'Public: validates a Pinkredible coupon code and returns only balance, ₹ value, first name and expiry.';
 
 -- ---------------------------------------------------------------------------
 -- Redeem (admin / studio_manager, at registration)
@@ -559,11 +719,12 @@ AS $$
 DECLARE
   v_code TEXT := upper(regexp_replace(coalesce(p_code, ''), '\s', '', 'g'));
   v_wallet public.wallets;
+  v_is_service_role BOOLEAN := auth.role() = 'service_role';
 BEGIN
-  IF auth.uid() IS NULL THEN
+  IF auth.uid() IS NULL AND NOT v_is_service_role THEN
     RAISE EXCEPTION 'Sign in to redeem Pinkredibles';
   END IF;
-  IF public.get_current_user_role() NOT IN ('admin', 'studio_manager') THEN
+  IF NOT v_is_service_role AND public.get_current_user_role() NOT IN ('admin', 'studio_manager') THEN
     RAISE EXCEPTION 'Only admins and studio managers can redeem Pinkredibles';
   END IF;
   IF p_count IS NULL OR p_count < 1 THEN
@@ -576,6 +737,9 @@ BEGIN
   SELECT * INTO v_wallet FROM public.wallets WHERE pinkredible_code = v_code FOR UPDATE;
   IF v_wallet.id IS NULL THEN
     RAISE EXCEPTION 'No Pinkredibles found for code %', coalesce(NULLIF(v_code, ''), '(blank)');
+  END IF;
+  IF v_wallet.status <> 'active' THEN
+    RAISE EXCEPTION 'This Pinkredible code is attached to an inactive band';
   END IF;
   IF v_wallet.pinkredible_balance < p_count THEN
     RAISE EXCEPTION 'Only % Pinkredible% left on this code', v_wallet.pinkredible_balance,
@@ -882,8 +1046,8 @@ GRANT EXECUTE ON FUNCTION public.pinkredible_expires_at() TO anon, authenticated
 REVOKE ALL ON FUNCTION public.generate_pinkredible_code() FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.generate_pinkredible_code() TO service_role;
 
-REVOKE ALL ON FUNCTION public.game_round_payload(UUID) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.game_round_payload(UUID) TO authenticated, service_role;
+REVOKE ALL ON FUNCTION public.game_round_payload(UUID) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.game_round_payload(UUID) TO service_role;
 
 REVOKE ALL ON FUNCTION public.assert_round_operator(public.game_rounds) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.assert_round_operator(public.game_rounds) TO service_role;
@@ -891,8 +1055,8 @@ GRANT EXECUTE ON FUNCTION public.assert_round_operator(public.game_rounds) TO se
 REVOKE ALL ON FUNCTION public.open_game_round(UUID) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.open_game_round(UUID) TO authenticated, service_role;
 
-REVOKE ALL ON FUNCTION public.pay_game_round(UUID, UUID) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.pay_game_round(UUID, UUID) TO authenticated, service_role;
+REVOKE ALL ON FUNCTION public.pay_game_round(UUID, UUID, BOOLEAN) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.pay_game_round(UUID, UUID, BOOLEAN) TO authenticated, service_role;
 
 REVOKE ALL ON FUNCTION public.award_game_round(UUID, UUID) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.award_game_round(UUID, UUID) TO authenticated, service_role;

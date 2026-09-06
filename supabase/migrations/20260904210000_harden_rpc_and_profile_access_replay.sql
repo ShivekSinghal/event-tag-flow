@@ -233,6 +233,8 @@ DROP POLICY IF EXISTS "Admins can view all profiles" ON public.profiles;
 DROP POLICY IF EXISTS "Users can view own profile" ON public.profiles;
 DROP POLICY IF EXISTS "Admins can update all profiles" ON public.profiles;
 DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
+DROP POLICY IF EXISTS "Authenticated users can view permitted profiles" ON public.profiles;
+DROP POLICY IF EXISTS "Authenticated users can update permitted profiles" ON public.profiles;
 
 CREATE POLICY "Authenticated users can view permitted profiles"
 ON public.profiles
@@ -293,6 +295,10 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.staff_permissions TO authen
 
 DROP POLICY IF EXISTS "Admins can manage all permissions" ON public.staff_permissions;
 DROP POLICY IF EXISTS "Users can view their own permissions" ON public.staff_permissions;
+DROP POLICY IF EXISTS "Authenticated users can view permitted permissions" ON public.staff_permissions;
+DROP POLICY IF EXISTS "Admins can insert permissions" ON public.staff_permissions;
+DROP POLICY IF EXISTS "Admins can update permissions" ON public.staff_permissions;
+DROP POLICY IF EXISTS "Admins can delete permissions" ON public.staff_permissions;
 
 CREATE POLICY "Authenticated users can view permitted permissions"
 ON public.staff_permissions
@@ -328,6 +334,7 @@ GRANT SELECT ON TABLE public.event_order_coin_credits TO authenticated;
 
 DROP POLICY IF EXISTS "Authenticated users can view coin credits" ON public.event_order_coin_credits;
 DROP POLICY IF EXISTS "Authenticated users can record coin credits" ON public.event_order_coin_credits;
+DROP POLICY IF EXISTS "Wallet managers can view coin credits" ON public.event_order_coin_credits;
 
 CREATE POLICY "Wallet managers can view coin credits"
 ON public.event_order_coin_credits

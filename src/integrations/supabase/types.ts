@@ -1153,7 +1153,14 @@ export type Database = {
         Returns: Json
       }
       open_game_round: { Args: { p_game_id: string }; Returns: Json }
-      pay_game_round: { Args: { p_round_id: string; p_wallet_id: string }; Returns: Json }
+      pay_game_round: {
+        Args: {
+          p_round_id: string
+          p_wallet_id: string
+          p_via_phone_lookup?: boolean
+        }
+        Returns: Json
+      }
       award_game_round: { Args: { p_round_id: string; p_winner_wallet_id: string }; Returns: Json }
       close_game_round: { Args: { p_round_id: string; p_reason?: string }; Returns: Json }
       my_open_game_rounds: { Args: never; Returns: Json }
