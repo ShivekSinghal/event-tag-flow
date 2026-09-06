@@ -258,6 +258,10 @@ export default function POS() {
                 description: g.description || "",
                 price: typeof g.price === "string" ? parseFloat(g.price) : g.price,
                 studio: g.studio,
+                players_min: g.players_min ?? 1,
+                players_max: g.players_max ?? null,
+                team_size: g.team_size ?? 1,
+                awards_pinkredible: Boolean(g.awards_pinkredible),
                 available: g.available,
               })),
             );
