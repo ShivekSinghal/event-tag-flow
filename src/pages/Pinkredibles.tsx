@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 type CodeCheck = {
   valid: boolean;
   reason?: string;
+  expires_at?: string;
   code?: string;
   first_name?: string;
   band_hint?: string;
@@ -42,6 +43,7 @@ type Summary = {
   outstanding: number;
   bands_with_pinkredibles: number;
   outstanding_value_inr: number;
+  expires_at?: string;
 };
 
 const inr = (value: number) => `₹${Math.round(value).toLocaleString("en-IN")}`;
@@ -133,7 +135,7 @@ export default function Pinkredibles() {
           <h1 className="text-2xl font-bold flex items-center gap-2"><Ticket className="h-6 w-6 text-primary" /> Pinkredibles</h1>
           <p className="text-sm text-muted-foreground max-w-2xl">
             The reward for winning a paid game: 1 Pinkredible = ₹100 off course registration. Digital only. It is awarded on the POS
-            right after the game is paid for, lands on the winner's band, and the attendee sees their count and coupon code on the coins page.
+            right after the game is paid for, lands on the winner's band, and the attendee sees their count and coupon code on the coins page. Valid until 11 October 2026.
           </p>
         </div>
         {summary ? (
@@ -173,7 +175,9 @@ export default function Pinkredibles() {
               <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm">
                 {check.reason === "format"
                   ? "That doesn't look like a Pinkredible code. It reads PINK- followed by six letters or digits."
-                  : "No Pinkredibles found for that code."}
+                  : check.reason === "expired"
+                    ? `Pinkredibles expired on ${check.expires_at ? new Date(check.expires_at).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "long", year: "numeric" }) : "11 October 2026"}. This code had ${check.pinkredibles ?? 0} left.`
+                    : "No Pinkredibles found for that code."}
               </div>
             ) : null}
 

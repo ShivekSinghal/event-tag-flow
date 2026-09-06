@@ -21,7 +21,7 @@
 --   my_open_game_rounds()            staff: rounds still open on this phone (restores the POS after a reload)
 --   wallets.pinkredible_balance / pinkredible_code                      balance and per-band coupon code
 --   pinkredible_ledger                                                  every award and redemption
---   check_pinkredible_code(code)     public: is this code good, for how much (first name only)
+--   check_pinkredible_code(code)     public: is this code good, for how much (first name only); expires 11 Oct 2026
 --   redeem_pinkredibles(code, n, note)  admin / studio_manager at registration
 --   pinkredible_summary()            admin / studio_manager totals
 
@@ -188,6 +188,14 @@ LANGUAGE sql
 IMMUTABLE
 SET search_path = ''
 AS $$ SELECT 100 $$;
+
+-- Pinkredibles from the 2026 party can be used until the end of 11 October 2026 IST (Manas, 6 Sep 2026).
+CREATE OR REPLACE FUNCTION public.pinkredible_expires_at()
+RETURNS TIMESTAMPTZ
+LANGUAGE sql
+IMMUTABLE
+SET search_path = ''
+AS $$ SELECT '2026-10-11 23:59:59+05:30'::TIMESTAMPTZ $$;
 
 -- PINK- plus six characters from an alphabet without 0/O/1/I, unique across wallets.
 CREATE OR REPLACE FUNCTION public.generate_pinkredible_code()
@@ -513,8 +521,13 @@ BEGIN
   IF v_wallet.id IS NULL THEN
     RETURN jsonb_build_object('valid', false, 'reason', 'unknown');
   END IF;
+  IF now() > public.pinkredible_expires_at() THEN
+    RETURN jsonb_build_object('valid', false, 'reason', 'expired', 'expires_at', public.pinkredible_expires_at(),
+                              'code', v_wallet.pinkredible_code, 'pinkredibles', v_wallet.pinkredible_balance);
+  END IF;
   RETURN jsonb_build_object(
     'valid', true,
+    'expires_at', public.pinkredible_expires_at(),
     'code', v_wallet.pinkredible_code,
     'first_name', split_part(trim(v_wallet.attendee_name), ' ', 1),
     'band_hint', right(v_wallet.tag_id, 3),
@@ -555,6 +568,9 @@ BEGIN
   END IF;
   IF p_count IS NULL OR p_count < 1 THEN
     RAISE EXCEPTION 'Redeem at least one Pinkredible';
+  END IF;
+  IF now() > public.pinkredible_expires_at() THEN
+    RAISE EXCEPTION 'Pinkredibles expired on %', to_char(public.pinkredible_expires_at() AT TIME ZONE 'Asia/Kolkata', 'FMDD Mon YYYY');
   END IF;
 
   SELECT * INTO v_wallet FROM public.wallets WHERE pinkredible_code = v_code FOR UPDATE;
@@ -608,6 +624,7 @@ AS $$
       'rounds_played', (SELECT count(*) FROM public.game_rounds WHERE status = 'closed' AND winner_wallet_id IS NOT NULL),
       'rounds_no_winner', (SELECT count(*) FROM public.game_rounds WHERE status = 'closed' AND winner_wallet_id IS NULL),
       'value_each_inr', public.pinkredible_value_inr(),
+      'expires_at', public.pinkredible_expires_at(),
       'outstanding_value_inr', COALESCE((SELECT SUM(pinkredible_balance) FROM public.wallets WHERE status = 'active'), 0) * public.pinkredible_value_inr()
     ) END;
 $$;
@@ -847,6 +864,7 @@ BEGIN
     'pinkredibles', v_pink,
     'pinkredible_code', v_pink_code,
     'pinkredible_value_inr', public.pinkredible_value_inr(),
+    'pinkredible_expires_at', public.pinkredible_expires_at(),
     'paid_at', v_order.paid_at
   );
 END;
@@ -857,6 +875,9 @@ $$;
 -- ---------------------------------------------------------------------------
 REVOKE ALL ON FUNCTION public.pinkredible_value_inr() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.pinkredible_value_inr() TO anon, authenticated, service_role;
+
+REVOKE ALL ON FUNCTION public.pinkredible_expires_at() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.pinkredible_expires_at() TO anon, authenticated, service_role;
 
 REVOKE ALL ON FUNCTION public.generate_pinkredible_code() FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.generate_pinkredible_code() TO service_role;

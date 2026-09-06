@@ -159,6 +159,7 @@ hashtag.dance. Nothing is printed. Migration `20260906090000_pinkredibles.sql`.
   `{"p_code":"PINK-XXXXXX"}` → `{valid, pinkredibles, value_inr, first_name}`. Redeeming from a
   server needs the service-role key: `POST .../rpc/redeem_pinkredibles` with
   `{"p_code":..., "p_count":1, "p_note":"..."}`.
+* **Expiry.** Codes stop working after 11 October 2026 23:59 IST (`pinkredible_expires_at()`); the check returns `reason: "expired"` and redeem refuses.
 * **Lost band.** Reissue moves the Pinkredibles and the code to the new band.
 * **Test script step 12.** Log in as staff, POS → Cricket → type six tag IDs (any six issued bands,
   or issue test bands first) → "Game over" → tap a winner → `/coins` for that person shows +1 and
