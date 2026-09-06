@@ -51,6 +51,7 @@ type PartyLookup = {
   pinkredibles: number;
   pinkredible_code: string | null;
   pinkredible_value_inr: number;
+  pinkredible_expires_at: string | null;
   paid_at: string | null;
 };
 
@@ -102,6 +103,7 @@ function parseLookup(data: unknown): PartyLookup | null {
     pinkredibles: toIntegerCoins(record.pinkredibles),
     pinkredible_code: typeof record.pinkredible_code === "string" ? record.pinkredible_code : null,
     pinkredible_value_inr: toIntegerCoins(record.pinkredible_value_inr) || 100,
+    pinkredible_expires_at: typeof record.pinkredible_expires_at === "string" ? record.pinkredible_expires_at : null,
     paid_at: typeof record.paid_at === "string" ? record.paid_at : null,
   };
 }
@@ -455,6 +457,9 @@ export default function CoinsPage() {
               <p className="mt-1 text-sm text-white/70">
                 Won at the games. Each one is ₹{lookup.pinkredible_value_inr.toLocaleString("en-IN")} off your next course registration on hashtag.dance:
                 enter the code at registration, or show it at the studio.
+                {lookup.pinkredible_expires_at
+                  ? ` Use it by ${new Date(lookup.pinkredible_expires_at).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "long", year: "numeric" })}.`
+                  : ""}
               </p>
               <div className="mt-4 grid gap-2">
                 {lookup.bands
