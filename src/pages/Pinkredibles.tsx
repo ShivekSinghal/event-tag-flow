@@ -138,8 +138,8 @@ export default function Pinkredibles() {
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2"><Ticket className="h-6 w-6 text-primary" /> Pinkredibles</h1>
           <p className="text-sm text-muted-foreground max-w-2xl">
-            The reward for winning a paid game: 1 Pinkredible = ₹100 off course registration. Digital only. It is awarded on the POS
-            right after the game is paid for, lands on the winner's band, and the attendee sees their count and coupon code on the coins page. Valid until 11 October 2026.
+            The reward for winning a paid game: 1 Pinkredible = ₹100 off course registration. Digital only. One winner is awarded
+            after each completed round, and the attendee sees the balance and coupon code on the coins page. Valid until 11 October 2026.
           </p>
         </div>
         {summary ? (

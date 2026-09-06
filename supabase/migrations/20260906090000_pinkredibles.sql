@@ -49,6 +49,16 @@ COMMENT ON COLUMN public.games.awards_pinkredible IS 'Whether the winner of a ro
 -- The six prize games from the Game SOP (Priyanshi, 5 Sep 2026) with the formats Manas gave on
 -- 6 Sep 2026. Existing rows with the same name are updated; missing ones are created. Prices are
 -- the SOP tiers (750 / 1,000) and can be changed by an admin.
+UPDATE public.games legacy
+SET name = 'Hurdle'
+WHERE lower(legacy.name) = 'hurdles'
+  AND NOT EXISTS (SELECT 1 FROM public.games canonical WHERE lower(canonical.name) = 'hurdle');
+
+UPDATE public.games legacy
+SET name = 'Issue With a Tissue'
+WHERE lower(legacy.name) = 'issue with the tissue'
+  AND NOT EXISTS (SELECT 1 FROM public.games canonical WHERE lower(canonical.name) = 'issue with a tissue');
+
 WITH sop(name, description, price, players_min, players_max, team_size) AS (
   VALUES
     ('Hurdle',              'Timed obstacle course, one on one. Fastest valid run wins.',                          750,  2,  2,    1),
