@@ -39,9 +39,13 @@ BEGIN
     (gen_random_uuid(), v_staff, v_staff::TEXT, 'email', jsonb_build_object('sub', v_staff::TEXT, 'email', 'staff@pinkd.local', 'email_verified', true), now(), now(), now())
   ON CONFLICT DO NOTHING;
 
+  -- The profile guard trigger (20260904210000) only lets admins or the service role change roles;
+  -- the seed runs as postgres, so switch it off for these two rows.
+  ALTER TABLE public.profiles DISABLE TRIGGER guard_profile_privileged_fields;
   -- handle_new_user() created the profiles as 'staff'; promote the admin.
   UPDATE public.profiles SET role = 'admin', full_name = 'Local Admin' WHERE id = v_admin;
   UPDATE public.profiles SET role = 'staff', full_name = 'Local Staff' WHERE id = v_staff;
+  ALTER TABLE public.profiles ENABLE TRIGGER guard_profile_privileged_fields;
 END $$;
 
 -- Gateway settings row the app reads (Cashfree sandbox; no keys locally, so payments stop at the gateway step).
@@ -109,6 +113,13 @@ BEGIN
   INSERT INTO public.wallets (tag_id, attendee_name, attendee_phone, studio, balance, coin_balance, status, event_order_id)
   VALUES ('NFC0K4R4N', 'Karan Singh', '9876500002', 'PP', 0, 0, 'active', v_full)
   RETURNING id INTO v_wallet;
+
+  -- 6b. Karan won Cricket and Limbo at the stalls: two Pinkredibles (₹200) on his band, coupon code PINK-TEST01.
+  --     (Awards are normally tied to the game payment; the seed writes the ledger directly.)
+  UPDATE public.wallets SET pinkredible_balance = 2, pinkredible_code = 'PINK-TEST01' WHERE id = v_wallet;
+  INSERT INTO public.pinkredible_ledger (wallet_id, delta, kind, game_name, staff_user_id)
+  VALUES (v_wallet, 1, 'award', 'Cricket', '22222222-2222-2222-2222-222222222222'),
+         (v_wallet, 1, 'award', 'Limbo', '22222222-2222-2222-2222-222222222222');
 
   -- 7. Karan bought a ₹5,000 pack online AFTER his band was issued → credited straight to the band.
   SELECT id INTO v_pack FROM public.coin_packages WHERE inr_amount = 5000 AND active LIMIT 1;

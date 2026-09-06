@@ -11,6 +11,7 @@ import Dashboard from "./pages/Dashboard";
 import IssueTag from "./pages/IssueTag";
 import TopUp from "./pages/TopUp";
 import POS from "./pages/POS";
+import Pinkredibles from "./pages/Pinkredibles";
 import Balance from "./pages/Balance";
 import DonationProgress from "./pages/DonationProgress";
 import EventLanding from "./pages/EventLanding";
@@ -58,6 +59,7 @@ const App = () => (
               <Route path="issue-tag" element={<IssueTag />} />
               <Route path="topup" element={<TopUp />} />
               <Route path="pos" element={<POS />} />
+              <Route path="pinkredibles" element={<Pinkredibles />} />
               <Route path="balance" element={
                 <ProtectedRoute requiredRole="admin">
                   <Balance />

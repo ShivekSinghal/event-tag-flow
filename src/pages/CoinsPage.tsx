@@ -48,6 +48,9 @@ type PartyLookup = {
   matched_wallet_id: string | null;
   coin_balance: number;
   band_hint: string | null;
+  pinkredibles: number;
+  pinkredible_code: string | null;
+  pinkredible_value_inr: number;
   paid_at: string | null;
 };
 
@@ -56,6 +59,8 @@ type PartyBand = {
   name: string;
   band_hint: string;
   coin_balance: number;
+  pinkredibles: number;
+  pinkredible_code: string | null;
 };
 
 type LookupState = "idle" | "loading" | "not_found" | "found";
@@ -87,11 +92,16 @@ function parseLookup(data: unknown): PartyLookup | null {
             name: typeof band.name === "string" && band.name ? band.name : "Guest",
             band_hint: typeof band.band_hint === "string" ? band.band_hint : "",
             coin_balance: toIntegerCoins(band.coin_balance),
+            pinkredibles: toIntegerCoins(band.pinkredibles),
+            pinkredible_code: typeof band.pinkredible_code === "string" ? band.pinkredible_code : null,
           }))
       : [],
     matched_wallet_id: typeof record.matched_wallet_id === "string" ? record.matched_wallet_id : null,
     coin_balance: toIntegerCoins(record.coin_balance),
     band_hint: typeof record.band_hint === "string" ? record.band_hint : null,
+    pinkredibles: toIntegerCoins(record.pinkredibles),
+    pinkredible_code: typeof record.pinkredible_code === "string" ? record.pinkredible_code : null,
+    pinkredible_value_inr: toIntegerCoins(record.pinkredible_value_inr) || 100,
     paid_at: typeof record.paid_at === "string" ? record.paid_at : null,
   };
 }
@@ -431,6 +441,51 @@ export default function CoinsPage() {
                   </p>
                 </div>
               )}
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {/* Pinkredibles won at the game stalls: count and coupon code for course registration */}
+        {isFound && lookup && lookup.bands.some((band) => band.pinkredibles > 0) ? (
+          <Card className={`${panelClass} border-primary/40`}>
+            <CardContent className="p-5 sm:p-6">
+              <div className="flex items-center gap-2 text-lg font-bold">
+                <Ticket className="h-5 w-5 text-primary" /> Pinkredibles
+              </div>
+              <p className="mt-1 text-sm text-white/70">
+                Won at the games. Each one is ₹{lookup.pinkredible_value_inr.toLocaleString("en-IN")} off your next course registration on hashtag.dance:
+                enter the code at registration, or show it at the studio.
+              </p>
+              <div className="mt-4 grid gap-2">
+                {lookup.bands
+                  .filter((band) => band.pinkredibles > 0)
+                  .map((band) => (
+                    <div key={band.wallet_id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/15 bg-black/30 px-3 py-2 text-sm">
+                      <span>
+                        <span className="font-semibold">{band.name}</span>
+                        {band.band_hint ? <span className="text-white/50"> ···{band.band_hint}</span> : null}
+                        <span className="text-white/70">
+                          {" · "}
+                          {band.pinkredibles} {band.pinkredibles === 1 ? "Pinkredible" : "Pinkredibles"} · ₹
+                          {(band.pinkredibles * lookup.pinkredible_value_inr).toLocaleString("en-IN")}
+                        </span>
+                      </span>
+                      {band.pinkredible_code ? (
+                        <button
+                          type="button"
+                          className="rounded-lg border border-primary/50 bg-primary/15 px-3 py-1 font-mono text-base font-bold tracking-wider text-white"
+                          onClick={() => {
+                            void navigator.clipboard?.writeText(band.pinkredible_code ?? "");
+                            toast({ title: "Code copied", description: band.pinkredible_code ?? "" });
+                          }}
+                          aria-label={`Copy code ${band.pinkredible_code}`}
+                        >
+                          {band.pinkredible_code}
+                        </button>
+                      ) : null}
+                    </div>
+                  ))}
+              </div>
             </CardContent>
           </Card>
         ) : null}
