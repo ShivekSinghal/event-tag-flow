@@ -6,8 +6,8 @@
 -- coupon code on /coins; the code is what they enter at registration.
 --
 -- Games are played in ROUNDS on one POS phone (Manas, 6 Sep 2026): several people each pay the
--- entry (Cricket 3 a side = 6, Issue With a Tissue 5 a side = 10, Hurdle 1 v 1, Limbo and
--- Bombastic individual with at least 5), the round starts once the minimum is in, and closing
+-- entry (Cricket 3 a side = 6, Issue With a Tissue 5 a side = 10, Hurdle and Minute to Win It
+-- 1 v 1, Limbo and Bombastic individual with at least 5), the round starts once the minimum is in, and closing
 -- the round awards exactly ONE Pinkredible to the scanned winner, who must be one of the
 -- players. No refunds (Manas, 6 Sep 2026): a round that never fills or ends without a winner is
 -- simply closed and the entries stay spent.
@@ -41,7 +41,7 @@ ALTER TABLE public.games ADD CONSTRAINT games_players_max_check CHECK (players_m
 ALTER TABLE public.games DROP CONSTRAINT IF EXISTS games_team_size_check;
 ALTER TABLE public.games ADD CONSTRAINT games_team_size_check CHECK (team_size >= 1);
 
-COMMENT ON COLUMN public.games.players_min IS 'Paid players needed before a round can start (Cricket 6, Issue With a Tissue 10, Hurdle 2, Limbo/Bombastic 5).';
+COMMENT ON COLUMN public.games.players_min IS 'Paid players needed before a round can start (Cricket 6, Issue With a Tissue 10, Hurdle and Minute to Win It 2, Limbo/Bombastic 5).';
 COMMENT ON COLUMN public.games.players_max IS 'Cap on paid players per round, NULL = no cap.';
 COMMENT ON COLUMN public.games.team_size IS '1 for individual games; 3 or 5 for team games, where the captain''s band takes the Pinkredible.';
 COMMENT ON COLUMN public.games.awards_pinkredible IS 'Whether the winner of a round gets a Pinkredible (Tier 2 and Tier 3 games in the 5 Sep 2026 SOP).';

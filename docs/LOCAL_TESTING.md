@@ -144,7 +144,7 @@ Digital reward ticket for winning a paid game. 1 Pinkredible = ₹100 off course
 hashtag.dance. Nothing is printed. Migration `20260906090000_pinkredibles.sql`.
 
 * **Rounds on the POS.** Selecting a prize game (Hurdle 1 v 1, Cricket 3 a side = 6, Issue With a
-  Tissue 5 a side = 10, Limbo / Bombastic individual with at least 5, Minute to Win It) opens a
+  Tissue 5 a side = 10, Hurdle and Minute to Win It 1 v 1, Limbo / Bombastic individual with at least 5) opens a
   round on that phone instead of a single sale. Each player's band is scanned to take the entry;
   "Game over · pick the winner" unlocks once the minimum is in; tapping or scanning the winner
   (the captain for team games) closes the round and puts exactly one Pinkredible on their band.
