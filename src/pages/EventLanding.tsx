@@ -33,6 +33,7 @@ import {
 } from "@/lib/checkoutGateway";
 import { getSessionAvailability, usePartyStatus, type PartyPhaseStatus, type SessionAvailability } from "@/lib/partyStatus";
 import { Badge } from "@/components/ui/badge";
+import { LEFTOVER_COINS_FAQ } from "@/lib/leftoverCoins";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -950,6 +951,7 @@ export default function EventLanding() {
           <ul className="incl">
             <li><CheckCircle2 />Entry · wristband · welcome drink · Beer Pong · Jamaal Challenge · Red Flag Green Flag · Squid Games</li>
             <li><CheckCircle2 />Bringing friends? Add one entry each — names can be added after payment</li>
+            <li><CheckCircle2 />Coins you don't spend on the night go to the scholarship fund — no refunds on coins</li>
           </ul>
         </>
       );
@@ -1790,6 +1792,7 @@ export default function EventLanding() {
               "Where does the money go?",
               "Once the event breaks even, every rupee goes to Hashtag's scholarship programme, which trains dancers across five forms who couldn't otherwise afford it. Nobody takes a cut. Pink'd has run this way for seven years.",
             ],
+            LEFTOVER_COINS_FAQ,
           ].map(([question, answer], index) => (
             <details key={question} open={index === 0}>
               <summary>{question}</summary>

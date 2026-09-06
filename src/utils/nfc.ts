@@ -53,6 +53,7 @@ export class NFCManager {
   private scanTimeout: ReturnType<typeof setTimeout> | null = null;
   private scanStartTime: number = 0;
   private progressInterval: ReturnType<typeof setInterval> | null = null;
+  private cancelActiveScan: (() => void) | null = null;
   private onScanStateChange?: (state: NFCScanState) => void;
 
   static getInstance(): NFCManager {
@@ -154,6 +155,7 @@ export class NFCManager {
       
       return await new Promise<NFCReadResult>((resolve) => {
         let resolved = false;
+        let cancelCurrentScan: (() => void) | null = null;
         
         const cleanup = () => {
           if (this.scanTimeout) {
@@ -163,6 +165,9 @@ export class NFCManager {
           if (this.progressInterval) {
             clearInterval(this.progressInterval);
             this.progressInterval = null;
+          }
+          if (this.cancelActiveScan === cancelCurrentScan) {
+            this.cancelActiveScan = null;
           }
           this.isScanning = false;
           this.updateScanState();
@@ -174,6 +179,15 @@ export class NFCManager {
           cleanup();
           resolve(result);
         };
+
+        cancelCurrentScan = () => {
+          resolveOnce({
+            tagId: '',
+            success: false,
+            error: 'NFC scan cancelled.',
+          });
+        };
+        this.cancelActiveScan = cancelCurrentScan;
         
         console.log('Setting up Promise for NFC scan...');
 
@@ -309,6 +323,12 @@ export class NFCManager {
    */
   stopScanning(): void {
     console.log('🛑 Stopping NFC scan...');
+
+    // Settle the promise owned by the active scan before removing its handlers.
+    // POS uses this when a staff member switches to the manual wallet lookup.
+    const cancelActiveScan = this.cancelActiveScan;
+    this.cancelActiveScan = null;
+    cancelActiveScan?.();
     
     // Clear timeout and progress tracking
     if (this.scanTimeout) {
@@ -351,6 +371,7 @@ export class NFCManager {
     this.isScanning = false;
     this.scanTimeout = null;
     this.progressInterval = null;
+    this.cancelActiveScan = null;
     this.scanStartTime = 0;
     this.updateScanState();
     console.log('✅ NFC manager force reset complete');

@@ -1018,6 +1018,17 @@ export type Database = {
         Returns: Json
       }
       auto_credit_coin_order: { Args: { p_coin_order_id: string }; Returns: Json }
+      staff_find_wallet: {
+        Args: { p_query: string }
+        Returns: {
+          wallet_id: string
+          attendee_name: string
+          band_hint: string
+          coin_balance: number
+          studio: string
+          match_kind: string
+        }[]
+      }
       link_wallet_to_event_order: {
         Args: { p_load_prepaid?: boolean; p_parent_order_id: string; p_wallet_id: string }
         Returns: Json

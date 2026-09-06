@@ -9,8 +9,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useFlyingCards } from "@/hooks/use-flying-cards";
 import { useStaffPermissions } from "@/hooks/use-staff-permissions";
 import { nfcManager } from "@/utils/nfc";
+import { FindWalletFallback, LOOKUP_REFERENCE_TAG, type FoundWallet } from "@/components/wallet/FindWalletFallback";
 import { formatCoins, getCoinBalance } from "@/lib/coins";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Package, CreditCard, DollarSign, Scan, AlertCircle, ArrowRight, CheckCircle, Calculator } from "lucide-react";
 
 interface Game {
@@ -73,6 +74,10 @@ export default function POS() {
     isLoading: permissionsLoading,
   } = useStaffPermissions();
   const [isScanning, setIsScanning] = useState(false);
+  // "Can't scan?" support: the sale that is waiting for a band, and a generation counter so a
+  // scan that is abandoned in favour of the phone lookup can never charge a second time.
+  const pendingSaleRef = useRef<{ price: number; itemName: string; gameId: string | null; transactionType: string } | null>(null);
+  const scanGenerationRef = useRef(0);
   const [scannedWallet, setScannedWallet] = useState<ScannedWallet | null>(null);
   const [selectedGame, setSelectedGame] = useState<Game | null>(null);
   const [selectedDrink, setSelectedDrink] = useState<DrinkItem | null>(null);
@@ -298,9 +303,14 @@ export default function POS() {
     transactionType: string = "food",
   ) => {
     setIsScanning(true);
+    pendingSaleRef.current = { price, itemName, gameId, transactionType };
+    const generation = ++scanGenerationRef.current;
 
     try {
       const result = await nfcManager.startScanning();
+
+      // The staffer switched to the phone lookup while this scan was open: ignore whatever it returns.
+      if (generation !== scanGenerationRef.current) return;
 
       if (result.success) {
         // Fetch wallet data from Supabase based on tag ID
@@ -350,6 +360,7 @@ export default function POS() {
         resetTransaction();
       }
     } catch (error) {
+      if (generation !== scanGenerationRef.current) return;
       toast({
         title: "Scanning Failed",
         description: "Could not scan NFC tag. Please try again.",
@@ -357,8 +368,40 @@ export default function POS() {
       });
       resetTransaction();
     } finally {
-      setIsScanning(false);
+      if (generation === scanGenerationRef.current) setIsScanning(false);
     }
+  };
+
+  // "Can't scan? Find by phone": same sale, same processPayment, band picked from the lookup.
+  const handleLookupSelect = async (found: FoundWallet) => {
+    const sale = pendingSaleRef.current;
+    if (!sale || isProcessing) return;
+
+    // Abandon the open NFC scan and take over with the confirmed wallet.
+    scanGenerationRef.current += 1;
+    nfcManager.stopScanning();
+    setIsScanning(false);
+
+    const { data: wallet, error } = await supabase.from("wallets").select("*").eq("id", found.wallet_id).single();
+    if (error || !wallet || wallet.status === "blocked") {
+      toast({
+        title: "Band unavailable",
+        description: error?.message || "That band is blocked or could not be loaded.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const formattedWallet = {
+      id: wallet.id,
+      attendeeName: wallet.attendee_name,
+      attendeePhone: wallet.attendee_phone,
+      tagId: wallet.tag_id,
+      currentBalance: getCoinBalance(wallet),
+      status: wallet.status,
+    };
+    setScannedWallet(formattedWallet);
+    await processPayment(formattedWallet, sale.price, sale.itemName, sale.gameId, sale.transactionType, true);
   };
 
   const processPayment = async (
@@ -367,6 +410,7 @@ export default function POS() {
     itemName: string,
     gameId: string | null,
     transactionType: string = "food",
+    viaLookup: boolean = false,
   ) => {
     if (price > wallet.currentBalance) {
       toast({
@@ -388,7 +432,7 @@ export default function POS() {
           p_item_name: itemName,
           p_item_category: transactionType,
           p_game_id: gameId,
-          p_reference: `${transactionType.toUpperCase()}_${gameId || selectedDrink?.id || selectedCustomItem?.id || Date.now()}`,
+          p_reference: `${transactionType.toUpperCase()}_${gameId || selectedDrink?.id || selectedCustomItem?.id || Date.now()}${viaLookup ? ` ${LOOKUP_REFERENCE_TAG}` : ""}`,
         })
         .single();
 
@@ -434,6 +478,7 @@ export default function POS() {
   };
 
   const resetTransaction = () => {
+    pendingSaleRef.current = null;
     setSelectedGame(null);
     setSelectedDrink(null);
     setSelectedCustomItem(null);
@@ -1073,6 +1118,11 @@ export default function POS() {
                                 <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full animate-ping"></div>
                               </div>
                               <span className="font-medium text-xs sm:text-sm">Please scan customer's NFC tag</span>
+                            </div>
+                          )}
+                          {!isProcessing && pendingSaleRef.current && (
+                            <div className="text-left">
+                              <FindWalletFallback onSelect={handleLookupSelect} />
                             </div>
                           )}
                         </div>

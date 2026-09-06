@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { nfcManager } from "@/utils/nfc";
+import { FindWalletFallback, LOOKUP_REFERENCE_TAG, type FoundWallet } from "@/components/wallet/FindWalletFallback";
 import { supabase } from "@/integrations/supabase/client";
 import { useFlyingCards } from "@/hooks/use-flying-cards";
 import { formatCoins, formatInr, getCoinBalance } from "@/lib/coins";
@@ -40,6 +41,7 @@ export default function TopUp() {
   const { toast } = useToast();
   const { addCard } = useFlyingCards();
   const [isScanning, setIsScanning] = useState(false);
+  const [viaLookup, setViaLookup] = useState(false);
   const [scannedWallet, setScannedWallet] = useState<ScannedWallet | null>(null);
   const [coinPackages, setCoinPackages] = useState<CoinPackage[]>([]);
   const [selectedPackageId, setSelectedPackageId] = useState("");
@@ -69,6 +71,44 @@ export default function TopUp() {
     void fetchCoinPackages();
   }, [fetchCoinPackages]);
 
+  // Shared by the NFC scan and the "Can't scan?" lookup: load one wallet row and show it.
+  const loadWallet = async (column: "tag_id" | "id", value: string, viaLookup: boolean) => {
+    const { data: wallet, error } = await supabase.from("wallets").select("*").eq(column, value).single();
+
+    if (error || !wallet) {
+      toast({
+        title: "No Wallet Found",
+        description:
+          column === "tag_id"
+            ? `NFC tag ${value} scanned but no wallet is linked to this tag. Please issue this tag first.`
+            : "That band could not be loaded. Try the lookup again.",
+        variant: "destructive",
+      });
+      setScannedWallet(null);
+      return;
+    }
+
+    setScannedWallet({
+      id: wallet.id,
+      attendeeName: wallet.attendee_name,
+      attendeePhone: wallet.attendee_phone,
+      tagId: wallet.tag_id,
+      currentBalance: getCoinBalance(wallet),
+      status: wallet.status,
+    });
+    setViaLookup(viaLookup);
+
+    toast({
+      title: "Wallet Found",
+      description: `Successfully loaded wallet for ${wallet.attendee_name}`,
+    });
+  };
+
+  const handleLookupSelect = async (found: FoundWallet) => {
+    if (isScanning || isProcessing) return;
+    await loadWallet("id", found.wallet_id, true);
+  };
+
   const handleScanWallet = async () => {
     setIsScanning(true);
     
@@ -76,39 +116,7 @@ export default function TopUp() {
       const result = await nfcManager.startScanning();
       
       if (result.success) {
-        // Fetch wallet data from Supabase based on tag ID
-        const { data: wallet, error } = await supabase
-          .from('wallets')
-          .select('*')
-          .eq('tag_id', result.tagId)
-          .single();
-
-        if (error || !wallet) {
-          toast({
-            title: "No Wallet Found",
-            description: `NFC tag ${result.tagId} scanned but no wallet is linked to this tag. Please issue this tag first.`,
-            variant: "destructive",
-          });
-          setScannedWallet(null);
-          return;
-        }
-
-        // Format wallet data for UI
-        const formattedWallet = {
-          id: wallet.id,
-          attendeeName: wallet.attendee_name,
-          attendeePhone: wallet.attendee_phone,
-          tagId: wallet.tag_id,
-          currentBalance: getCoinBalance(wallet),
-          status: wallet.status
-        };
-
-        setScannedWallet(formattedWallet);
-        
-        toast({
-          title: "Wallet Found",
-          description: `Successfully loaded wallet for ${wallet.attendee_name}`,
-        });
+        await loadWallet("tag_id", result.tagId, false);
       } else {
         toast({
           title: "Scanning Failed",
@@ -157,7 +165,7 @@ export default function TopUp() {
         .rpc("credit_wallet_coins", {
           p_wallet_id: scannedWallet.id,
           p_coin_package_id: selectedPackage.id,
-          p_payment_reference: paymentReference.trim(),
+          p_payment_reference: viaLookup ? `${paymentReference.trim()} ${LOOKUP_REFERENCE_TAG}` : paymentReference.trim(),
         })
         .single();
 
@@ -235,6 +243,9 @@ export default function TopUp() {
                 </div>
               )}
             </Button>
+            <div className="mx-auto max-w-xs">
+              <FindWalletFallback onSelect={handleLookupSelect} disabled={isScanning || isProcessing} />
+            </div>
           </div>
 
           {/* Wallet Display */}

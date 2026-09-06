@@ -4,6 +4,7 @@ import { CheckCircle2, Clock, Loader2, Minus, Plus, Search, Ticket } from "lucid
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import { Badge } from "@/components/ui/badge";
+import { LeftoverCoinsNote } from "@/components/wallet/LeftoverCoinsNote";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -584,6 +585,7 @@ export default function CoinsPage() {
                   <p className="text-center text-xs text-white/50">
                     Secure payment via {getGatewayLabel(provider)} · UPI, cards and netbanking.
                   </p>
+                  <LeftoverCoinsNote variant="coins" />
                 </CardContent>
               </Card>
             ) : null}

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { nfcManager } from "@/utils/nfc";
+import { FindWalletFallback, type FoundWallet } from "@/components/wallet/FindWalletFallback";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { formatCoins, formatInr, getCoinAmount, getCoinBalance } from "@/lib/coins";
@@ -53,6 +54,83 @@ export default function Balance() {
   const [isScanning, setIsScanning] = useState(false);
   const [walletData, setWalletData] = useState<WalletBalanceView | null>(null);
 
+  // Shared by the NFC scan and the "Can't scan?" lookup.
+  const loadWallet = async (column: "tag_id" | "id", value: string) => {
+    const { data: wallet, error } = await supabase
+      .from('wallets')
+      .select(`
+        *,
+        transactions (
+          id,
+          type,
+          amount,
+          inr_amount,
+          coin_amount,
+          description,
+          created_at
+        )
+      `)
+      .eq(column, value)
+      .single();
+
+    if (error || !wallet) {
+      toast({
+        title: "No Wallet Found",
+        description:
+          column === "tag_id"
+            ? `NFC tag ${value} scanned but no wallet is linked to this tag. Please issue this tag first.`
+            : "That band could not be loaded. Try the lookup again.",
+        variant: "destructive",
+      });
+      setWalletData(null);
+      return;
+    }
+
+    const walletWithTransactions = wallet as WalletWithTransactions;
+    const transactions = walletWithTransactions.transactions ?? [];
+
+    // Calculate totals
+    const totalTopUp = transactions
+      .filter((transaction) => transaction.type === 'load' || transaction.type === 'coin_purchase')
+      .reduce((sum, transaction) => sum + Math.max(0, getCoinAmount(transaction)), 0);
+
+    const totalSpent = transactions
+      .filter((transaction) => ['spend', 'games', 'drinks', 'food'].includes(transaction.type))
+      .reduce((sum, transaction) => sum + Math.abs(getCoinAmount(transaction)), 0);
+
+    // Format data for UI
+    const formattedWallet = {
+      attendeeName: wallet.attendee_name,
+      attendeePhone: wallet.attendee_phone,
+      tagId: wallet.tag_id,
+      issuedDate: new Date(wallet.created_at).toLocaleDateString(),
+      status: wallet.status,
+      currentBalance: getCoinBalance(wallet),
+      totalTopUp,
+      totalSpent,
+      transactions: transactions.map((transaction): DisplayTransaction => ({
+        id: transaction.id,
+        type: transaction.type === 'load' || transaction.type === 'coin_purchase' ? 'Coin Purchase' : 'Sale',
+        amount: getCoinAmount(transaction),
+        inrAmount: transaction.inr_amount,
+        description: transaction.description,
+        timestamp: new Date(transaction.created_at).toLocaleString()
+      }))
+    };
+
+    setWalletData(formattedWallet);
+
+    toast({
+      title: "Wallet Found",
+      description: `Successfully loaded wallet for ${wallet.attendee_name}`,
+    });
+  };
+
+  const handleLookupSelect = async (found: FoundWallet) => {
+    if (isScanning) return;
+    await loadWallet("id", found.wallet_id);
+  };
+
   const handleScanWallet = async () => {
     setIsScanning(true);
     
@@ -60,72 +138,7 @@ export default function Balance() {
       const result = await nfcManager.startScanning();
       
       if (result.success) {
-        // Fetch wallet data from Supabase based on tag ID
-        const { data: wallet, error } = await supabase
-          .from('wallets')
-          .select(`
-            *,
-            transactions (
-              id,
-              type,
-              amount,
-              inr_amount,
-              coin_amount,
-              description,
-              created_at
-            )
-          `)
-          .eq('tag_id', result.tagId)
-          .single();
-
-        if (error || !wallet) {
-          toast({
-            title: "No Wallet Found",
-            description: `NFC tag ${result.tagId} scanned but no wallet is linked to this tag. Please issue this tag first.`,
-            variant: "destructive",
-          });
-          setWalletData(null);
-          return;
-        }
-
-        const walletWithTransactions = wallet as WalletWithTransactions;
-        const transactions = walletWithTransactions.transactions ?? [];
-
-        // Calculate totals
-        const totalTopUp = transactions
-          .filter((transaction) => transaction.type === 'load' || transaction.type === 'coin_purchase')
-          .reduce((sum, transaction) => sum + Math.max(0, getCoinAmount(transaction)), 0);
-        
-        const totalSpent = transactions
-          .filter((transaction) => ['spend', 'games', 'drinks', 'food'].includes(transaction.type))
-          .reduce((sum, transaction) => sum + Math.abs(getCoinAmount(transaction)), 0);
-
-        // Format data for UI
-        const formattedWallet = {
-          attendeeName: wallet.attendee_name,
-          attendeePhone: wallet.attendee_phone,
-          tagId: wallet.tag_id,
-          issuedDate: new Date(wallet.created_at).toLocaleDateString(),
-          status: wallet.status,
-          currentBalance: getCoinBalance(wallet),
-          totalTopUp,
-          totalSpent,
-          transactions: transactions.map((transaction): DisplayTransaction => ({
-            id: transaction.id,
-            type: transaction.type === 'load' || transaction.type === 'coin_purchase' ? 'Coin Purchase' : 'Sale',
-            amount: getCoinAmount(transaction),
-            inrAmount: transaction.inr_amount,
-            description: transaction.description,
-            timestamp: new Date(transaction.created_at).toLocaleString()
-          }))
-        };
-
-        setWalletData(formattedWallet);
-        
-        toast({
-          title: "Wallet Found",
-          description: `Successfully loaded wallet for ${wallet.attendee_name}`,
-        });
+        await loadWallet("tag_id", result.tagId);
       } else {
         toast({
           title: "Scanning Failed",
@@ -179,6 +192,9 @@ export default function Balance() {
               </div>
             )}
           </Button>
+          <div className="mx-auto max-w-xs text-left">
+            <FindWalletFallback onSelect={handleLookupSelect} disabled={isScanning} />
+          </div>
         </CardContent>
       </Card>
 
