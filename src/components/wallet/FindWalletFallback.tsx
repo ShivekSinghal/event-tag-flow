@@ -8,8 +8,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 /**
  * "Can't scan? Find by phone" — staff fallback for Top Up, POS Sale and Check Coins.
  *
- * Calls public.staff_find_wallet(p_query) (live since 6 Sep): any signed-in staff account,
- * active bands only, returns first name + last-3 of the tag + balance. Never full phones.
+ * Calls public.staff_find_wallet(p_query): admins, studio managers, and staff with an
+ * assigned POS permission may search active bands. It never returns full phones or tag IDs.
  *
  * Usage (directly under the Scan NFC Tag button):
  *   <FindWalletFallback onSelect={(w) => handleScannedWallet(w.wallet_id, { viaLookup: true })} />
