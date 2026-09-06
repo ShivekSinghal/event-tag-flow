@@ -56,7 +56,7 @@ WITH sop(name, description, price, players_min, players_max, team_size) AS (
     ('Cricket',             'Three a side. Highest score wins; the captain''s band gets the Pinkredible.',          750,  6,  6,    3),
     ('Limbo',               'Individual, at least five to start. Last one standing wins.',                        1000, 5, NULL,  1),
     ('Bombastic',           'Individual, at least five to start. Last one holding the bomb is out; last one left wins.', 1000, 5, NULL, 1),
-    ('Minute to Win It',    'Individual timed sequence: drink, flip cup, dice, 7 ball taps, stack 7 cups. Fastest valid completion wins.', 1000, 1, NULL, 1)
+    ('Minute to Win It',    'One on one: drink, flip cup, dice, 7 ball taps, stack 7 cups. Fastest valid completion wins.', 1000, 2, 2, 1)
 )
 UPDATE public.games g
 SET players_min = sop.players_min,
@@ -73,7 +73,7 @@ WITH sop(name, description, price, players_min, players_max, team_size) AS (
     ('Cricket',             'Three a side. Highest score wins; the captain''s band gets the Pinkredible.',          750,  6,  6,    3),
     ('Limbo',               'Individual, at least five to start. Last one standing wins.',                        1000, 5, NULL,  1),
     ('Bombastic',           'Individual, at least five to start. Last one holding the bomb is out; last one left wins.', 1000, 5, NULL, 1),
-    ('Minute to Win It',    'Individual timed sequence: drink, flip cup, dice, 7 ball taps, stack 7 cups. Fastest valid completion wins.', 1000, 1, NULL, 1)
+    ('Minute to Win It',    'One on one: drink, flip cup, dice, 7 ball taps, stack 7 cups. Fastest valid completion wins.', 1000, 2, 2, 1)
 )
 INSERT INTO public.games (name, description, price, studio, available, players_min, players_max, team_size, awards_pinkredible)
 SELECT sop.name, sop.description, sop.price, 'General', true, sop.players_min, sop.players_max, sop.team_size, true
