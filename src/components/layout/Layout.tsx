@@ -11,7 +11,8 @@ import {
   LogOut,
   Menu,
   X,
-  TrendingUp
+  TrendingUp,
+  Ticket
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
@@ -23,6 +24,7 @@ const navigation = [
   { name: "Issue Tag", href: "/issue-tag", icon: Nfc },
   { name: "Top Up", href: "/topup", icon: Wallet },
   { name: "POS Sale", href: "/pos", icon: ShoppingCart },
+  { name: "Pinkredibles", href: "/pinkredibles", icon: Ticket },
   { name: "Check Coins", href: "/balance", icon: CreditCard },
   { name: "Donation Progress", href: "/donation-progress", icon: TrendingUp },
 ];
@@ -37,8 +39,8 @@ export default function Layout() {
   // Filter navigation based on user role
   const filteredNavigation = navigation.filter(item => {
     if (isAdmin) return true; // Admin can see all
-    if (isStaff) return item.href === '/pos'; // Staff can only see POS
-    if (isStudioManager) return item.href === '/issue-tag' || item.href === '/topup'; // Studio manager can see issue tag and top up
+    if (isStaff) return item.href === '/pos'; // Staff can only see POS (Pinkredibles are awarded from the POS after a game sale)
+    if (isStudioManager) return item.href === '/issue-tag' || item.href === '/topup' || item.href === '/pinkredibles'; // Studio manager: bands, top up, redeem Pinkredibles at registration
     return false;
   });
   

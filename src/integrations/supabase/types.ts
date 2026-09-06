@@ -649,16 +649,24 @@ export type Database = {
       games: {
         Row: {
           available: boolean
+          awards_pinkredible: boolean
           created_at: string
           description: string | null
           id: string
           name: string
           price: number
+          players_max: number | null
+          players_min: number
           studio: string
+          team_size: number
           updated_at: string
         }
         Insert: {
           available?: boolean
+          awards_pinkredible?: boolean
+          players_max?: number | null
+          players_min?: number
+          team_size?: number
           created_at?: string
           description?: string | null
           id?: string
@@ -669,6 +677,10 @@ export type Database = {
         }
         Update: {
           available?: boolean
+          awards_pinkredible?: boolean
+          players_max?: number | null
+          players_min?: number
+          team_size?: number
           created_at?: string
           description?: string | null
           id?: string
@@ -862,6 +874,107 @@ export type Database = {
           },
         ]
       }
+      game_round_players: {
+        Row: { created_at: string; id: string; round_id: string; transaction_id: string | null; wallet_id: string }
+        Insert: { created_at?: string; id?: string; round_id: string; transaction_id?: string | null; wallet_id: string }
+        Update: { created_at?: string; id?: string; round_id?: string; transaction_id?: string | null; wallet_id?: string }
+        Relationships: []
+      }
+      game_rounds: {
+        Row: {
+          awards_pinkredible: boolean
+          close_reason: string | null
+          closed_at: string | null
+          entry_coins: number
+          game_id: string | null
+          game_name: string
+          id: string
+          opened_at: string
+          players_max: number | null
+          players_needed: number
+          staff_user_id: string
+          status: string
+          team_size: number
+          winner_wallet_id: string | null
+        }
+        Insert: {
+          awards_pinkredible?: boolean
+          close_reason?: string | null
+          closed_at?: string | null
+          entry_coins: number
+          game_id?: string | null
+          game_name: string
+          id?: string
+          opened_at?: string
+          players_max?: number | null
+          players_needed: number
+          staff_user_id: string
+          status?: string
+          team_size?: number
+          winner_wallet_id?: string | null
+        }
+        Update: {
+          awards_pinkredible?: boolean
+          close_reason?: string | null
+          closed_at?: string | null
+          entry_coins?: number
+          game_id?: string | null
+          game_name?: string
+          id?: string
+          opened_at?: string
+          players_max?: number | null
+          players_needed?: number
+          staff_user_id?: string
+          status?: string
+          team_size?: number
+          winner_wallet_id?: string | null
+        }
+        Relationships: []
+      }
+      pinkredible_ledger: {
+        Row: {
+          created_at: string
+          delta: number
+          game_name: string | null
+          id: string
+          kind: string
+          note: string | null
+          staff_user_id: string | null
+          round_id: string | null
+          wallet_id: string
+        }
+        Insert: {
+          created_at?: string
+          delta: number
+          game_name?: string | null
+          id?: string
+          kind: string
+          note?: string | null
+          staff_user_id?: string | null
+          round_id?: string | null
+          wallet_id: string
+        }
+        Update: {
+          created_at?: string
+          delta?: number
+          game_name?: string | null
+          id?: string
+          kind?: string
+          note?: string | null
+          staff_user_id?: string | null
+          round_id?: string | null
+          wallet_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pinkredible_ledger_wallet_id_fkey"
+            columns: ["wallet_id"]
+            isOneToOne: false
+            referencedRelation: "wallets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wallets: {
         Row: {
           attendee_name: string
@@ -870,6 +983,8 @@ export type Database = {
           coin_balance: number
           created_at: string
           event_order_id: string | null
+          pinkredible_balance: number
+          pinkredible_code: string | null
           id: string
           status: string
           studio: string
@@ -883,6 +998,8 @@ export type Database = {
           coin_balance?: number
           created_at?: string
           event_order_id?: string | null
+          pinkredible_balance?: number
+          pinkredible_code?: string | null
           id?: string
           status?: string
           studio?: string
@@ -896,6 +1013,8 @@ export type Database = {
           coin_balance?: number
           created_at?: string
           event_order_id?: string | null
+          pinkredible_balance?: number
+          pinkredible_code?: string | null
           id?: string
           status?: string
           studio?: string
@@ -1033,6 +1152,14 @@ export type Database = {
         Args: { p_load_prepaid?: boolean; p_parent_order_id: string; p_wallet_id: string }
         Returns: Json
       }
+      open_game_round: { Args: { p_game_id: string }; Returns: Json }
+      pay_game_round: { Args: { p_round_id: string; p_wallet_id: string }; Returns: Json }
+      award_game_round: { Args: { p_round_id: string; p_winner_wallet_id: string }; Returns: Json }
+      close_game_round: { Args: { p_round_id: string; p_reason?: string }; Returns: Json }
+      my_open_game_rounds: { Args: never; Returns: Json }
+      check_pinkredible_code: { Args: { p_code: string }; Returns: Json }
+      redeem_pinkredibles: { Args: { p_code: string; p_count?: number; p_note?: string | null }; Returns: Json }
+      pinkredible_summary: { Args: never; Returns: Json }
       reissue_wallet: {
         Args: { p_new_tag_id: string; p_old_wallet_id: string; p_reason?: string }
         Returns: Json

@@ -137,3 +137,29 @@ Ready-made bands and bookings on the hosted database:
    blocked, full balance on the new one; `/coins` for that phone now shows ···N02.
 
 Admin → Event Bookings shows ticket vs coin revenue for all of the above; nothing here is real money.
+
+## Pinkredibles (added 6 Sep 2026)
+
+Digital reward ticket for winning a paid game. 1 Pinkredible = ₹100 off course registration on
+hashtag.dance. Nothing is printed. Migration `20260906090000_pinkredibles.sql`.
+
+* **Rounds on the POS.** Selecting a prize game (Hurdle 1 v 1, Cricket 3 a side = 6, Issue With a
+  Tissue 5 a side = 10, Limbo / Bombastic individual with at least 5, Minute to Win It) opens a
+  round on that phone instead of a single sale. Each player's band is scanned to take the entry;
+  "Game over · pick the winner" unlocks once the minimum is in; tapping or scanning the winner
+  (the captain for team games) closes the round and puts exactly one Pinkredible on their band.
+  One Pinkredible per round, enforced in the database. Closing without a winner keeps the entries:
+  **no refunds**.
+* **Attendee view.** `/coins` shows each band's Pinkredibles and its coupon code `PINK-XXXXXX`
+  (tap to copy). Seed: Karan's band `NFC0K4R4N` has 2 on code `PINK-TEST01`.
+* **Redeem.** `/pinkredibles` (admin, studio manager): type the code, see the balance, take off
+  the Pinkredibles being used, note the student and course. Staff can only check codes.
+* **hashtag.dance integration.** The registration form can validate a code with no login:
+  `POST {SUPABASE_URL}/rest/v1/rpc/check_pinkredible_code` with the anon key and
+  `{"p_code":"PINK-XXXXXX"}` → `{valid, pinkredibles, value_inr, first_name}`. Redeeming from a
+  server needs the service-role key: `POST .../rpc/redeem_pinkredibles` with
+  `{"p_code":..., "p_count":1, "p_note":"..."}`.
+* **Lost band.** Reissue moves the Pinkredibles and the code to the new band.
+* **Test script step 12.** Log in as staff, POS → Cricket → type six tag IDs (any six issued bands,
+  or issue test bands first) → "Game over" → tap a winner → `/coins` for that person shows +1 and
+  the code → `/pinkredibles` as admin: check the code, redeem 1 with a note → balance drops.
