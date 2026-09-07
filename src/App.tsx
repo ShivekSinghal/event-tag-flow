@@ -10,6 +10,7 @@ import Layout from "./components/layout/Layout";
 import Dashboard from "./pages/Dashboard";
 import IssueTag from "./pages/IssueTag";
 import TopUp from "./pages/TopUp";
+import CashBooking from "./pages/CashBooking";
 import POS from "./pages/POS";
 import Pinkredibles from "./pages/Pinkredibles";
 import Balance from "./pages/Balance";
@@ -60,6 +61,7 @@ const App = () => (
               <Route path="topup" element={<TopUp />} />
               <Route path="pos" element={<POS />} />
               <Route path="pinkredibles" element={<Pinkredibles />} />
+              <Route path="cash-booking" element={<CashBooking />} />
               <Route path="balance" element={
                 <ProtectedRoute requiredRole="admin">
                   <Balance />

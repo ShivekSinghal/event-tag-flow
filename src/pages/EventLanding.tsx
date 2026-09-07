@@ -255,7 +255,8 @@ export default function EventLanding() {
   const [confirmedOrder, setConfirmedOrder] = useState<{
     id: string;
     total: number;
-    status: "paid" | "pending";
+    status: "paid" | "pending" | "cash_hold";
+    holdExpiresAt?: string;
     customerEmail: string;
     purchasedItems?: string;
     includesIntensives?: boolean;
@@ -307,6 +308,17 @@ export default function EventLanding() {
   const { status: partyStatus, isLive: partyStatusLive, refresh: refreshPartyStatus } = usePartyStatus();
   const [revealClock, setRevealClock] = useState(() => Date.now());
   const [paymentProvider, setPaymentProvider] = useState<PaymentProvider>("cashfree");
+  // "Pay cash at the studio": only offered at a counter (page opened with ?counter=1, remembered
+  // on that device) — online buyers never see it. 5-minute hold, confirmed by the manager.
+  const [counterMode] = useState(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("counter") === "0") { localStorage.removeItem("pinkd_counter_mode"); return false; }
+      if (params.get("counter") === "1") { localStorage.setItem("pinkd_counter_mode", "1"); return true; }
+      return localStorage.getItem("pinkd_counter_mode") === "1";
+    } catch { return false; }
+  });
+  const [payChoice, setPayChoice] = useState<"online" | "cash">("online");
   const [paymentSettingsLoading, setPaymentSettingsLoading] = useState(true);
   const [isGatewayActive, setIsGatewayActive] = useState(false);
   const [isGatewayOpening, setIsGatewayOpening] = useState(false);
@@ -678,6 +690,33 @@ export default function EventLanding() {
 
       const orderId = data.order_id;
       const orderTotal = Number(data.total_amount_inr);
+
+      if (counterMode && payChoice === "cash") {
+        const { data: cashData, error: cashError } = await supabase.rpc("mark_event_order_cash_at_counter", {
+          p_order_id: orderId,
+          p_checkout_token_hash: checkoutTokenHash,
+        });
+        if (cashError) throw cashError;
+        const cash = (cashData || {}) as { hold_expires_at?: string };
+        setConfirmedOrder({
+          id: orderId,
+          total: orderTotal,
+          status: "cash_hold",
+          holdExpiresAt: cash.hold_expires_at,
+          customerEmail: form.email.trim(),
+          purchasedItems: purchasedItemsSummary,
+          includesIntensives: orderIncludesIntensives,
+          includesParty: orderIncludesParty,
+          needsAttendeeForm: orderNeedsAttendeeForm,
+        });
+        toast({ title: "Pay at the counter now", description: `Show ref ${orderId.slice(0, 8).toUpperCase()} and pay ${formatEventPrice(orderTotal)} in cash within 5 minutes.` });
+        setIsCartOpen(true);
+        setCart([]);
+        setForm(initialFormState);
+        refreshPartyStatus();
+        return;
+      }
+
       let paymentFlowCompleted = false;
       let attemptedPaymentProvider: PaymentProvider = paymentProvider;
 
@@ -1514,11 +1553,19 @@ export default function EventLanding() {
             <div className="mt-5 rounded-md border border-success/30 bg-success/10 p-3 text-sm text-success">
               <div className="flex items-center gap-2 font-semibold">
                 <CheckCircle2 className="h-4 w-4" />
-                {confirmedOrder.status === "paid" ? "Payment confirmed" : "Order saved"}
+                {confirmedOrder.status === "paid" ? "Payment confirmed" : confirmedOrder.status === "cash_hold" ? "Pay at the counter now" : "Order saved"}
               </div>
               <div className="mt-1 text-success/85">
                 Ref {confirmedOrder.id.slice(0, 8).toUpperCase()} · {formatEventPrice(confirmedOrder.total)}
               </div>
+              {confirmedOrder.status === "cash_hold" ? (
+                <div className="mt-2 rounded-md border border-success/40 bg-black/30 p-3 text-success">
+                  <div className="text-2xl font-black tracking-widest">{confirmedOrder.id.slice(0, 8).toUpperCase()}</div>
+                  <div className="mt-1 text-sm">
+                    Hand <b>{formatEventPrice(confirmedOrder.total)}</b> in cash to the studio manager and show this reference. They'll email you a 6-digit code — read it out to them and you're booked. Your seat is held for 5 minutes.
+                  </div>
+                </div>
+              ) : null}
               <div className="mt-2 space-y-1 text-success/85">
                 {confirmedOrder.purchasedItems ? <div>{confirmedOrder.purchasedItems}</div> : null}
                 <div>{eventDateLabel}</div>
@@ -1699,9 +1746,30 @@ export default function EventLanding() {
               </div>
             </div>
 
-            <div className="mt-5 rounded-md border border-primary/25 bg-primary/10 p-3 text-sm text-white/72">
-              Secure payment via {getGatewayLabel(paymentProvider)} · UPI, cards and netbanking.
-            </div>
+            {counterMode ? (
+              <div className="mt-5 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPayChoice("online")}
+                  className={`rounded-md border p-3 text-left text-sm ${payChoice === "online" ? "border-primary bg-primary/10 text-white" : "border-white/12 bg-black/35 text-white/72"}`}
+                >
+                  <div className="font-bold">Pay online</div>
+                  <div className="text-xs opacity-80">{getGatewayLabel(paymentProvider)} · UPI, cards</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPayChoice("cash")}
+                  className={`rounded-md border p-3 text-left text-sm ${payChoice === "cash" ? "border-primary bg-primary/10 text-white" : "border-white/12 bg-black/35 text-white/72"}`}
+                >
+                  <div className="font-bold">Cash at the studio</div>
+                  <div className="text-xs opacity-80">Pay the manager now · 5-min hold</div>
+                </button>
+              </div>
+            ) : (
+              <div className="mt-5 rounded-md border border-primary/25 bg-primary/10 p-3 text-sm text-white/72">
+                Secure payment via {getGatewayLabel(paymentProvider)} · UPI, cards and netbanking.
+              </div>
+            )}
 
             <div className="mt-3 rounded-md border border-white/12 bg-black/35 p-3 text-sm font-bold uppercase leading-6 text-white/78">
               <div className="flex items-start gap-2">
@@ -1719,9 +1787,11 @@ export default function EventLanding() {
               className="mt-5 h-12 w-full bg-primary text-base font-bold text-black hover:bg-primary/90"
             >
               <CreditCard className="mr-2 h-4 w-4" />
-              {isSubmitting || paymentSettingsLoading
-                ? `Opening ${getGatewayLabel(paymentProvider)}...`
-                : `Pay with ${getGatewayLabel(paymentProvider)}`}
+              {counterMode && payChoice === "cash"
+                ? (isSubmitting ? "Reserving…" : "Reserve & pay cash at the counter")
+                : isSubmitting || paymentSettingsLoading
+                  ? `Opening ${getGatewayLabel(paymentProvider)}...`
+                  : `Pay with ${getGatewayLabel(paymentProvider)}`}
             </Button>
 
           </form>
