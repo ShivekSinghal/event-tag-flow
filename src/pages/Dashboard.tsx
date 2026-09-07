@@ -39,6 +39,7 @@ import { nfcManager } from "@/utils/nfc";
 import StaffManagement from "@/components/admin/StaffManagement";
 import CoinPackageManagement from "@/components/admin/CoinPackageManagement";
 import EventBookingReport from "@/components/admin/EventBookingReport";
+import EventLiveSales from "@/components/admin/EventLiveSales";
 import EventPackageManagement from "@/components/admin/EventPackageManagement";
 import EventPhaseManagement from "@/components/admin/EventPhaseManagement";
 import PaymentGatewaySettings from "@/components/admin/PaymentGatewaySettings";
@@ -325,7 +326,7 @@ export default function Dashboard() {
               type: tx.type,
               description: tx.description,
               coinAmount: getCoinAmount(tx),
-              inrAmount: tx.inr_amount ?? null,
+              inrAmount: tx.inr_amount == null ? null : Number(tx.inr_amount),
               created_at: tx.created_at,
               wallet: {
                 attendee_name: wallet?.attendee_name || "Unknown",
@@ -998,6 +999,10 @@ export default function Dashboard() {
       <Tabs defaultValue="event-bookings" className="space-y-6">
         <div className="sticky top-16 z-20 -mx-1 overflow-x-auto bg-background/95 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80">
           <TabsList className="h-auto w-max min-w-full justify-start gap-1 p-1">
+            <TabsTrigger value="live-sales" className="gap-2 px-4 py-2">
+              <TrendingUp className="h-4 w-4" />
+              <span>Live Sales</span>
+            </TabsTrigger>
             <TabsTrigger value="event-bookings" className="gap-2 px-4 py-2">
               <Package className="h-4 w-4" />
               <span>Event Bookings</span>
@@ -1016,6 +1021,10 @@ export default function Dashboard() {
             </TabsTrigger>
           </TabsList>
         </div>
+
+        <TabsContent value="live-sales" className="space-y-6">
+          <EventLiveSales />
+        </TabsContent>
 
         <TabsContent value="event-bookings" className="space-y-6">
           {/* Event Landing Page Booking Report */}
