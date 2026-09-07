@@ -29,7 +29,7 @@ interface NFCReadingEvent extends Event {
 interface NDEFReaderLike {
   onreading: ((event: NFCReadingEvent) => void) | null;
   onreadingerror: ((event: Event) => void) | null;
-  scan: () => Promise<void>;
+  scan: (options: { signal: AbortSignal }) => Promise<void>;
 }
 
 interface WindowWithNDEFReader extends Window {
@@ -129,6 +129,7 @@ export class NFCManager {
       
       // Proper feature detection as per Chrome docs
       const NDEFReader = (window as WindowWithNDEFReader).NDEFReader;
+      if (!NDEFReader) this.isScanning = false;
       if (!NDEFReader && allowTypedTag()) {
         const typed = window.prompt("No NFC on this device. Type the band's tag ID (test mode):", "");
         const value = (typed || "").trim();
@@ -155,9 +156,16 @@ export class NFCManager {
       
       return await new Promise<NFCReadResult>((resolve) => {
         let resolved = false;
+        const controller = new AbortController();
         let cancelCurrentScan: (() => void) | null = null;
         
         const cleanup = () => {
+          reader.onreading = null;
+          reader.onreadingerror = null;
+          controller.abort();
+          // An old permission request must never tear down a newer attempt.
+          if (this.reader !== reader) return;
+          this.reader = null;
           if (this.scanTimeout) {
             clearTimeout(this.scanTimeout);
             this.scanTimeout = null;
@@ -193,6 +201,7 @@ export class NFCManager {
 
         // Set up event handlers BEFORE calling scan()
         reader.onreading = (event) => {
+          if (resolved || controller.signal.aborted) return;
           console.log('✅ NFC tag detected!', event);
           const tagId = this.extractTagId(event);
           console.log('Extracted tag ID:', tagId);
@@ -207,6 +216,7 @@ export class NFCManager {
         };
 
         reader.onreadingerror = (error) => {
+          if (resolved || controller.signal.aborted) return;
           console.warn('❌ NFC reading error (continuing scan):', error);
           // Don't stop scanning on read errors - just update state with error info
           this.updateScanState('NFC read error - keep trying...');
@@ -225,7 +235,8 @@ export class NFCManager {
         const beginScan = async () => {
           try {
             console.log('Attempting to start NFC scan...');
-            await reader.scan();
+            await reader.scan({ signal: controller.signal });
+            if (resolved || controller.signal.aborted || this.reader !== reader) return;
             console.log('✅ NFC scan started successfully! Place your tag near the device...');
 
             // Start scan state tracking
@@ -234,6 +245,7 @@ export class NFCManager {
             this.updateScanState();
 
           } catch (scanError: unknown) {
+            if (resolved || controller.signal.aborted) return;
             const normalizedError = normalizeError(scanError);
             console.error('❌ Failed to start NFC scan:', normalizedError);
             console.error('Scan error name:', normalizedError.name);
@@ -262,6 +274,7 @@ export class NFCManager {
       });
       
     } catch (error: unknown) {
+      this.isScanning = false;
       const normalizedError = normalizeError(error);
       console.error('❌ NFC scan error in try/catch:', normalizedError);
       console.error('Error name:', normalizedError.name);
@@ -287,7 +300,6 @@ export class NFCManager {
         error: errorMessage
       };
     } finally {
-      this.isScanning = false;
       console.log('=== NFC SCAN DEBUG END ===');
     }
   }

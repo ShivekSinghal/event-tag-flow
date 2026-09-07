@@ -134,6 +134,16 @@ export default function POS() {
   // scan that is abandoned in favour of the phone lookup can never charge a second time.
   const pendingSaleRef = useRef<{ price: number; itemName: string; gameId: string | null; transactionType: string } | null>(null);
   const scanGenerationRef = useRef(0);
+  const paymentInFlightRef = useRef(false);
+  const [lookupActive, setLookupActive] = useState(false);
+  const [lookupKey, setLookupKey] = useState(0);
+
+  useEffect(() => () => {
+    scanGenerationRef.current += 1;
+    roundScanGenerationRef.current += 1;
+    pendingSaleRef.current = null;
+    nfcManager.stopScanning();
+  }, []);
   const roundScanGenerationRef = useRef(0);
   const [scannedWallet, setScannedWallet] = useState<ScannedWallet | null>(null);
   const [selectedGame, setSelectedGame] = useState<Game | null>(null);
@@ -405,6 +415,10 @@ export default function POS() {
     gameId: string | null,
     transactionType: string = "food",
   ) => {
+    if (paymentInFlightRef.current) return;
+    setLookupActive(false);
+    setScannedWallet(null);
+    setLookupKey((key) => key + 1);
     setIsScanning(true);
     pendingSaleRef.current = { price, itemName, gameId, transactionType };
     const generation = ++scanGenerationRef.current;
@@ -418,6 +432,7 @@ export default function POS() {
       if (result.success) {
         // Fetch wallet data from Supabase based on tag ID
         const { data: wallet, error } = await supabase.from("wallets").select("*").eq("tag_id", result.tagId).single();
+        if (generation !== scanGenerationRef.current) return;
 
         if (error || !wallet) {
           toast({
@@ -425,7 +440,6 @@ export default function POS() {
             description: `NFC tag ${result.tagId} scanned but no wallet is linked to this tag. Please issue this tag first.`,
             variant: "destructive",
           });
-          resetTransaction();
           return;
         }
 
@@ -436,7 +450,6 @@ export default function POS() {
             description: `This NFC tag has been blocked and cannot be used for transactions. Contact admin for assistance.`,
             variant: "destructive",
           });
-          resetTransaction();
           return;
         }
 
@@ -453,14 +466,13 @@ export default function POS() {
         setScannedWallet(formattedWallet);
 
         // Immediately process the payment
-        await processPayment(formattedWallet, price, itemName, gameId, transactionType);
+        await processPayment(formattedWallet, price, itemName, gameId, transactionType, false, generation);
       } else {
         toast({
           title: "Scanning Failed",
           description: result.error || "Could not scan NFC tag. Please try again.",
           variant: "destructive",
         });
-        resetTransaction();
       }
     } catch (error) {
       if (generation !== scanGenerationRef.current) return;
@@ -469,46 +481,60 @@ export default function POS() {
         description: "Could not scan NFC tag. Please try again.",
         variant: "destructive",
       });
-      resetTransaction();
     } finally {
       if (generation === scanGenerationRef.current) setIsScanning(false);
     }
   };
 
   const cancelSaleScan = () => {
+    if (paymentInFlightRef.current) return false;
     scanGenerationRef.current += 1;
     nfcManager.stopScanning();
     setIsScanning(false);
+    setLookupActive(true);
+  };
+
+  const retrySaleScan = () => {
+    const sale = pendingSaleRef.current;
+    if (!sale || paymentInFlightRef.current) return;
+    void handleScanForPayment(sale.price, sale.itemName, sale.gameId, sale.transactionType);
   };
 
   // "Can't scan? Find by phone": same sale, same processPayment, band picked from the lookup.
   const handleLookupSelect = async (found: FoundWallet) => {
     const sale = pendingSaleRef.current;
-    if (!sale || isProcessing) return;
+    if (!sale || paymentInFlightRef.current) return;
 
     // Abandon the open NFC scan and take over with the confirmed wallet.
     cancelSaleScan();
+    const generation = scanGenerationRef.current;
 
-    const { data: wallet, error } = await supabase.from("wallets").select("*").eq("id", found.wallet_id).single();
-    if (error || !wallet || wallet.status === "blocked") {
-      toast({
-        title: "Band unavailable",
-        description: error?.message || "That band is blocked or could not be loaded.",
-        variant: "destructive",
-      });
-      return;
+    try {
+      const { data: wallet, error } = await supabase.from("wallets").select("*").eq("id", found.wallet_id).single();
+      if (generation !== scanGenerationRef.current || sale !== pendingSaleRef.current) return;
+      if (error || !wallet || wallet.status === "blocked") {
+        toast({
+          title: "Band unavailable",
+          description: error?.message || "That band is blocked or could not be loaded.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const formattedWallet = {
+        id: wallet.id,
+        attendeeName: wallet.attendee_name,
+        attendeePhone: wallet.attendee_phone,
+        tagId: wallet.tag_id,
+        currentBalance: getCoinBalance(wallet),
+        status: wallet.status,
+      };
+      setScannedWallet(formattedWallet);
+      await processPayment(formattedWallet, sale.price, sale.itemName, sale.gameId, sale.transactionType, true, generation);
+    } catch (error) {
+      if (generation !== scanGenerationRef.current) return;
+      toast({ title: "Band unavailable", description: getErrorDetail(error, "message") || "Please try the lookup again.", variant: "destructive" });
     }
-
-    const formattedWallet = {
-      id: wallet.id,
-      attendeeName: wallet.attendee_name,
-      attendeePhone: wallet.attendee_phone,
-      tagId: wallet.tag_id,
-      currentBalance: getCoinBalance(wallet),
-      status: wallet.status,
-    };
-    setScannedWallet(formattedWallet);
-    await processPayment(formattedWallet, sale.price, sale.itemName, sale.gameId, sale.transactionType, true);
   };
 
   const processPayment = async (
@@ -516,9 +542,11 @@ export default function POS() {
     price: number,
     itemName: string,
     gameId: string | null,
-    transactionType: string = "food",
-    viaLookup: boolean = false,
+    transactionType: string,
+    viaLookup: boolean,
+    generation: number,
   ) => {
+    if (generation !== scanGenerationRef.current || !pendingSaleRef.current || paymentInFlightRef.current) return;
     if (price > wallet.currentBalance) {
       toast({
         title: "Insufficient Pink'd Coins",
@@ -528,6 +556,8 @@ export default function POS() {
       return;
     }
 
+    // Claim synchronously: React state alone cannot block two callbacks in one tick.
+    paymentInFlightRef.current = true;
     setIsProcessing(true);
 
     try {
@@ -548,6 +578,7 @@ export default function POS() {
       }
 
       const newBalance = Number(paymentResult.new_coin_balance);
+      pendingSaleRef.current = null;
 
       toast({
         title: "Payment Successful!",
@@ -580,11 +611,10 @@ export default function POS() {
         variant: "destructive",
       });
     } finally {
+      paymentInFlightRef.current = false;
       setIsProcessing(false);
     }
   };
-
-  // ---- Game rounds -------------------------------------------------------------------------
 
   const findWalletByTag = async (tagId: string) => {
     const tag = tagId.trim().toUpperCase();
@@ -607,15 +637,18 @@ export default function POS() {
   };
 
   const cancelRoundScan = () => {
+    if (paymentInFlightRef.current) return false;
     roundScanGenerationRef.current += 1;
     nfcManager.stopScanning();
     setIsScanning(false);
+    setLookupActive(true);
   };
 
   /** Takes one player's entry into the open round through NFC, typed test tag, or confirmed lookup. */
-  const payRoundPlayer = async (walletId: string, attendeeName: string, viaLookup = false) => {
+  const payRoundPlayer = async (walletId: string, attendeeName: string, viaLookup = false, generation = roundScanGenerationRef.current) => {
     const roundId = activeRound?.round_id;
-    if (!roundId) return;
+    if (!roundId || paymentInFlightRef.current || generation !== roundScanGenerationRef.current) return;
+    paymentInFlightRef.current = true;
     setIsProcessing(true);
     try {
       const { data, error } = await supabase.rpc("pay_game_round", {
@@ -624,6 +657,8 @@ export default function POS() {
         p_via_phone_lookup: viaLookup,
       });
       if (error) throw error;
+      roundScanGenerationRef.current += 1;
+      setIsScanning(false);
       const round = parseRound(data);
       if (!round) throw new Error("Round update missing");
       const paid = data as { paid_name?: string; new_coin_balance?: number };
@@ -636,29 +671,37 @@ export default function POS() {
     } catch (error) {
       toast({ title: "Could not take the entry", description: getErrorDetail(error, "message") || "Try again.", variant: "destructive" });
     } finally {
+      paymentInFlightRef.current = false;
       setIsProcessing(false);
     }
   };
 
-  const payPlayerByTag = async (tagId: string) => {
+  const payPlayerByTag = async (tagId: string, scanGeneration?: number) => {
+    if (paymentInFlightRef.current) return;
+    if (scanGeneration === undefined) cancelRoundScan();
+    const generation = scanGeneration ?? roundScanGenerationRef.current;
     const wallet = await findWalletByTag(tagId);
-    if (wallet) await payRoundPlayer(wallet.id, wallet.attendee_name);
+    if (generation !== roundScanGenerationRef.current) return;
+    if (wallet) await payRoundPlayer(wallet.id, wallet.attendee_name, false, generation);
   };
 
   const handleRoundLookupSelect = async (found: FoundWallet) => {
+    if (paymentInFlightRef.current) return;
     cancelRoundScan();
     await payRoundPlayer(found.wallet_id, found.attendee_name, true);
   };
 
   const scanPlayerForRound = async () => {
-    if (isScanning || isProcessing || !activeRound) return;
+    if (isScanning || paymentInFlightRef.current || !activeRound) return;
+    setLookupActive(false);
+    setLookupKey((key) => key + 1);
     const generation = ++roundScanGenerationRef.current;
     setIsScanning(true);
     try {
       const result = await scanBand();
       if (generation !== roundScanGenerationRef.current) return;
       if (result.success && result.tagId) {
-        await payPlayerByTag(result.tagId);
+        await payPlayerByTag(result.tagId, generation);
       } else {
         toast({ title: "Scan failed", description: result.error || "Could not read the band. Try again.", variant: "destructive" });
       }
@@ -673,8 +716,9 @@ export default function POS() {
 
   /** Closes the round and puts one Pinkredible on the winner's (captain's) band. */
   const awardWinner = async (walletId: string) => {
-    if (!activeRound) return;
+    if (!activeRound || paymentInFlightRef.current) return;
     cancelRoundScan();
+    paymentInFlightRef.current = true;
     setIsAwarding(true);
     try {
       const { data, error } = await supabase.rpc("award_game_round", { p_round_id: activeRound.round_id, p_winner_wallet_id: walletId });
@@ -694,20 +738,23 @@ export default function POS() {
     } catch (error) {
       toast({ title: "Could not close the round", description: getErrorDetail(error, "message") || "Try again.", variant: "destructive" });
     } finally {
+      paymentInFlightRef.current = false;
       setIsAwarding(false);
     }
   };
 
   const awardWinnerByTag = async (tagId: string) => {
+    const generation = roundScanGenerationRef.current;
     const wallet = await findWalletByTag(tagId).catch((error) => {
       toast({ title: "Lookup failed", description: getErrorDetail(error, "message") || "Try again.", variant: "destructive" });
       return null;
     });
+    if (generation !== roundScanGenerationRef.current) return;
     if (wallet) await awardWinner(wallet.id);
   };
 
   const scanWinnerBand = async () => {
-    if (isScanning || isAwarding) return;
+    if (isScanning || paymentInFlightRef.current) return;
     const generation = ++roundScanGenerationRef.current;
     setIsScanning(true);
     try {
@@ -728,7 +775,9 @@ export default function POS() {
   };
 
   const closeRoundNoWinner = async () => {
-    if (!activeRound) return;
+    if (!activeRound || paymentInFlightRef.current) return;
+    cancelRoundScan();
+    paymentInFlightRef.current = true;
     setIsProcessing(true);
     try {
       const { error } = await supabase.rpc("close_game_round", {
@@ -743,11 +792,17 @@ export default function POS() {
     } catch (error) {
       toast({ title: "Could not close the round", description: getErrorDetail(error, "message") || "Try again.", variant: "destructive" });
     } finally {
+      paymentInFlightRef.current = false;
       setIsProcessing(false);
     }
   };
 
   const resetTransaction = () => {
+    scanGenerationRef.current += 1;
+    roundScanGenerationRef.current += 1;
+    nfcManager.stopScanning();
+    setIsScanning(false);
+    setLookupActive(false);
     pendingSaleRef.current = null;
     setSelectedGame(null);
     setSelectedDrink(null);
@@ -1389,14 +1444,21 @@ export default function POS() {
                             <div className="flex flex-col sm:flex-row items-center justify-center space-y-2 sm:space-y-0 sm:space-x-2 text-muted-foreground">
                               <div className="relative">
                                 <Scan className="w-5 h-5 sm:w-6 sm:h-6" />
-                                <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full animate-ping"></div>
                               </div>
-                              <span className="font-medium text-xs sm:text-sm">Please scan customer's NFC tag</span>
+                              <span className="font-medium text-xs sm:text-sm">
+                                {lookupActive ? "Find the customer by phone, name or order reference" : "Scan stopped. Retry NFC or find the customer below."}
+                              </span>
                             </div>
                           )}
                           {!isProcessing && pendingSaleRef.current && (
                             <div className="text-left">
-                              <FindWalletFallback onSelect={handleLookupSelect} onLookupStart={cancelSaleScan} />
+                              {!isScanning && (
+                                <Button variant="outline" className="w-full mt-3" onClick={retrySaleScan}>
+                                  <Scan className="w-4 h-4 mr-2" />
+                                  {lookupActive ? "Scan NFC instead" : "Retry NFC scan"}
+                                </Button>
+                              )}
+                              <FindWalletFallback key={lookupKey} onSelect={handleLookupSelect} onLookupStart={cancelSaleScan} />
                             </div>
                           )}
                         </div>
@@ -1443,10 +1505,14 @@ export default function POS() {
                           <>
                             <Button className="w-full" onClick={scanPlayerForRound} disabled={isScanning || isProcessing || activeRound.is_full}>
                               <Scan className="w-4 h-4 mr-2" />
-                              {isScanning ? "Scanning…" : isProcessing ? "Taking entry…" : activeRound.is_full ? "Round is full" : "Scan the next player to pay"}
+                              {isScanning ? "Scanning…" : isProcessing ? "Taking entry…" : activeRound.is_full ? "Round is full" : lookupActive ? "Scan NFC instead" : "Scan the next player to pay"}
                             </Button>
+                            {lookupActive && !isProcessing && (
+                              <p className="text-sm text-muted-foreground">Find the customer by phone, name or order reference</p>
+                            )}
                             {!isProcessing && !activeRound.is_full ? (
                               <FindWalletFallback
+                                key={lookupKey}
                                 onSelect={handleRoundLookupSelect}
                                 onLookupStart={cancelRoundScan}
                               />
@@ -1474,7 +1540,10 @@ export default function POS() {
                             <Button
                               variant={activeRound.can_start ? "default" : "outline"}
                               className="w-full"
-                              onClick={() => setIsPickingWinner(true)}
+                              onClick={() => {
+                                if (cancelRoundScan() === false) return;
+                                setIsPickingWinner(true);
+                              }}
                               disabled={!activeRound.can_start || isProcessing}
                             >
                               {activeRound.can_start

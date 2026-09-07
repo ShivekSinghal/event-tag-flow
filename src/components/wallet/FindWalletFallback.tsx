@@ -31,7 +31,7 @@ export type FoundWallet = {
 type Props = {
   onSelect: (wallet: FoundWallet) => void;
   /** Called as soon as manual lookup takes over from an in-progress scanner. */
-  onLookupStart?: () => void;
+  onLookupStart?: () => boolean | void;
   /** Optional: hide the trigger link and always show the panel (e.g. on Check Coins). */
   alwaysOpen?: boolean;
   disabled?: boolean;
@@ -118,7 +118,7 @@ export function FindWalletFallback({
         type="button"
         disabled={disabled}
         onClick={() => {
-          onLookupStart?.();
+          if (onLookupStart?.() === false) return;
           setOpen(true);
         }}
         className={`mt-2 w-full text-center text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
