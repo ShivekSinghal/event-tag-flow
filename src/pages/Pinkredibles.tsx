@@ -9,8 +9,8 @@ import { Input } from "@/components/ui/input";
 
 /**
  * Pinkredibles: the digital reward ticket for winning a paid game (1 = ₹100 off course
- * registration on hashtag.dance). Nothing is printed. Awards happen when a paid game round
- * closes (one per round, onto the winner's or captain's band). The attendee sees the
+ * registration on hashtag.dance). Nothing is printed. Awards happen on the POS right after a
+ * game sale (one per game payment, onto the winner's or captain's band). The attendee sees the
  * count and their coupon code on /coins. This page is for the team: check a code, redeem at
  * registration (admin / studio manager), and see recent movements.
  */
@@ -19,7 +19,10 @@ type CodeCheck = {
   valid: boolean;
   reason?: string;
   expires_at?: string;
+  code?: string;
   first_name?: string;
+  band_hint?: string;
+  active?: boolean;
   pinkredibles?: number;
   value_inr?: number;
 };
@@ -53,7 +56,6 @@ export default function Pinkredibles() {
   const canRedeem = isAdmin || isStudioManager;
 
   const [code, setCode] = useState("");
-  const [checkedCode, setCheckedCode] = useState("");
   const [isChecking, setIsChecking] = useState(false);
   const [check, setCheck] = useState<CodeCheck | null>(null);
   const [redeemCount, setRedeemCount] = useState(1);
@@ -63,17 +65,13 @@ export default function Pinkredibles() {
   const [recent, setRecent] = useState<LedgerRow[]>([]);
 
   const loadRecent = useCallback(async () => {
-    if (!canRedeem) {
-      setRecent([]);
-      return;
-    }
     const { data, error } = await supabase
       .from("pinkredible_ledger")
       .select("id, delta, kind, game_name, note, created_at, wallets(attendee_name, tag_id)")
       .order("created_at", { ascending: false })
       .limit(25);
     if (!error && data) setRecent(data as unknown as LedgerRow[]);
-  }, [canRedeem]);
+  }, []);
 
   const loadSummary = useCallback(async () => {
     if (!canRedeem) return;
@@ -95,7 +93,6 @@ export default function Pinkredibles() {
       const { data, error } = await supabase.rpc("check_pinkredible_code", { p_code: value });
       if (error) throw error;
       setCheck(data as unknown as CodeCheck);
-      setCheckedCode(value.replace(/\s/g, "").toUpperCase());
       setRedeemCount(1);
     } catch (error) {
       toast({ title: "Could not check code", description: errorText(error), variant: "destructive" });
@@ -105,11 +102,11 @@ export default function Pinkredibles() {
   };
 
   const redeem = async () => {
-    if (!check?.valid || !checkedCode) return;
+    if (!check?.valid || !check.code) return;
     setIsRedeeming(true);
     try {
       const { data, error } = await supabase.rpc("redeem_pinkredibles", {
-        p_code: checkedCode,
+        p_code: check.code,
         p_count: redeemCount,
         p_note: redeemNote.trim() || null,
       });
@@ -117,11 +114,10 @@ export default function Pinkredibles() {
       const result = data as unknown as { redeemed: number; redeemed_value_inr: number; remaining: number };
       toast({
         title: `Redeemed ${result.redeemed} ${plural(result.redeemed)} (${inr(result.redeemed_value_inr)})`,
-        description: result.remaining > 0 ? `${result.remaining} left on ${checkedCode}.` : `${checkedCode} is now used up.`,
+        description: result.remaining > 0 ? `${result.remaining} left on ${check.code}.` : `${check.code} is now used up.`,
       });
       setCheck(null);
       setCode("");
-      setCheckedCode("");
       setRedeemNote("");
       void loadRecent();
       void loadSummary();
@@ -138,8 +134,8 @@ export default function Pinkredibles() {
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2"><Ticket className="h-6 w-6 text-primary" /> Pinkredibles</h1>
           <p className="text-sm text-muted-foreground max-w-2xl">
-            The reward for winning a paid game: 1 Pinkredible = ₹100 off course registration. Digital only. One winner is awarded
-            after each completed round, and the attendee sees the balance and coupon code on the coins page. Valid until 11 October 2026.
+            The reward for winning a paid game: 1 Pinkredible = ₹100 off course registration. Digital only. It is awarded on the POS
+            right after the game is paid for, lands on the winner's band, and the attendee sees their count and coupon code on the coins page. Valid until 11 October 2026.
           </p>
         </div>
         {summary ? (
@@ -151,7 +147,7 @@ export default function Pinkredibles() {
         ) : null}
       </div>
 
-      <div className={canRedeem ? "grid gap-6 lg:grid-cols-2" : "max-w-2xl"}>
+      <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg"><Search className="h-5 w-5 text-primary" /> Check or redeem a code</CardTitle>
@@ -169,17 +165,7 @@ export default function Pinkredibles() {
                 void checkCode();
               }}
             >
-              <Input
-                value={code}
-                onChange={(event) => {
-                  setCode(event.target.value.toUpperCase());
-                  setCheck(null);
-                  setCheckedCode("");
-                }}
-                placeholder="PINK-XXXXXX"
-                autoComplete="off"
-                className="font-mono"
-              />
+              <Input value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} placeholder="PINK-XXXXXX" autoComplete="off" className="font-mono" />
               <Button type="submit" variant="outline" disabled={isChecking || !code.trim()}>
                 {isChecking ? <Loader2 className="h-4 w-4 animate-spin" /> : "Check"}
               </Button>
@@ -191,8 +177,6 @@ export default function Pinkredibles() {
                   ? "That doesn't look like a Pinkredible code. It reads PINK- followed by six letters or digits."
                   : check.reason === "expired"
                     ? `Pinkredibles expired on ${check.expires_at ? new Date(check.expires_at).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "long", year: "numeric" }) : "11 October 2026"}. This code had ${check.pinkredibles ?? 0} left.`
-                    : check.reason === "inactive"
-                      ? "This code belongs to an inactive band. Ask an admin or studio manager to reissue it."
                     : "No Pinkredibles found for that code."}
               </div>
             ) : null}
@@ -200,9 +184,10 @@ export default function Pinkredibles() {
             {check?.valid ? (
               <div className="rounded-lg border bg-muted/40 p-4 space-y-3">
                 <div>
-                  <div className="font-semibold">{check.first_name}</div>
+                  <div className="font-semibold">{check.first_name} · band ···{check.band_hint}</div>
                   <div className="text-sm text-muted-foreground">
                     {check.pinkredibles} {plural(check.pinkredibles ?? 0)} available · worth {inr(check.value_inr ?? 0)}
+                    {check.active === false ? " · band blocked" : ""}
                   </div>
                 </div>
                 {canRedeem && (check.pinkredibles ?? 0) > 0 ? (
@@ -228,7 +213,7 @@ export default function Pinkredibles() {
           </CardContent>
         </Card>
 
-        {canRedeem ? <Card>
+        <Card>
           <CardHeader>
             <CardTitle className="text-lg">Recent</CardTitle>
             <CardDescription>Awards from the game stalls and redemptions at registration.</CardDescription>
@@ -259,7 +244,7 @@ export default function Pinkredibles() {
               </ul>
             )}
           </CardContent>
-        </Card> : null}
+        </Card>
       </div>
     </div>
   );

@@ -17,7 +17,7 @@ import { WalletOperationStatus } from "@/components/wallet/WalletOperationStatus
 import { PosSaleControls } from "@/components/wallet/PosSaleControls";
 import { InsufficientCoinsNotice } from "@/components/wallet/InsufficientCoinsNotice";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Package, CreditCard, DollarSign, Scan, AlertCircle, ArrowRight, CheckCircle, Calculator, Ticket } from "lucide-react";
+import { Package, CreditCard, DollarSign, Scan, AlertCircle, ArrowRight, CheckCircle, Calculator, Trophy } from "lucide-react";
 
 interface Game {
   id: string;
@@ -26,63 +26,9 @@ interface Game {
   price: number;
   studio: string;
   available: boolean;
-  // Round format (see migration 20260906090000): how many paid players a round needs, team size,
-  // and whether the winner gets a Pinkredible.
-  players_min?: number;
-  players_max?: number | null;
-  team_size?: number;
-  awards_pinkredible?: boolean;
+  awardsPinkredible: boolean;
 }
 
-// Games with a Pinkredible prize, or that need several players, are run as rounds on this phone:
-// each player pays into the round, it starts once the minimum is in, and closing it awards one
-// Pinkredible to the winner (the captain for team games). No refunds if a round never fills.
-const isRoundGame = (game: Game) => Boolean(game.awards_pinkredible) || (game.players_min ?? 1) > 1;
-
-type RoundPlayer = { wallet_id: string; name: string; band_hint: string; paid_at: string };
-type GameRound = {
-  round_id: string;
-  game_id: string | null;
-  game_name: string;
-  entry_coins: number;
-  players_needed: number;
-  players_max: number | null;
-  team_size: number;
-  awards_pinkredible: boolean;
-  status: string;
-  players_paid: number;
-  can_start: boolean;
-  is_full: boolean;
-  players: RoundPlayer[];
-};
-
-const parseRound = (data: unknown): GameRound | null => {
-  if (!data || typeof data !== "object") return null;
-  const r = data as Record<string, unknown>;
-  if (typeof r.round_id !== "string") return null;
-  return {
-    round_id: r.round_id,
-    game_id: typeof r.game_id === "string" ? r.game_id : null,
-    game_name: String(r.game_name ?? "Game"),
-    entry_coins: Number(r.entry_coins ?? 0),
-    players_needed: Number(r.players_needed ?? 1),
-    players_max: typeof r.players_max === "number" ? r.players_max : null,
-    team_size: Number(r.team_size ?? 1),
-    awards_pinkredible: Boolean(r.awards_pinkredible),
-    status: String(r.status ?? "open"),
-    players_paid: Number(r.players_paid ?? 0),
-    can_start: Boolean(r.can_start),
-    is_full: Boolean(r.is_full),
-    players: Array.isArray(r.players)
-      ? (r.players as Array<Record<string, unknown>>).map((p) => ({
-          wallet_id: String(p.wallet_id),
-          name: String(p.name ?? "Player"),
-          band_hint: String(p.band_hint ?? ""),
-          paid_at: String(p.paid_at ?? ""),
-        }))
-      : [],
-  };
-};
 
 interface DrinkItem {
   id: string;
@@ -146,11 +92,9 @@ export default function POS() {
 
   useEffect(() => () => {
     scanGenerationRef.current += 1;
-    roundScanGenerationRef.current += 1;
     pendingSaleRef.current = null;
     nfcManager.stopScanning();
   }, []);
-  const roundScanGenerationRef = useRef(0);
   const [scannedWallet, setScannedWallet] = useState<ScannedWallet | null>(null);
   const [insufficientCoins, setInsufficientCoins] = useState<{ balance: number; required: number; walletId: string } | null>(null);
   const [selectedGame, setSelectedGame] = useState<Game | null>(null);
@@ -167,24 +111,12 @@ export default function POS() {
   const [customItems, setCustomItems] = useState<CustomItem[]>([]);
   const [isLoadingGames, setIsLoadingGames] = useState(false);
   const [activeSection, setActiveSection] = useState<PosSection>("games");
-  // The game round open on this phone (players pay in, then one winner gets the Pinkredible).
-  const [activeRound, setActiveRound] = useState<GameRound | null>(null);
-  const [isPickingWinner, setIsPickingWinner] = useState(false);
-  const [roundTypedTag, setRoundTypedTag] = useState("");
+  // Award a Pinkredible to a winner: pick the game (trophy button), scan the winner, confirm.
+  const [awardGame, setAwardGame] = useState<Game | null>(null);
+  const [awardCandidate, setAwardCandidate] = useState<ScannedWallet | null>(null);
+  const [isAwardScanning, setIsAwardScanning] = useState(false);
   const [isAwarding, setIsAwarding] = useState(false);
-
-  // A phone that reloads mid-round picks its open round back up.
-  useEffect(() => {
-    let cancelled = false;
-    supabase.rpc("my_open_game_rounds").then(({ data }) => {
-      if (cancelled || !Array.isArray(data) || data.length === 0) return;
-      const round = parseRound(data[0]);
-      if (round) setActiveRound(round);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const [lastAward, setLastAward] = useState<{ name: string; game: string; pinkredibles: number; code: string } | null>(null);
 
   const hasCustomGames = useMemo(
     () => gamePermissions.some((game) => ["Dunk a Company Member", "Karaoke"].includes(game.name)),
@@ -277,10 +209,7 @@ export default function POS() {
                 price: typeof g.price === "string" ? parseFloat(g.price) : g.price,
                 studio: g.studio,
                 available: g.available,
-                players_min: g.players_min,
-                players_max: g.players_max,
-                team_size: g.team_size,
-                awards_pinkredible: g.awards_pinkredible,
+                awardsPinkredible: Boolean((g as { awards_pinkredible?: boolean }).awards_pinkredible),
               })),
             );
           }
@@ -316,29 +245,6 @@ export default function POS() {
     setSelectedDrink(null);
     setSelectedCustomItem(null);
     setShowCustomAmountInput(false);
-
-    if (isRoundGame(game)) {
-      // Round games: open (or resume) this phone's round, then scan players one by one.
-      setIsProcessing(true);
-      try {
-        const { data, error } = await supabase.rpc("open_game_round", { p_game_id: game.id });
-        if (error) throw error;
-        const round = parseRound(data);
-        if (!round) throw new Error("Could not open the round");
-        setActiveRound(round);
-        setIsPickingWinner(false);
-        toast({
-          title: `${game.name} · round open`,
-          description: `${round.players_paid} of ${round.players_needed} players paid. Scan each player's band to take their ${formatCoins(round.entry_coins)} entry.`,
-        });
-      } catch (error) {
-        toast({ title: "Could not open the round", description: getErrorDetail(error, "message") || "Try again.", variant: "destructive" });
-        setSelectedGame(null);
-      } finally {
-        setIsProcessing(false);
-      }
-      return;
-    }
 
     toast({
       title: "Scanning Started",
@@ -627,171 +533,89 @@ export default function POS() {
     return nfcManager.startScanning();
   };
 
-  const cancelRoundScan = () => {
-    if (paymentInFlightRef.current) return false;
-    roundScanGenerationRef.current += 1;
-    nfcManager.stopScanning();
-    setIsScanning(false);
-    setLookupActive(true);
-  };
+  const walletToScanned = (wallet: { id: string; attendee_name: string; attendee_phone: string; tag_id: string; status: string; event_order_id: string | null; coin_balance: number | null; balance: number }): ScannedWallet => ({
+    id: wallet.id,
+    attendeeName: wallet.attendee_name,
+    attendeePhone: wallet.attendee_phone,
+    tagId: wallet.tag_id,
+    currentBalance: getCoinBalance(wallet),
+    status: wallet.status,
+  });
 
-  /** Takes one player's entry into the open round through NFC, typed test tag, or confirmed lookup. */
-  const payRoundPlayer = async (walletId: string, attendeeName: string, viaLookup = false, generation = roundScanGenerationRef.current) => {
-    const roundId = activeRound?.round_id;
-    if (!roundId || paymentInFlightRef.current || generation !== roundScanGenerationRef.current) return;
-    paymentInFlightRef.current = true;
-    setIsProcessing(true);
+  const startAward = async (game: Game) => {
+    if (isScanning || isProcessing || isAwardScanning) return;
+    setAwardGame(game);
+    setAwardCandidate(null);
+    setIsAwardScanning(true);
     try {
-      const { data, error } = await supabase.rpc("pay_game_round", {
-        p_round_id: roundId,
-        p_wallet_id: walletId,
-        p_via_phone_lookup: viaLookup,
-      });
-      if (error) throw error;
-      roundScanGenerationRef.current += 1;
-      setIsScanning(false);
-      const round = parseRound(data);
-      if (!round) throw new Error("Round update missing");
-      const paid = data as { paid_name?: string; new_coin_balance?: number };
-      setActiveRound(round);
-      toast({
-        title: `${paid.paid_name ?? attendeeName} is in`,
-        description: `${formatCoins(round.entry_coins)} taken · balance ${formatCoins(Number(paid.new_coin_balance ?? 0))}. ${round.players_paid} of ${round.players_needed} players paid.`,
-      });
-      addCard({ amount: round.entry_coins, name: paid.paid_name ?? attendeeName, studio: round.game_name, type: "sale" });
-    } catch (error) {
-      toast({ title: "Could not take the entry", description: getErrorDetail(error, "message") || "Try again.", variant: "destructive" });
-    } finally {
-      paymentInFlightRef.current = false;
-      setIsProcessing(false);
-    }
-  };
-
-  const payPlayerByTag = async (tagId: string, scanGeneration?: number) => {
-    if (paymentInFlightRef.current) return;
-    if (scanGeneration === undefined) cancelRoundScan();
-    const generation = scanGeneration ?? roundScanGenerationRef.current;
-    const wallet = await findWalletByTag(tagId);
-    if (generation !== roundScanGenerationRef.current) return;
-    if (wallet) await payRoundPlayer(wallet.id, wallet.attendee_name, false, generation);
-  };
-
-  const handleRoundLookupSelect = async (found: FoundWallet) => {
-    if (paymentInFlightRef.current) return;
-    cancelRoundScan();
-    await payRoundPlayer(found.wallet_id, found.attendee_name, true);
-  };
-
-  const scanPlayerForRound = async () => {
-    if (isScanning || paymentInFlightRef.current || !activeRound) return;
-    setLookupActive(false);
-    setLookupKey((key) => key + 1);
-    const generation = ++roundScanGenerationRef.current;
-    setIsScanning(true);
-    try {
-      const result = await scanBand();
-      if (generation !== roundScanGenerationRef.current) return;
-      if (result.success && result.tagId) {
-        await payPlayerByTag(result.tagId, generation);
-      } else {
-        toast({ title: "Scan failed", description: result.error || "Could not read the band. Try again.", variant: "destructive" });
+      const result = await nfcManager.startScanning();
+      if (!result.success) {
+        if (result.error && !/cancel/i.test(result.error)) {
+          toast({ title: "Scan the winner's band", description: result.error, variant: "destructive" });
+        }
+        return;
       }
-    } catch (error) {
-      if (generation !== roundScanGenerationRef.current) return;
-      console.error("Player scan error:", error);
-      toast({ title: "Scan failed", description: "Could not read the band. Try again.", variant: "destructive" });
+      const { data: wallet, error } = await supabase.from("wallets").select("*").eq("tag_id", result.tagId).single();
+      if (error || !wallet) {
+        toast({ title: "No Wallet Found", description: `Tag ${result.tagId} is not issued yet.`, variant: "destructive" });
+        return;
+      }
+      setAwardCandidate(walletToScanned(wallet));
+    } catch {
+      toast({ title: "Scanning Failed", description: "Could not scan the winner's band. Use “Can't scan?” below.", variant: "destructive" });
     } finally {
-      if (generation === roundScanGenerationRef.current) setIsScanning(false);
+      setIsAwardScanning(false);
     }
   };
 
-  /** Closes the round and puts one Pinkredible on the winner's (captain's) band. */
-  const awardWinner = async (walletId: string) => {
-    if (!activeRound || paymentInFlightRef.current) return;
-    cancelRoundScan();
-    paymentInFlightRef.current = true;
+  const handleAwardLookup = async (found: FoundWallet) => {
+    nfcManager.stopScanning();
+    setIsAwardScanning(false);
+    const { data: wallet, error } = await supabase.from("wallets").select("*").eq("id", found.wallet_id).single();
+    if (error || !wallet) {
+      toast({ title: "Band unavailable", description: error?.message || "Could not load that band.", variant: "destructive" });
+      return;
+    }
+    setAwardCandidate(walletToScanned(wallet));
+  };
+
+  const cancelAward = () => {
+    nfcManager.stopScanning();
+    setIsAwardScanning(false);
+    setAwardGame(null);
+    setAwardCandidate(null);
+  };
+
+  const confirmAward = async () => {
+    if (!awardGame || !awardCandidate || isAwarding) return;
     setIsAwarding(true);
     try {
-      const { data, error } = await supabase.rpc("award_game_round", { p_round_id: activeRound.round_id, p_winner_wallet_id: walletId });
+      const { data, error } = await supabase.rpc("award_pinkredible", { p_wallet_id: awardCandidate.id, p_game_id: awardGame.id });
       if (error) throw error;
-      const result = data as { winner_name: string; awarded: number; pinkredibles: number; code: string | null; game_name: string };
-      toast({
-        title: result.awarded > 0 ? "Pinkredible awarded" : "Round closed",
-        description:
-          result.awarded > 0
-            ? `${result.winner_name} won ${result.game_name}. Now ${result.pinkredibles} on code ${result.code}, visible on their coins page.`
-            : `${result.winner_name} won ${result.game_name}.`,
-      });
-      if (result.awarded > 0) addCard({ amount: 1, name: result.winner_name, studio: "Pinkredible", type: "sale" });
-      setActiveRound(null);
-      setIsPickingWinner(false);
-      setSelectedGame(null);
-    } catch (error) {
-      toast({ title: "Could not close the round", description: getErrorDetail(error, "message") || "Try again.", variant: "destructive" });
-    } finally {
-      paymentInFlightRef.current = false;
-      setIsAwarding(false);
-    }
-  };
-
-  const awardWinnerByTag = async (tagId: string) => {
-    const generation = roundScanGenerationRef.current;
-    const wallet = await findWalletByTag(tagId).catch((error) => {
-      toast({ title: "Lookup failed", description: getErrorDetail(error, "message") || "Try again.", variant: "destructive" });
-      return null;
-    });
-    if (generation !== roundScanGenerationRef.current) return;
-    if (wallet) await awardWinner(wallet.id);
-  };
-
-  const scanWinnerBand = async () => {
-    if (isScanning || paymentInFlightRef.current) return;
-    const generation = ++roundScanGenerationRef.current;
-    setIsScanning(true);
-    try {
-      const result = await scanBand();
-      if (generation !== roundScanGenerationRef.current) return;
-      if (result.success && result.tagId) {
-        await awardWinnerByTag(result.tagId);
-      } else {
-        toast({ title: "Scan failed", description: result.error || "Could not read the band. Try again.", variant: "destructive" });
+      const r = (data ?? {}) as { awarded?: boolean; reason?: string; first_name?: string; pinkredibles?: number; code?: string };
+      if (!r.awarded) {
+        toast({
+          title: r.reason === "just_awarded" ? "Already awarded" : "Not awarded",
+          description: r.reason === "just_awarded" ? `${r.first_name} got a Pinkredible for this game a moment ago.` : "Could not award.",
+          variant: "destructive",
+        });
+        return;
       }
+      setLastAward({ name: awardCandidate.attendeeName, game: awardGame.name, pinkredibles: Number(r.pinkredibles || 0), code: String(r.code || "") });
+      addCard({ amount: 1, name: awardCandidate.attendeeName, studio: awardGame.name, type: "topup" });
+      toast({ title: "Pinkredible awarded 🏆", description: `${awardCandidate.attendeeName} now has ${r.pinkredibles} · code ${r.code}` });
+      setAwardGame(null);
+      setAwardCandidate(null);
     } catch (error) {
-      if (generation !== roundScanGenerationRef.current) return;
-      console.error("Winner scan error:", error);
-      toast({ title: "Scan failed", description: "Could not read the band. Try again.", variant: "destructive" });
+      toast({ title: "Award failed", description: getErrorDetail(error, "message") || "Could not award the Pinkredible.", variant: "destructive" });
     } finally {
-      if (generation === roundScanGenerationRef.current) setIsScanning(false);
-    }
-  };
-
-  const closeRoundNoWinner = async () => {
-    if (!activeRound || paymentInFlightRef.current) return;
-    cancelRoundScan();
-    paymentInFlightRef.current = true;
-    setIsProcessing(true);
-    try {
-      const { error } = await supabase.rpc("close_game_round", {
-        p_round_id: activeRound.round_id,
-        p_reason: activeRound.can_start ? "no winner" : "not enough players",
-      });
-      if (error) throw error;
-      toast({ title: "Round closed", description: "No Pinkredible awarded. Entries are not refunded." });
-      setActiveRound(null);
-      setIsPickingWinner(false);
-      setSelectedGame(null);
-    } catch (error) {
-      toast({ title: "Could not close the round", description: getErrorDetail(error, "message") || "Try again.", variant: "destructive" });
-    } finally {
-      paymentInFlightRef.current = false;
-      setIsProcessing(false);
+      setIsAwarding(false);
     }
   };
 
   const resetTransaction = () => {
     setInsufficientCoins(null);
     scanGenerationRef.current += 1;
-    roundScanGenerationRef.current += 1;
     nfcManager.stopScanning();
     setIsScanning(false);
     setLookupActive(false);
@@ -807,7 +631,7 @@ export default function POS() {
   return (
     <div className="max-w-7xl mx-auto space-y-4 px-4 sm:px-6 lg:px-8">
       <WalletOperationStatus operation={walletOperation} showSpendReceipt={false} />
-      <PosSaleControls operation={walletOperation} saleInProgress={isScanning || isProcessing || isAwarding || lookupActive || Boolean(activeRound || pendingSaleRef.current)} />
+      <PosSaleControls operation={walletOperation} saleInProgress={isScanning || isProcessing || isAwarding || lookupActive || Boolean(awardGame || pendingSaleRef.current)} />
       {insufficientCoins && <InsufficientCoinsNotice {...insufficientCoins} />}
       <fieldset disabled={walletOperation.blocked} className="min-w-0 space-y-4 disabled:opacity-60">
       {/* Header */}
@@ -995,10 +819,27 @@ export default function POS() {
                                   </div>
                                   <p className="text-xs sm:text-sm text-muted-foreground mt-1">{game.description}</p>
                                 </div>
-                                <div className="text-right shrink-0 ml-2">
+                                <div className="text-right shrink-0 ml-2 flex items-center gap-2">
                                   <span className="font-bold text-sm sm:text-lg text-success">
                                     {formatCoins(game.price)}
                                   </span>
+                                  {game.awardsPinkredible && (
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      aria-label={`Award Pinkredible for ${game.name}`}
+                                      title="Award Pinkredible to the winner"
+                                      className="h-9 px-2 border-primary/40 text-primary"
+                                      disabled={isScanning || isProcessing || isAwardScanning}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        void startAward(game);
+                                      }}
+                                    >
+                                      <Trophy className="w-4 h-4" />
+                                    </Button>
+                                  )}
                                 </div>
                               </div>
                             ))}
@@ -1420,11 +1261,7 @@ export default function POS() {
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      {activeRound ? (
-                        <div className="text-center py-4 text-xs sm:text-sm text-muted-foreground">
-                          Round in progress: take entries and pick the winner in the {activeRound.game_name} card.
-                        </div>
-                      ) : selectedGame || selectedDrink || (selectedCustomItem && customAmount) ? (
+                      {selectedGame || selectedDrink || (selectedCustomItem && customAmount) ? (
                         <div className="text-center py-4">
                           {isProcessing ? (
                             <div className="flex flex-col sm:flex-row items-center justify-center space-y-2 sm:space-y-0 sm:space-x-2 text-primary">
@@ -1471,129 +1308,63 @@ export default function POS() {
                     </CardContent>
                   </Card>
 
-                  {/* Game round: players pay in, then one winner gets the Pinkredible */}
-                  {activeRound && (
-                    <Card className="shadow-card border-primary/30">
+                  {/* Award Pinkredible: scan the winner, confirm */}
+                  {awardGame && (
+                    <Card className="shadow-card border-primary/40">
                       <CardHeader className="pb-3">
                         <CardTitle className="flex items-center space-x-2 text-sm sm:text-base">
-                          <Ticket className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
-                          <span>{activeRound.game_name} · round</span>
+                          <Trophy className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+                          <span>Winner · {awardGame.name}</span>
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-3">
-                        <div className="text-xs sm:text-sm">
-                          <b>{activeRound.players_paid} of {activeRound.players_needed}</b> players paid
-                          {activeRound.players_max ? ` (max ${activeRound.players_max})` : ""} · {formatCoins(activeRound.entry_coins)} each
-                          {activeRound.team_size > 1 ? ` · teams of ${activeRound.team_size}` : ""}
-                        </div>
-                        {activeRound.players.length > 0 ? (
-                          <div className="flex flex-wrap gap-1.5">
-                            {activeRound.players.map((player) => (
-                              <Badge key={player.wallet_id} variant="secondary" className="font-normal">
-                                {player.name}
-                                {player.band_hint ? <span className="text-muted-foreground"> ···{player.band_hint}</span> : null}
-                              </Badge>
-                            ))}
-                          </div>
-                        ) : null}
-
-                        {!isPickingWinner ? (
+                        {awardCandidate ? (
                           <>
-                            <Button className="w-full" onClick={scanPlayerForRound} disabled={isScanning || isProcessing || activeRound.is_full}>
-                              <Scan className="w-4 h-4 mr-2" />
-                              {isScanning ? "Scanning…" : isProcessing ? "Taking entry…" : activeRound.is_full ? "Round is full" : lookupActive ? "Scan NFC instead" : "Scan the next player to pay"}
-                            </Button>
-                            {lookupActive && !isProcessing && (
-                              <p className="text-sm text-muted-foreground">Find the customer by phone, name or order reference</p>
-                            )}
-                            {!isProcessing && !activeRound.is_full ? (
-                              <FindWalletFallback
-                                key={lookupKey}
-                                onSelect={handleRoundLookupSelect}
-                                onLookupStart={cancelRoundScan}
-                              />
-                            ) : null}
-                            {allowTypedTag() && !activeRound.is_full ? (
-                              <form
-                                className="flex gap-2"
-                                onSubmit={(event) => {
-                                  event.preventDefault();
-                                  if (roundTypedTag.trim().length < 4) return;
-                                  void payPlayerByTag(roundTypedTag);
-                                  setRoundTypedTag("");
-                                }}
-                              >
-                                <Input
-                                  value={roundTypedTag}
-                                  onChange={(event) => setRoundTypedTag(event.target.value)}
-                                  placeholder="Type a player's tag ID (test mode, no NFC on this device)"
-                                  autoComplete="off"
-                                  className="text-sm"
-                                />
-                                <Button type="submit" variant="outline" size="sm" disabled={isProcessing}>Use</Button>
-                              </form>
-                            ) : null}
-                            <Button
-                              variant={activeRound.can_start ? "default" : "outline"}
-                              className="w-full"
-                              onClick={() => {
-                                if (cancelRoundScan() === false) return;
-                                setIsPickingWinner(true);
-                              }}
-                              disabled={!activeRound.can_start || isProcessing}
-                            >
-                              {activeRound.can_start
-                                ? "Game over · pick the winner"
-                                : `Need ${activeRound.players_needed - activeRound.players_paid} more to start`}
-                            </Button>
-                            <Button variant="ghost" size="sm" className="w-full text-muted-foreground" onClick={closeRoundNoWinner} disabled={isProcessing}>
-                              Close round without a winner · no refunds
+                            <div className="text-center">
+                              <div className="text-xs uppercase tracking-wider text-muted-foreground">Give 1 Pinkredible to</div>
+                              <div className="text-2xl font-extrabold leading-tight">{awardCandidate.attendeeName}</div>
+                              <div className="text-xs text-muted-foreground">band ···{awardCandidate.tagId.slice(-3)}</div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              <Button type="button" variant="outline" className="h-12" onClick={() => setAwardCandidate(null)} disabled={isAwarding}>
+                                Not them
+                              </Button>
+                              <Button type="button" className="h-12 font-bold" onClick={() => void confirmAward()} disabled={isAwarding}>
+                                {isAwarding ? "Awarding…" : "Award 🏆"}
+                              </Button>
+                            </div>
+                            <Button type="button" variant="ghost" size="sm" className="w-full" onClick={cancelAward} disabled={isAwarding}>
+                              Cancel
                             </Button>
                           </>
                         ) : (
                           <>
-                            <p className="text-xs sm:text-sm text-muted-foreground">
-                              {activeRound.awards_pinkredible
-                                ? "One Pinkredible (₹100 off course registration) goes on the winner's band. Team game: the captain's band. Tap the winner, or scan their band."
-                                : "Tap the winner, or scan their band."}
-                            </p>
-                            <div className="grid gap-2">
-                              {activeRound.players.map((player) => (
-                                <Button key={player.wallet_id} variant="outline" className="justify-between" onClick={() => awardWinner(player.wallet_id)} disabled={isAwarding}>
-                                  <span>{player.name}</span>
-                                  {player.band_hint ? <span className="text-muted-foreground">···{player.band_hint}</span> : null}
-                                </Button>
-                              ))}
+                            <div className="flex items-center justify-center space-x-2 py-2 text-primary">
+                              {isAwardScanning && <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />}
+                              <span className="font-medium text-xs sm:text-sm">
+                                {isAwardScanning ? "Scan the winner's band…" : "Tap Cancel or find the winner by phone"}
+                              </span>
                             </div>
-                            <Button className="w-full" onClick={scanWinnerBand} disabled={isAwarding || isScanning}>
-                              <Scan className="w-4 h-4 mr-2" />
-                              {isScanning ? "Scanning…" : isAwarding ? "Awarding…" : "Scan the winner's band"}
-                            </Button>
-                            {allowTypedTag() ? (
-                              <form
-                                className="flex gap-2"
-                                onSubmit={(event) => {
-                                  event.preventDefault();
-                                  if (roundTypedTag.trim().length < 4) return;
-                                  void awardWinnerByTag(roundTypedTag);
-                                  setRoundTypedTag("");
-                                }}
-                              >
-                                <Input
-                                  value={roundTypedTag}
-                                  onChange={(event) => setRoundTypedTag(event.target.value)}
-                                  placeholder="Type the winner's tag ID (test mode)"
-                                  autoComplete="off"
-                                  className="text-sm"
-                                />
-                                <Button type="submit" variant="outline" size="sm" disabled={isAwarding}>Use</Button>
-                              </form>
-                            ) : null}
-                            <Button variant="ghost" size="sm" className="w-full" onClick={() => setIsPickingWinner(false)} disabled={isAwarding}>
-                              Back
+                            <div className="text-left">
+                              <FindWalletFallback onSelect={handleAwardLookup} />
+                            </div>
+                            <Button type="button" variant="ghost" size="sm" className="w-full" onClick={cancelAward}>
+                              Cancel
                             </Button>
                           </>
                         )}
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {lastAward && !awardGame && (
+                    <Card className="shadow-card border-primary/30">
+                      <CardContent className="py-4 text-center">
+                        <div className="text-xs uppercase tracking-wider text-muted-foreground">Last Pinkredible · {lastAward.game}</div>
+                        <div className="text-lg font-bold">{lastAward.name}</div>
+                        <div className="text-sm text-muted-foreground">
+                          now has <b className="text-foreground">{lastAward.pinkredibles}</b> · code <span className="font-mono">{lastAward.code}</span>
+                        </div>
                       </CardContent>
                     </Card>
                   )}

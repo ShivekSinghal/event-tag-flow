@@ -1205,6 +1205,10 @@ export type Database = {
       award_game_round: { Args: { p_round_id: string; p_winner_wallet_id: string }; Returns: Json }
       close_game_round: { Args: { p_round_id: string; p_reason?: string }; Returns: Json }
       my_open_game_rounds: { Args: never; Returns: Json }
+      award_pinkredible: {
+        Args: { p_wallet_id: string; p_game_id?: string | null; p_note?: string | null }
+        Returns: Json
+      }
       check_pinkredible_code: { Args: { p_code: string }; Returns: Json }
       redeem_pinkredibles: { Args: { p_code: string; p_count?: number; p_note?: string | null }; Returns: Json }
       pinkredible_summary: { Args: never; Returns: Json }
