@@ -54,13 +54,18 @@ try {
       const access_token = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' })) + '.' + btoa(JSON.stringify({ sub: user.id, role: 'authenticated', aud: 'authenticated', exp })) + '.test';
       localStorage.setItem('sb-xdaienqjbybomctsoiro-auth-token', JSON.stringify({ access_token, refresh_token: 'test', expires_at: exp, token_type: 'bearer', user }));
       window.Cashfree = () => ({ checkout: async () => ({}) });
+      // Browser-only NFC simulation; this does not verify physical Android hardware.
+      window.NDEFReader = class {
+        async scan() { window.testNfcReader = this; }
+      };
     }, user);
     const page = await context.newPage();
     page.on('pageerror', e => errors.push(e.message));
     page.setDefaultTimeout(15000);
     const scan = async () => {
-      page.once('dialog', dialog => dialog.accept('04:AA:11:22:33:44'));
       await page.getByRole('button', { name: 'Scan NFC Tag' }).click();
+      await page.waitForFunction(() => Boolean(window.testNfcReader?.onreading));
+      await page.evaluate(() => window.testNfcReader.onreading({ serialNumber: '04:AA:11:22:33:44' }));
     };
     const qr = page.getByRole('region', { name: 'Online coin top-up' });
     const expectLink = async id => {

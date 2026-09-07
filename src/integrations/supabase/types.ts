@@ -14,6 +14,12 @@ export type Database = {
   }
   public: {
     Tables: {
+      pinkredible_award_operations: {
+        Row: { operation_id: string; actor_id: string; request: Json; result: Json | null; created_at: string }
+        Insert: { operation_id: string; actor_id: string; request: Json; result?: Json | null; created_at?: string }
+        Update: { operation_id?: string; actor_id?: string; request?: Json; result?: Json | null; created_at?: string }
+        Relationships: []
+      }
       wallet_operations: {
         Row: { operation_id: string; operator_id: string; operation_kind: string; request: Json; result: Json | null; created_at: string }
         Insert: { operation_id: string; operator_id: string; operation_kind: string; request: Json; result?: Json | null; created_at?: string }
@@ -961,6 +967,8 @@ export type Database = {
       }
       pinkredible_ledger: {
         Row: {
+          entry_transaction_id: string | null
+          game_id: string | null
           created_at: string
           delta: number
           game_name: string | null
@@ -972,6 +980,8 @@ export type Database = {
           wallet_id: string
         }
         Insert: {
+          entry_transaction_id?: string | null
+          game_id?: string | null
           created_at?: string
           delta: number
           game_name?: string | null
@@ -983,6 +993,8 @@ export type Database = {
           wallet_id: string
         }
         Update: {
+          entry_transaction_id?: string | null
+          game_id?: string | null
           created_at?: string
           delta?: number
           game_name?: string | null
@@ -1206,9 +1218,11 @@ export type Database = {
       close_game_round: { Args: { p_round_id: string; p_reason?: string }; Returns: Json }
       my_open_game_rounds: { Args: never; Returns: Json }
       award_pinkredible: {
-        Args: { p_wallet_id: string; p_game_id?: string | null; p_note?: string | null }
+        Args: { p_operation_id: string; p_request: Json }
         Returns: Json
       }
+      eligible_pinkredible_entries: { Args: { p_wallet_id: string; p_game_id: string }; Returns: Json }
+      direct_award_backend_version: { Args: Record<PropertyKey, never>; Returns: number }
       check_pinkredible_code: { Args: { p_code: string }; Returns: Json }
       redeem_pinkredibles: { Args: { p_code: string; p_count?: number; p_note?: string | null }; Returns: Json }
       pinkredible_summary: { Args: never; Returns: Json }

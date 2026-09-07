@@ -13,6 +13,7 @@ import { FindWalletFallback, LOOKUP_REFERENCE_TAG, type FoundWallet } from "@/co
 import { TagIdentifier } from "@/components/wallet/TagIdentifier";
 import { formatCoins, getCoinBalance } from "@/lib/coins";
 import { useWalletOperation } from "@/hooks/use-wallet-operation";
+import { useAwardOperation } from "@/hooks/use-award-operation";
 import { WalletOperationStatus } from "@/components/wallet/WalletOperationStatus";
 import { PosSaleControls } from "@/components/wallet/PosSaleControls";
 import { InsufficientCoinsNotice } from "@/components/wallet/InsufficientCoinsNotice";
@@ -73,6 +74,7 @@ function getErrorDetail(error: unknown, key: "message" | "code" | "details" | "h
 
 export default function POS() {
   const walletOperation = useWalletOperation();
+  const awardOperation = useAwardOperation();
   const { toast } = useToast();
   const { addCard } = useFlyingCards();
   const {
@@ -113,10 +115,15 @@ export default function POS() {
   const [activeSection, setActiveSection] = useState<PosSection>("games");
   // Award a Pinkredible to a winner: pick the game (trophy button), scan the winner, confirm.
   const [awardGame, setAwardGame] = useState<Game | null>(null);
+  const awardGameRef = useRef<Game | null>(null);
+  const awardSubmitRef = useRef(false);
+  const [eligibleEntries, setEligibleEntries] = useState<{ transaction_id: string; created_at: string; coin_amount: number }[]>([]);
+  const [awardEntry, setAwardEntry] = useState("");
+  const [awardLookupKey, setAwardLookupKey] = useState(0);
   const [awardCandidate, setAwardCandidate] = useState<ScannedWallet | null>(null);
   const [isAwardScanning, setIsAwardScanning] = useState(false);
   const [isAwarding, setIsAwarding] = useState(false);
-  const [lastAward, setLastAward] = useState<{ name: string; game: string; pinkredibles: number; code: string } | null>(null);
+  const lastAward = awardOperation.receipt ? { name: awardOperation.receipt.first_name, game: awardOperation.receipt.game, pinkredibles: awardOperation.receipt.pinkredibles, code: awardOperation.receipt.code } : null;
 
   const hasCustomGames = useMemo(
     () => gamePermissions.some((game) => ["Dunk a Company Member", "Karaoke"].includes(game.name)),
@@ -237,7 +244,7 @@ export default function POS() {
       return;
     }
 
-    if (isScanning || isProcessing) {
+    if (isScanning || isProcessing || awardGameRef.current || awardOperation.blocked) {
       return;
     }
 
@@ -256,7 +263,7 @@ export default function POS() {
   };
 
   const handleDrinkSelect = async (drink: DrinkItem) => {
-    if (isScanning || isProcessing) {
+    if (isScanning || isProcessing || awardGameRef.current || awardOperation.blocked) {
       return;
     }
 
@@ -274,7 +281,7 @@ export default function POS() {
   };
 
   const handleCustomItemSelect = async (item: CustomItem) => {
-    if (isScanning || isProcessing) {
+    if (isScanning || isProcessing || awardGameRef.current || awardOperation.blocked) {
       return;
     }
 
@@ -293,6 +300,7 @@ export default function POS() {
   };
 
   const handleCustomAmountConfirm = async () => {
+    if (awardGameRef.current || awardOperation.blocked) return;
     if (!selectedCustomItem || !customAmount) {
       toast({
         title: "Invalid Amount",
@@ -329,7 +337,7 @@ export default function POS() {
     gameId: string | null,
     transactionType: string = "food",
   ) => {
-    if (paymentInFlightRef.current) return;
+    if (paymentInFlightRef.current || awardGameRef.current || awardOperation.blocked) return;
     setLookupActive(false);
     walletOperation.clearRejectedResult();
     setInsufficientCoins(null);
@@ -542,75 +550,89 @@ export default function POS() {
     status: wallet.status,
   });
 
-  const startAward = async (game: Game) => {
-    if (isScanning || isProcessing || isAwardScanning) return;
-    setAwardGame(game);
+  const stopAwardScan = () => {
+    if (awardSubmitRef.current || awardOperation.blocked) return false;
+    scanGenerationRef.current += 1;
+    nfcManager.stopScanning();
+    setIsAwardScanning(false);
     setAwardCandidate(null);
+    setEligibleEntries([]);
+    setAwardEntry("");
+    return true;
+  };
+
+  const loadAwardCandidate = async (wallet: Parameters<typeof walletToScanned>[0], generation: number, game: Game) => {
+    if (generation !== scanGenerationRef.current || awardGameRef.current?.id !== game.id) return;
+    if (wallet.status !== "active") throw new Error("This band is not active");
+    const { data, error } = await supabase.rpc("eligible_pinkredible_entries", { p_wallet_id: wallet.id, p_game_id: game.id });
+    if (generation !== scanGenerationRef.current || awardGameRef.current?.id !== game.id) return;
+    if (error) throw error;
+    const entries = (data || []) as typeof eligibleEntries;
+    setAwardCandidate(walletToScanned(wallet));
+    setEligibleEntries(entries);
+    setAwardEntry(entries[0]?.transaction_id || "");
+  };
+
+  const startAward = async (game: Game) => {
+    if (isScanning || isProcessing || isAwardScanning || awardSubmitRef.current || awardOperation.blocked || walletOperation.blocked || pendingSaleRef.current || awardGameRef.current) return;
+    if (!game.available || !game.awardsPinkredible) return;
+    const generation = ++scanGenerationRef.current;
+    nfcManager.stopScanning();
+    awardGameRef.current = game;
+    setAwardGame(game); setAwardCandidate(null); setEligibleEntries([]); setAwardEntry("");
+    setAwardLookupKey(k => k + 1);
     setIsAwardScanning(true);
     try {
       const result = await nfcManager.startScanning();
-      if (!result.success) {
-        if (result.error && !/cancel/i.test(result.error)) {
-          toast({ title: "Scan the winner's band", description: result.error, variant: "destructive" });
-        }
-        return;
-      }
+      if (generation !== scanGenerationRef.current) return;
+      if (!result.success) return;
       const { data: wallet, error } = await supabase.from("wallets").select("*").eq("tag_id", result.tagId).single();
-      if (error || !wallet) {
-        toast({ title: "No Wallet Found", description: `Tag ${result.tagId} is not issued yet.`, variant: "destructive" });
-        return;
-      }
-      setAwardCandidate(walletToScanned(wallet));
-    } catch {
-      toast({ title: "Scanning Failed", description: "Could not scan the winner's band. Use “Can't scan?” below.", variant: "destructive" });
+      if (generation !== scanGenerationRef.current) return;
+      if (error || !wallet) throw new Error("That band is not registered");
+      await loadAwardCandidate(wallet, generation, game);
+    } catch (error) {
+      if (generation === scanGenerationRef.current) toast({ title: "Winner unavailable", description: getErrorDetail(error, "message") || "Try the confirmed lookup.", variant: "destructive" });
     } finally {
-      setIsAwardScanning(false);
+      if (generation === scanGenerationRef.current) setIsAwardScanning(false);
     }
   };
 
   const handleAwardLookup = async (found: FoundWallet) => {
-    nfcManager.stopScanning();
-    setIsAwardScanning(false);
-    const { data: wallet, error } = await supabase.from("wallets").select("*").eq("id", found.wallet_id).single();
-    if (error || !wallet) {
-      toast({ title: "Band unavailable", description: error?.message || "Could not load that band.", variant: "destructive" });
-      return;
+    const game = awardGameRef.current;
+    if (!game || !stopAwardScan()) return;
+    const generation = scanGenerationRef.current;
+    try {
+      const { data: wallet, error } = await supabase.from("wallets").select("*").eq("id", found.wallet_id).single();
+      if (generation !== scanGenerationRef.current) return;
+      if (error || !wallet) throw new Error("Band unavailable");
+      await loadAwardCandidate(wallet, generation, game);
+    } catch (error) {
+      if (generation === scanGenerationRef.current) toast({ title: "Winner unavailable", description: getErrorDetail(error, "message"), variant: "destructive" });
     }
-    setAwardCandidate(walletToScanned(wallet));
   };
 
   const cancelAward = () => {
-    nfcManager.stopScanning();
-    setIsAwardScanning(false);
+    if (!stopAwardScan()) return;
+    awardGameRef.current = null;
     setAwardGame(null);
-    setAwardCandidate(null);
   };
 
   const confirmAward = async () => {
-    if (!awardGame || !awardCandidate || isAwarding) return;
-    setIsAwarding(true);
+    const game = awardGameRef.current;
+    if (!game || !awardCandidate || !awardEntry || awardSubmitRef.current || awardOperation.blocked || walletOperation.blocked) return;
+    awardSubmitRef.current = true; setIsAwarding(true);
+    const generation = ++scanGenerationRef.current;
+    nfcManager.stopScanning();
     try {
-      const { data, error } = await supabase.rpc("award_pinkredible", { p_wallet_id: awardCandidate.id, p_game_id: awardGame.id });
-      if (error) throw error;
-      const r = (data ?? {}) as { awarded?: boolean; reason?: string; first_name?: string; pinkredibles?: number; code?: string };
-      if (!r.awarded) {
-        toast({
-          title: r.reason === "just_awarded" ? "Already awarded" : "Not awarded",
-          description: r.reason === "just_awarded" ? `${r.first_name} got a Pinkredible for this game a moment ago.` : "Could not award.",
-          variant: "destructive",
-        });
-        return;
+      const outcome = await awardOperation.submit({ wallet_id: awardCandidate.id, game_id: game.id, entry_transaction_id: awardEntry });
+      if (generation !== scanGenerationRef.current) return;
+      if (outcome?.status === "succeeded") {
+        awardGameRef.current = null; setAwardGame(null); setAwardCandidate(null); setEligibleEntries([]); setAwardEntry("");
+        toast({ title: "Pinkredible awarded", description: `${outcome.first_name} · ${outcome.code}` });
+      } else if (outcome?.status === "rejected") {
+        toast({ title: "Award not issued", description: outcome.message, variant: "destructive" });
       }
-      setLastAward({ name: awardCandidate.attendeeName, game: awardGame.name, pinkredibles: Number(r.pinkredibles || 0), code: String(r.code || "") });
-      addCard({ amount: 1, name: awardCandidate.attendeeName, studio: awardGame.name, type: "topup" });
-      toast({ title: "Pinkredible awarded 🏆", description: `${awardCandidate.attendeeName} now has ${r.pinkredibles} · code ${r.code}` });
-      setAwardGame(null);
-      setAwardCandidate(null);
-    } catch (error) {
-      toast({ title: "Award failed", description: getErrorDetail(error, "message") || "Could not award the Pinkredible.", variant: "destructive" });
-    } finally {
-      setIsAwarding(false);
-    }
+    } finally { awardSubmitRef.current = false; if (generation === scanGenerationRef.current) setIsAwarding(false); }
   };
 
   const resetTransaction = () => {
@@ -631,9 +653,14 @@ export default function POS() {
   return (
     <div className="max-w-7xl mx-auto space-y-4 px-4 sm:px-6 lg:px-8">
       <WalletOperationStatus operation={walletOperation} showSpendReceipt={false} />
-      <PosSaleControls operation={walletOperation} saleInProgress={isScanning || isProcessing || isAwarding || lookupActive || Boolean(awardGame || pendingSaleRef.current)} />
+      {awardOperation.error && <p role="alert" className="border border-primary p-3">{awardOperation.error}</p>}
+      {awardOperation.pending && <section className="space-y-2 border border-primary p-3" aria-label="Pending Pinkredible award"><p>Award outcome needs confirmation. No new charge or award will be started.</p><Button disabled={awardOperation.busy} onClick={async () => {
+        const result = await awardOperation.submit();
+        if (result) { awardGameRef.current = null; setAwardGame(null); setAwardCandidate(null); setEligibleEntries([]); }
+      }}>Check / Retry safely</Button></section>}
+      <PosSaleControls operation={walletOperation} saleInProgress={isScanning || isProcessing || isAwarding || lookupActive || awardOperation.blocked || Boolean(awardGame || pendingSaleRef.current)} />
       {insufficientCoins && <InsufficientCoinsNotice {...insufficientCoins} />}
-      <fieldset disabled={walletOperation.blocked} className="min-w-0 space-y-4 disabled:opacity-60">
+      <fieldset disabled={walletOperation.blocked || awardOperation.blocked} className="min-w-0 space-y-4 disabled:opacity-60">
       {/* Header */}
       <div className="text-center py-4">
         <div className="flex items-center justify-center space-x-3 mb-2">
@@ -831,7 +858,7 @@ export default function POS() {
                                       aria-label={`Award Pinkredible for ${game.name}`}
                                       title="Award Pinkredible to the winner"
                                       className="h-9 px-2 border-primary/40 text-primary"
-                                      disabled={isScanning || isProcessing || isAwardScanning}
+                                      disabled={!game.available || isScanning || isProcessing || isAwardScanning || Boolean(awardGame) || awardOperation.blocked}
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         void startAward(game);
@@ -1325,11 +1352,15 @@ export default function POS() {
                               <div className="text-2xl font-extrabold leading-tight">{awardCandidate.attendeeName}</div>
                               <div className="text-xs text-muted-foreground">band ···{awardCandidate.tagId.slice(-3)}</div>
                             </div>
+                            <label className="block text-sm">Eligible paid entry<select aria-label="Eligible paid entry" value={awardEntry} disabled={isAwarding} onChange={e => setAwardEntry(e.target.value)} className="mt-1 h-11 w-full border bg-background px-2">
+                              {!eligibleEntries.length && <option value="">No unused, unvoided payment for this game</option>}
+                              {eligibleEntries.map(entry => <option key={entry.transaction_id} value={entry.transaction_id}>{entry.transaction_id.slice(0, 8)} · {formatCoins(entry.coin_amount)} · {new Date(entry.created_at).toLocaleTimeString("en-IN")}</option>)}
+                            </select></label>
                             <div className="grid grid-cols-2 gap-2">
                               <Button type="button" variant="outline" className="h-12" onClick={() => setAwardCandidate(null)} disabled={isAwarding}>
                                 Not them
                               </Button>
-                              <Button type="button" className="h-12 font-bold" onClick={() => void confirmAward()} disabled={isAwarding}>
+                              <Button type="button" className="h-12 font-bold" onClick={() => void confirmAward()} disabled={isAwarding || !awardEntry}>
                                 {isAwarding ? "Awarding…" : "Award 🏆"}
                               </Button>
                             </div>
@@ -1346,7 +1377,7 @@ export default function POS() {
                               </span>
                             </div>
                             <div className="text-left">
-                              <FindWalletFallback onSelect={handleAwardLookup} />
+                              <FindWalletFallback key={awardLookupKey} onSelect={handleAwardLookup} onLookupStart={stopAwardScan} disabled={isAwarding || awardOperation.blocked} />
                             </div>
                             <Button type="button" variant="ghost" size="sm" className="w-full" onClick={cancelAward}>
                               Cancel
