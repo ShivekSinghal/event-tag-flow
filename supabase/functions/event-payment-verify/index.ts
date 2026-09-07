@@ -66,6 +66,8 @@ serve(async (req: Request) => {
       return jsonResponse({ error: "Checkout session expired. Please create the booking again." }, 401);
     }
 
+    if (order.payment_provider === "cash") return jsonResponse({ error: "Cash bookings must be confirmed at Cash Desk" }, 409);
+
     if (["paid", "completed"].includes(order.payment_status)) {
       return jsonResponse({
         provider: order.payment_provider || provider || "cashfree",

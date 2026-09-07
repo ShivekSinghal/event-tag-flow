@@ -14,6 +14,18 @@ export type Database = {
   }
   public: {
     Tables: {
+      cash_studios: {
+        Row: { name: string }
+        Insert: { name: string }
+        Update: { name?: string }
+        Relationships: []
+      }
+      cash_manager_studios: {
+        Row: { user_id: string; studio: string }
+        Insert: { user_id: string; studio: string }
+        Update: { user_id?: string; studio?: string }
+        Relationships: []
+      }
       wallet_operations: {
         Row: { operation_id: string; operator_id: string; operation_kind: string; request: Json; result: Json | null; created_at: string }
         Insert: { operation_id: string; operator_id: string; operation_kind: string; request: Json; result?: Json | null; created_at?: string }
@@ -1178,27 +1190,12 @@ export type Database = {
         Returns: Json
       }
       auto_credit_coin_order: { Args: { p_coin_order_id: string }; Returns: Json }
-      mark_event_order_cash_at_counter: { Args: { p_order_id: string; p_checkout_token_hash: string }; Returns: Json }
-      revive_cash_order: { Args: { p_order_id: string }; Returns: Json }
+      cash_backend_version: { Args: Record<PropertyKey, never>; Returns: number }
+      create_cash_event_order_checkout: { Args: { p_operation_id: string; p_checkout_token_hash: string; p_request: Json }; Returns: Json }
+      cash_checkout_status: { Args: { p_order_id: string; p_checkout_token_hash: string }; Returns: Json }
       list_cash_desk_orders: {
         Args: { p_studio?: string | null }
-        Returns: {
-          order_id: string
-          order_ref: string
-          customer_name: string
-          customer_phone_hint: string
-          customer_email: string
-          customer_studio: string | null
-          total_amount_inr: number
-          payment_status: string
-          items: string | null
-          hold_expires_at: string | null
-          hold_live: boolean
-          code_sent: boolean
-          confirmed_at: string | null
-          requested_by: string | null
-          created_at: string
-        }[]
+        Returns: Json
       }
       staff_find_wallet: {
         Args: { p_query: string }

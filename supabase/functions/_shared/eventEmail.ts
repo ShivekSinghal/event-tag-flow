@@ -15,7 +15,7 @@ type EventOrderItem = {
   phase_name?: string | null;
 };
 
-type EventOrder = {
+export type EventOrder = {
   id: string;
   customer_name: string;
   customer_email: string;
@@ -58,6 +58,7 @@ function providerLabel(provider: string | null | undefined) {
   if (key === "cashfree") return "Cashfree";
   if (key === "razorpay") return "Razorpay";
   if (key === "manual") return "Manual";
+  if (key === "cash") return "Cash at the studio";
   return "Online";
 }
 
@@ -167,7 +168,7 @@ function shell(title: string, subtitle: string, body: string) {
   `;
 }
 
-function renderTicketEmail(order: EventOrder, prepaidCoins: number) {
+export function renderTicketEmail(order: EventOrder, prepaidCoins: number) {
   const ref = orderRef(order);
   const items = order.event_order_items || [];
   const paidAt = order.paid_at ? formatIst(order.paid_at) : "";

@@ -1,238 +1,151 @@
-import { useCallback, useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { getFunctionErrorMessage } from "@/lib/checkoutGateway";
 import { formatEventPrice } from "@/lib/eventPackages";
-import { Banknote, CheckCircle, Mail, RefreshCw, RotateCcw, XCircle } from "lucide-react";
-
-/**
- * Cash desk (studio managers + admins).
- * The student booked on their own phone with "Pay cash at the studio" (the booking page opened
- * with ?counter=1). Their order shows up here for 45 minutes. Take the cash → Send code (emailed
- * to the student) → type the code they read out → Paid. Expired holds can be revived.
- */
+import CashStudioAssignments from "@/components/admin/CashStudioAssignments";
+import { RefreshCw, Mail, CheckCircle, RotateCcw, XCircle } from "lucide-react";
 
 type Row = {
   order_id: string; order_ref: string; customer_name: string; customer_phone_hint: string; customer_email: string;
-  customer_studio: string | null; total_amount_inr: number; payment_status: string; items: string | null;
-  hold_expires_at: string | null; hold_live: boolean; code_sent: boolean; confirmed_at: string | null;
-  requested_by: string | null; created_at: string;
+  customer_studio: string; cash_studio: string; total_amount_inr: number; payment_status: string; items: string;
+  hold_expires_at: string; code_sent: boolean; confirmed_at: string | null; cancelled_at: string | null;
+  requested_by: string | null; created_at: string; notifications: { kind: string; status: string; error: string | null }[];
 };
-
-const STUDIOS = [
-  "Noida Sector 43 (NDA)", "Noida Sector 50 (RMG)", "Pitampura (PP)", "Rajouri Garden (RG)", "Preet Vihar (ED)",
-  "Anand Vihar (AV)", "Gurgaon (GGN)", "Indirapuram (IPM)", "South Delhi (SD)", "Dwarka (DWK)", "Not a Student",
-];
-
-function secondsLeft(iso: string | null) {
-  if (!iso) return 0;
-  return Math.max(0, Math.floor((new Date(iso).getTime() - Date.now()) / 1000));
+type Action = "request_code" | "confirm" | "revive" | "cancel" | "retry_notifications";
+type Operation = { order_id: string; operation_id: string; action: Action };
+type Result = { status?: string; confirmed?: boolean; error?: string; notifications?: { status: string }[] };
+function readPending(key: string): Operation | null {
+  const value = JSON.parse(sessionStorage.getItem(key) || "null") as Operation | null;
+  if (value && (!value.operation_id || !value.order_id || !["request_code", "confirm", "revive", "cancel", "retry_notifications"].includes(value.action))) throw new Error("Invalid pending cash action");
+  return value;
 }
 
 export default function CashBooking() {
-  const { toast } = useToast();
-  const { isAdmin, isStudioManager } = useAuth();
-  const [studio, setStudio] = useState<string>(() => { try { return localStorage.getItem("pinkd_cash_desk_studio") || ""; } catch { return ""; } });
-  const [rows, setRows] = useState<Row[]>([]);
-  const [active, setActive] = useState<string | null>(null);
-  const [code, setCode] = useState("");
-  const [busy, setBusy] = useState<string | null>(null);
-  const [, setTick] = useState(0);
+  const { user, isAdmin, isStudioManager } = useAuth();
+  if (!user || (!isAdmin && !isStudioManager)) return <p className="p-8">Cash Desk is for admins and assigned studio managers.</p>;
+  return <Desk key={user.id} userId={user.id} admin={isAdmin} />;
+}
 
-  const load = useCallback(async () => {
-    const { data, error } = await supabase.rpc("list_cash_desk_orders", { p_studio: studio || null });
-    if (!error) setRows(((data as unknown) as Row[]) || []);
-  }, [studio]);
+function Desk({ userId, admin }: { userId: string; admin: boolean }) {
+  const key = `pinkd.cash.desk.v1.${userId}`;
+  const [pending, setPending] = useState<Operation | null>(() => {
+    try { return readPending(key); } catch { return null; }
+  });
+  const [storageBlocked] = useState(() => { try { readPending(key); return false; } catch { return true; } });
+  const [studio, setStudio] = useState("");
+  const [view, setView] = useState<"holds" | "paid">("holds");
+  const [rows, setRows] = useState<Row[]>([]);
+  const [studios, setStudios] = useState<string[]>([]);
+  const [codes, setCodes] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [now, setNow] = useState(Date.now());
+  const guard = useRef(false);
 
   useEffect(() => {
+    let active = true;
+    let fetching = false;
+    setLoading(true); setRows([]);
+    const load = async () => {
+      if (fetching) return;
+      fetching = true;
+      try {
+        const result = await supabase.rpc("list_cash_desk_orders", { p_studio: studio || null }).abortSignal(AbortSignal.timeout(12_000));
+        const assigned = admin ? await supabase.from("cash_studios").select("name").abortSignal(AbortSignal.timeout(12_000)) : await supabase.from("cash_manager_studios").select("studio").eq("user_id", userId).abortSignal(AbortSignal.timeout(12_000));
+        if (!active) return;
+        if (result.error || assigned.error) throw new Error("Cash Desk could not refresh. Do not collect cash until the hold is checked.");
+        setRows((result.data || []) as unknown as Row[]);
+        setStudios((assigned.data || []).map(s => "name" in s ? s.name : s.studio)); setError("");
+      } catch (e) { if (active) setError(e instanceof Error ? e.message : "Cash Desk unavailable"); }
+      finally { fetching = false; if (active) setLoading(false); }
+    };
     void load();
     const poll = window.setInterval(() => void load(), 8000);
-    const tick = window.setInterval(() => setTick((t) => t + 1), 1000);
-    return () => { window.clearInterval(poll); window.clearInterval(tick); };
-  }, [load]);
+    const tick = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => { active = false; window.clearInterval(poll); window.clearInterval(tick); };
+  }, [studio, userId, admin]);
 
-  useEffect(() => { try { localStorage.setItem("pinkd_cash_desk_studio", studio); } catch { /* ignore */ } }, [studio]);
+  const invoke = useCallback(async (body: Operation & { code?: string } | (Omit<Operation, "action"> & { action: "check_operation" })) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const response = supabase.functions.invoke("cash-booking", { body });
+    const timeout = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("Cash action timed out")), 25_000); });
+    const { data, error: failure } = await Promise.race([response, timeout]).finally(() => clearTimeout(timer));
+    if (failure) throw new Error("Cash action status unknown");
+    if (!data || typeof data !== "object") throw new Error("Cash action status unknown");
+    return data as Result;
+  }, []);
 
-  const invoke = async (body: Record<string, unknown>) => {
-    const { data, error } = await supabase.functions.invoke("cash-booking", { body });
-    if (error) throw new Error(await getFunctionErrorMessage(error, data));
-    if (data && typeof data === "object" && "error" in data && data.error) throw new Error(String(data.error));
-    return data as Record<string, unknown>;
-  };
-
-  const sendCode = async (r: Row) => {
-    setBusy(r.order_id);
+  const run = async (row: Row | null, action?: Action) => {
+    if (guard.current) return;
+    guard.current = true; setBusy(true); setNotice("");
     try {
-      const d = await invoke({ action: "request_code", order_id: r.order_id });
-      setActive(r.order_id);
-      setCode("");
-      toast({ title: "Code emailed", description: `Sent to ${d.sent_to}. Ask ${r.customer_name.split(" ")[0]} to check email (and spam) and read it out.` });
-      void load();
-    } catch (e) {
-      toast({ title: "Couldn't send the code", description: e instanceof Error ? e.message : "Try again", variant: "destructive" });
-    } finally { setBusy(null); }
+      let operation = readPending(key) || pending;
+      if (!operation) {
+        if (!row || !action) return;
+        if (action === "cancel" && !window.confirm(`Cancel cash booking ${row.order_ref}?`)) return;
+        operation = { order_id: row.order_id, action, operation_id: crypto.randomUUID() };
+        // Persist before the first network request. Never persist the student's OTP.
+        sessionStorage.setItem(key, JSON.stringify(operation)); setPending(operation);
+      }
+      let result: Result | null = null;
+      if (pending && operation.action !== "retry_notifications") {
+        const saved = await invoke({ ...operation, action: "check_operation" });
+        if (saved.status !== "not_recorded") result = saved;
+      }
+      if (!result) {
+        const code = codes[operation.order_id] || "";
+        if (operation.action === "confirm" && code.length !== 6) { setNotice("Enter the original six-digit code, then Check / Retry safely."); return; }
+        result = await invoke({ ...operation, ...(operation.action === "confirm" ? { code } : {}) });
+      }
+      if (!["succeeded", "rejected"].includes(result.status || "")) throw new Error("Cash action status unknown");
+      sessionStorage.removeItem(key); setPending(null);
+      setCodes(c => ({ ...c, [operation.order_id]: "" }));
+      setNotice(result.status === "rejected" ? result.error || "Action rejected" : result.confirmed ? "Cash payment recorded. Do not collect again." : "Cash action recorded. Check the refreshed hold and email status below.");
+      if (result.notifications?.some(n => n.status === "error")) setNotice(n => `${n} Email delivery needs retry; payment remains recorded.`);
+      const refreshed = await supabase.rpc("list_cash_desk_orders", { p_studio: studio || null });
+      if (!refreshed.error) setRows((refreshed.data || []) as unknown as Row[]);
+    } catch { setNotice("Payment status unknown. Check / Retry safely using the same operation before collecting cash again."); }
+    finally { guard.current = false; setBusy(false); }
   };
 
-  const confirm = async (r: Row) => {
-    setBusy(r.order_id);
-    try {
-      const d = await invoke({ action: "confirm", order_id: r.order_id, code });
-      toast({ title: `Paid · ${d.order_ref}`, description: `${r.customer_name} is booked. Confirmation email on its way.` });
-      setActive(null); setCode("");
-      void load();
-    } catch (e) {
-      toast({ title: "Not confirmed", description: e instanceof Error ? e.message : "Try again", variant: "destructive" });
-    } finally { setBusy(null); }
-  };
-
-  const revive = async (r: Row) => {
-    setBusy(r.order_id);
-    try {
-      const { data, error } = await supabase.rpc("revive_cash_order", { p_order_id: r.order_id });
-      if (error) throw error;
-      const d = (data || {}) as { revived?: boolean; reason?: string };
-      if (!d.revived) throw new Error(d.reason === "already_paid" ? "Already paid" : "Could not revive");
-      toast({ title: "Hold revived", description: "5 more minutes — take the cash and send the code." });
-      void load();
-    } catch (e) {
-      toast({ title: "Couldn't revive", description: e instanceof Error ? e.message : "Ask the student to book again", variant: "destructive" });
-    } finally { setBusy(null); }
-  };
-
-  const cancel = async (r: Row) => {
-    if (!window.confirm(`Cancel ${r.customer_name}'s cash booking ${r.order_ref}? They can book again.`)) return;
-    setBusy(r.order_id);
-    try { await invoke({ action: "cancel", order_id: r.order_id }); if (active === r.order_id) setActive(null); void load(); }
-    catch (e) { toast({ title: "Couldn't cancel", description: e instanceof Error ? e.message : "", variant: "destructive" }); }
-    finally { setBusy(null); }
-  };
-
-  if (!isAdmin && !isStudioManager) {
-    return <div className="max-w-2xl mx-auto py-16 text-center text-muted-foreground">The cash desk is for studio managers and admins.</div>;
-  }
-
-  const pending = rows.filter((r) => !r.confirmed_at && !["paid", "completed"].includes(r.payment_status));
-  const done = rows.filter((r) => r.confirmed_at || ["paid", "completed"].includes(r.payment_status));
-
-  return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      <div className="text-center">
-        <h1 className="text-3xl font-bold text-foreground">Cash desk</h1>
-        <p className="text-muted-foreground mt-2">
-          Students book on their own phone at <span className="font-mono text-foreground">pinkd.hashtag.dance/?counter=1</span> and choose
-          “Cash at the studio”. Their order appears here. Take the cash → Send code → type the code they read out.
-        </p>
-      </div>
-
-      <div className="flex items-center gap-2">
-        <label htmlFor="cd-studio" className="text-sm text-muted-foreground">Studio</label>
-        <select id="cd-studio" value={studio} onChange={(e) => setStudio(e.target.value)} className="flex h-10 flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm">
-          <option value="">All studios</option>
-          {STUDIOS.map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
-        <Button variant="outline" size="icon" aria-label="Refresh" onClick={() => void load()}><RefreshCw className="w-4 h-4" /></Button>
-      </div>
-
-      <Card className="shadow-card">
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center space-x-2 text-base"><Banknote className="w-5 h-5 text-primary" /><span>Waiting at the counter ({pending.length})</span></CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {pending.length === 0 && <p className="text-sm text-muted-foreground">No one yet. This list refreshes on its own.</p>}
-          {pending.map((r) => {
-            const left = secondsLeft(r.hold_expires_at);
-            const live = r.hold_live && left > 0;
-            const isActive = active === r.order_id;
-            return (
-              <div key={r.order_id} className={`rounded-lg border p-3 ${isActive ? "border-primary bg-primary/5" : ""}`}>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="font-semibold truncate">{r.customer_name} <span className="font-mono text-xs text-muted-foreground">{r.customer_phone_hint}</span></div>
-                    <div className="text-xs text-muted-foreground truncate">{r.items} · {r.customer_studio}</div>
-                    <div className="mt-1 flex items-center gap-2">
-                      <Badge variant="outline" className="font-mono">{r.order_ref}</Badge>
-                      {live ? (
-                        <span className={`text-xs ${left < 60 ? "text-warning" : "text-muted-foreground"}`}>hold {Math.floor(left / 60)}:{String(left % 60).padStart(2, "0")}</span>
-                      ) : (
-                        <span className="text-xs text-destructive">hold expired</span>
-                      )}
-                      {r.code_sent && !isActive && <span className="text-xs text-muted-foreground">· code sent by {r.requested_by}</span>}
-                    </div>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <div className="text-xl font-black">{formatEventPrice(Number(r.total_amount_inr))}</div>
-                    <div className="text-[11px] uppercase tracking-wider text-muted-foreground">cash</div>
-                  </div>
-                </div>
-
-                {isActive ? (
-                  <div className="mt-3 space-y-2">
-                    <Input
-                      inputMode="numeric"
-                      autoFocus
-                      maxLength={6}
-                      placeholder="6-digit code from the student's email"
-                      value={code}
-                      onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                      onKeyDown={(e) => { if (e.key === "Enter" && code.length === 6) void confirm(r); }}
-                      className="h-14 text-center text-2xl font-black tracking-[0.4em]"
-                    />
-                    <div className="grid grid-cols-3 gap-2">
-                      <Button className="col-span-2 h-11 font-bold" disabled={busy === r.order_id || code.length !== 6} onClick={() => void confirm(r)}>
-                        <CheckCircle className="w-4 h-4 mr-2" />{busy === r.order_id ? "Confirming…" : "Confirm paid"}
-                      </Button>
-                      <Button variant="outline" className="h-11" disabled={busy === r.order_id} onClick={() => void sendCode(r)}>
-                        <Mail className="w-4 h-4 mr-1" />Resend
-                      </Button>
-                    </div>
-                    <Button variant="ghost" size="sm" className="w-full" onClick={() => { setActive(null); setCode(""); }}>Back</Button>
-                  </div>
-                ) : (
-                  <div className="mt-3 grid grid-cols-3 gap-2">
-                    {live ? (
-                      <Button className="col-span-2 h-11 font-bold" disabled={busy === r.order_id} onClick={() => void sendCode(r)}>
-                        <Mail className="w-4 h-4 mr-2" />{busy === r.order_id ? "Sending…" : r.code_sent ? "Enter code / resend" : `Cash received · send code`}
-                      </Button>
-                    ) : (
-                      <Button className="col-span-2 h-11 font-bold" variant="secondary" disabled={busy === r.order_id} onClick={() => void revive(r)}>
-                        <RotateCcw className="w-4 h-4 mr-2" />{busy === r.order_id ? "Reviving…" : "Revive hold (5 min)"}
-                      </Button>
-                    )}
-                    <Button variant="ghost" className="h-11 text-muted-foreground" disabled={busy === r.order_id} onClick={() => void cancel(r)}>
-                      <XCircle className="w-4 h-4 mr-1" />Cancel
-                    </Button>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </CardContent>
-      </Card>
-
-      {done.length > 0 && (
-        <Card className="shadow-card">
-          <CardHeader className="pb-3"><CardTitle className="text-base">Paid in the last 45 minutes ({done.length})</CardTitle></CardHeader>
-          <CardContent className="divide-y">
-            {done.map((r) => (
-              <div key={r.order_id} className="flex items-center justify-between gap-3 py-2 text-sm">
-                <div className="min-w-0">
-                  <div className="font-medium truncate">{r.customer_name} <span className="font-mono text-xs text-muted-foreground">{r.order_ref}</span></div>
-                  <div className="text-xs text-muted-foreground truncate">{r.items} · by {r.requested_by || "—"} · {r.confirmed_at ? new Date(r.confirmed_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : ""}</div>
-                </div>
-                <div className="text-right shrink-0">
-                  <div className="font-bold">{formatEventPrice(Number(r.total_amount_inr))}</div>
-                  <Badge className="text-xs">Paid · cash</Badge>
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
+  const visible = rows.filter(r => view === "paid" ? Boolean(r.confirmed_at) : !r.confirmed_at);
+  return <div className="mx-auto max-w-5xl space-y-5">
+    <h1 className="text-2xl font-bold">Cash Desk</h1>
+    <div className="flex flex-wrap items-center gap-3">
+      <label className="w-full min-w-0 sm:w-auto sm:flex-1">Collecting studio<select className="mt-1 h-10 w-full border bg-background px-2" value={studio} onChange={e => setStudio(e.target.value)}><option value="">All assigned studios</option>{studios.map(s => <option key={s}>{s}</option>)}</select></label>
+      <div role="tablist" className="flex gap-2">{(["holds", "paid"] as const).map(v => <Button role="tab" aria-selected={view === v} variant={view === v ? "default" : "outline"} key={v} onClick={() => setView(v)}>{v === "holds" ? "Holds" : "Cash reconciliation"}</Button>)}</div>
     </div>
-  );
+    {loading && <p role="status">Loading Cash Desk...</p>}
+    {error && <p role="alert" className="text-destructive">{error}</p>}
+    {!loading && !studios.length && !admin && <p>No cash studio assigned. Ask an admin to assign your studio.</p>}
+    {notice && <p role="status">{notice}</p>}
+    {storageBlocked && <p role="alert">Stored cash action needs support review. Do not collect cash again.</p>}
+    {pending && <div role="alert" className="space-y-2 border border-primary p-3"><p>Unresolved {pending.action.replace(/_/g, " ")} · {pending.order_id.slice(0, 8).toUpperCase()}</p>
+      {pending.action === "confirm" && <Input aria-label="Original confirmation code" inputMode="numeric" value={codes[pending.order_id] || ""} maxLength={6} onChange={e => setCodes({ ...codes, [pending.order_id]: e.target.value.replace(/\D/g, "") })} />}
+      <Button disabled={busy} onClick={() => void run(null)}><RefreshCw className="mr-2 h-4 w-4" />Check / Retry safely</Button></div>}
+    {!loading && !visible.length && <p className="text-muted-foreground">No {view === "paid" ? "confirmed cash bookings" : "recent cash holds"}.</p>}
+    {view === "paid" && <p className="font-semibold">Shown cash receipts: {visible.length} · {formatEventPrice(visible.reduce((s, r) => s + Number(r.total_amount_inr), 0))}</p>}
+    <div className="divide-y">{visible.map(r => {
+      const left = Math.max(0, Math.ceil((Date.parse(r.hold_expires_at) - now) / 1000));
+      const locked = busy || storageBlocked || Boolean(pending) || Boolean(error);
+      return <section key={r.order_id} className="space-y-3 py-4">
+        <div className="flex items-start justify-between gap-3"><div><h2 className="font-semibold">{r.customer_name} · {r.order_ref}</h2><p className="text-sm text-muted-foreground">{r.cash_studio} · {r.customer_phone_hint}</p><p className="text-sm">{r.items}</p><p className="text-xs text-muted-foreground">Home studio: {r.customer_studio}</p></div><strong>{formatEventPrice(Number(r.total_amount_inr))}</strong></div>
+        {r.confirmed_at ? <p>Paid · {new Date(r.confirmed_at).toLocaleString("en-IN")} · {r.requested_by}</p> : r.cancelled_at ? <p>Cancelled</p> : <>
+          <p>{left ? `Hold ${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}` : "Hold expired. Do not collect cash until revived."}</p>
+          {left > 0 && <Input aria-label={`Code for ${r.order_ref}`} placeholder="Six-digit email code" inputMode="numeric" maxLength={6} value={codes[r.order_id] || ""} disabled={locked} onChange={e => setCodes({ ...codes, [r.order_id]: e.target.value.replace(/\D/g, "") })} />}
+          <div className="flex flex-wrap gap-2">
+            {left > 0 ? <><Button disabled={locked} onClick={() => void run(r, "request_code")}><Mail className="mr-2 h-4 w-4" />{r.code_sent ? "Resend code" : "Send code"}</Button><Button disabled={locked || (codes[r.order_id]?.length !== 6)} onClick={() => void run(r, "confirm")}><CheckCircle className="mr-2 h-4 w-4" />Confirm cash received</Button></> : <Button disabled={locked} onClick={() => void run(r, "revive")}><RotateCcw className="mr-2 h-4 w-4" />Revive hold</Button>}
+            <Button variant="outline" disabled={locked} onClick={() => void run(r, "cancel")}><XCircle className="mr-2 h-4 w-4" />Cancel</Button>
+          </div>
+        </>}
+        {!!r.notifications?.length && <p className="text-xs text-muted-foreground">{r.notifications.map(n => `${n.kind}: ${n.status}${n.error ? ` (${n.error})` : ""}`).join(" · ")}</p>}
+        {r.notifications?.some(n => ["error", "pending", "sending"].includes(n.status)) && <Button variant="outline" disabled={locked} onClick={() => void run(r, "retry_notifications")}><Mail className="mr-2 h-4 w-4" />Retry notifications</Button>}
+      </section>;
+    })}</div>
+    {admin && <CashStudioAssignments />}
+  </div>;
 }
