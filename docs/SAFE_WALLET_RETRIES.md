@@ -86,7 +86,14 @@ Supabase or physical NFC results.
 - Retry additions were prepared on `codex/safe-wallet-retries` and brought into
   a clean `codex/release-wallet-retries` worktree on top of `11d3262` for a separate
   source-only release commit. Existing working directories remain untouched.
-- Main pushes have automatic Vercel deployment disabled in `vercel.json`.
+- Main pushes trigger automatic Vercel builds. Production builds first run
+  `scripts/check-wallet-backend.mjs`; a missing retry RPC blocks the build and
+  leaves the previous production deployment serving traffic. After deploying and
+  validating the migration, redeploy the failed commit or push a new commit.
+- The gate uses an anonymous null-input permission probe, never an operator or
+  service-role key. It checks RPC presence/protection, not full end-to-end behavior.
+  Preview builds skip the production gate; do not manually promote an unvalidated
+  preview. Staging and physical NFC validation remain release requirements.
 - No production migration or Edge Function deployment is authorized here.
 - Apply the new migration to an approved isolated Supabase stack before testing
   the hosted frontend's new RPC. A frontend-only preview against the unchanged
