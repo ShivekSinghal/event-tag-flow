@@ -14,6 +14,8 @@ import { TagIdentifier } from "@/components/wallet/TagIdentifier";
 import { formatCoins, getCoinBalance } from "@/lib/coins";
 import { useWalletOperation } from "@/hooks/use-wallet-operation";
 import { WalletOperationStatus } from "@/components/wallet/WalletOperationStatus";
+import { PosSaleControls } from "@/components/wallet/PosSaleControls";
+import { InsufficientCoinsNotice } from "@/components/wallet/InsufficientCoinsNotice";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Package, CreditCard, DollarSign, Scan, AlertCircle, ArrowRight, CheckCircle, Calculator, Ticket } from "lucide-react";
 
@@ -150,6 +152,7 @@ export default function POS() {
   }, []);
   const roundScanGenerationRef = useRef(0);
   const [scannedWallet, setScannedWallet] = useState<ScannedWallet | null>(null);
+  const [insufficientCoins, setInsufficientCoins] = useState<{ balance: number; required: number } | null>(null);
   const [selectedGame, setSelectedGame] = useState<Game | null>(null);
   const [selectedDrink, setSelectedDrink] = useState<DrinkItem | null>(null);
   const [selectedCustomItem, setSelectedCustomItem] = useState<CustomItem | null>(null);
@@ -551,7 +554,9 @@ export default function POS() {
     generation: number,
   ) => {
     if (generation !== scanGenerationRef.current || !pendingSaleRef.current || paymentInFlightRef.current || walletOperation.blocked) return;
+    setInsufficientCoins(null);
     if (price > wallet.currentBalance) {
+      setInsufficientCoins({ balance: wallet.currentBalance, required: price });
       toast({
         title: "Insufficient Pink'd Coins",
         description: `Balance: ${formatCoins(wallet.currentBalance)} | Required: ${formatCoins(price)}`,
@@ -779,6 +784,7 @@ export default function POS() {
   };
 
   const resetTransaction = () => {
+    setInsufficientCoins(null);
     scanGenerationRef.current += 1;
     roundScanGenerationRef.current += 1;
     nfcManager.stopScanning();
@@ -795,7 +801,9 @@ export default function POS() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-4 px-4 sm:px-6 lg:px-8">
-      <WalletOperationStatus operation={walletOperation} />
+      <WalletOperationStatus operation={walletOperation} showSpendReceipt={false} />
+      <PosSaleControls operation={walletOperation} saleInProgress={isScanning || isProcessing || isAwarding || lookupActive || Boolean(activeRound || pendingSaleRef.current)} />
+      {insufficientCoins && <InsufficientCoinsNotice {...insufficientCoins} />}
       <fieldset disabled={walletOperation.blocked} className="min-w-0 space-y-4 disabled:opacity-60">
       {/* Header */}
       <div className="text-center py-4">

@@ -50,6 +50,7 @@ interface DashboardStats {
   totalCoinBalance: number;
   totalCoinsIssued: number;
   totalCoinsSpent: number;
+  totalCoinsRefunded: number;
   totalInrCollected: number;
   activeTags: number;
 }
@@ -215,6 +216,7 @@ export default function Dashboard() {
     totalCoinBalance: 0,
     totalCoinsIssued: 0,
     totalCoinsSpent: 0,
+    totalCoinsRefunded: 0,
     totalInrCollected: 0,
     activeTags: 0
   });
@@ -283,6 +285,10 @@ export default function Dashboard() {
         ?.filter((tx) => ['spend', 'food', 'drinks', 'games'].includes(tx.type))
         .reduce((sum, tx) => sum + Math.abs(getCoinAmount(tx)), 0) || 0;
 
+      const totalCoinsRefunded = allTransactions
+        ?.filter((tx) => tx.type === 'refund')
+        .reduce((sum, tx) => sum + Math.max(0, getCoinAmount(tx)), 0) || 0;
+
       const totalInrCollected = allTransactions
         ?.filter((tx) => tx.type === 'load' || tx.type === 'coin_purchase')
         .reduce((sum, tx) => sum + Number(tx.inr_amount ?? tx.amount ?? 0), 0) || 0;
@@ -292,6 +298,7 @@ export default function Dashboard() {
         totalCoinBalance,
         totalCoinsIssued,
         totalCoinsSpent,
+        totalCoinsRefunded,
         totalInrCollected,
         activeTags
       });
@@ -940,7 +947,7 @@ export default function Dashboard() {
       color: "text-accent"
     },
     {
-      title: "Coins Spent",
+      title: "Coins Spent (Gross)",
       value: isLoading ? "..." : formatCoins(stats.totalCoinsSpent),
       change: stats.totalCoinsSpent > 0 ? "Deducted through POS" : "No POS sales yet",
       icon: TrendingUp,
@@ -997,6 +1004,10 @@ export default function Dashboard() {
       </div>
 
       <Tabs defaultValue="event-bookings" className="space-y-6">
+        <p className="text-sm text-muted-foreground">
+          Coin refunds: {isLoading ? "..." : formatCoins(stats.totalCoinsRefunded)}.
+          Sales breakdowns show gross sales before refunds; refunds are separate ledger entries, not INR refunds.
+        </p>
         <div className="sticky top-16 z-20 -mx-1 overflow-x-auto bg-background/95 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80">
           <TabsList className="h-auto w-max min-w-full justify-start gap-1 p-1">
             <TabsTrigger value="live-sales" className="gap-2 px-4 py-2">

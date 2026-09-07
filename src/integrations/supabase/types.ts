@@ -818,6 +818,9 @@ export type Database = {
       }
       transactions: {
         Row: {
+          reverses_transaction_id: string | null
+          balance_after: number | null
+          void_reason: string | null
           amount: number
           coin_amount: number
           created_at: string
@@ -833,6 +836,9 @@ export type Database = {
           wallet_id: string
         }
         Insert: {
+          reverses_transaction_id?: string | null
+          balance_after?: number | null
+          void_reason?: string | null
           amount: number
           coin_amount?: number
           created_at?: string
@@ -848,6 +854,9 @@ export type Database = {
           wallet_id: string
         }
         Update: {
+          reverses_transaction_id?: string | null
+          balance_after?: number | null
+          void_reason?: string | null
           amount?: number
           coin_amount?: number
           created_at?: string
@@ -863,6 +872,13 @@ export type Database = {
           wallet_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "transactions_reverses_transaction_id_fkey"
+            columns: ["reverses_transaction_id"]
+            isOneToOne: true
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "transactions_game_id_fkey"
             columns: ["game_id"]
@@ -1040,6 +1056,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      void_pos_sale: {
+        Args: { p_operation_id: string; p_request: Json }
+        Returns: Json
+      }
       canonical_manual_receipt: {
         Args: { p_reference: string }
         Returns: string

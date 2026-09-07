@@ -14,11 +14,12 @@ test('production accepts only a named anonymous permission denial', async () => 
   let calls = 0;
   const result = await checkWalletBackend(env, async (url, options) => {
     calls++;
-    assert.equal(url, resolveBrowserSupabaseConfig(env).url + '/rest/v1/rpc/execute_wallet_operation');
+    const name = calls === 1 ? 'execute_wallet_operation' : 'void_pos_sale';
+    assert.equal(url, resolveBrowserSupabaseConfig(env).url + '/rest/v1/rpc/' + name);
     assert.deepEqual(JSON.parse(options.body), { p_operation_id: null, p_request: null });
-    return { status: 401, json: async () => ({ code: '42501', message: 'permission denied for function execute_wallet_operation' }) };
+    return { status: 401, json: async () => ({ code: '42501', message: 'permission denied for function ' + name }) };
   });
-  assert.equal(calls, 1); assert.equal(result.skipped, false);
+  assert.equal(calls, 2); assert.equal(result.skipped, false);
 });
 test('missing RPC, wrong credentials, public access and malformed replies stop production builds', async () => {
   for (const [status, body] of [[404, { code: 'PGRST202' }], [401, { code: '42501', message: 'Invalid key' }], [200, {}], [500, {}]]) {
@@ -26,6 +27,12 @@ test('missing RPC, wrong credentials, public access and malformed replies stop p
   }
   await assert.rejects(checkWalletBackend(env, async () => { throw Error('network error'); }), /network error/);
   await assert.rejects(checkWalletBackend(env, async () => ({ status: 401, json: async () => { throw Error('invalid JSON'); } })), /invalid JSON/);
+});
+
+test('a deployed retry RPC does not hide a missing void migration',async()=>{
+  await assert.rejects(checkWalletBackend(env,async url=>url.endsWith('/execute_wallet_operation')
+    ? {status:401,json:async()=>({code:'42501',message:'permission denied for function execute_wallet_operation'})}
+    : {status:404,json:async()=>({code:'PGRST202'})}),/void_pos_sale/);
 });
 test('privileged keys and unknown Vercel environments fail without a request', async () => {
   const key = 'header.' + Buffer.from(JSON.stringify({ role: 'service_role' })).toString('base64url') + '.signature';

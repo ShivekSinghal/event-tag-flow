@@ -128,7 +128,7 @@ function posHarness() {
     },
   };
   for (const name of ['IsScanning', 'LookupActive', 'LookupKey', 'ScannedWallet', 'IsProcessing', 'SelectedGame',
-    'SelectedDrink', 'SelectedCustomItem', 'ShowCustomAmountInput', 'CustomAmount', 'ActiveRound', 'IsPickingWinner', 'IsAwarding']) {
+    'SelectedDrink', 'SelectedCustomItem', 'ShowCustomAmountInput', 'CustomAmount', 'ActiveRound', 'IsPickingWinner', 'IsAwarding', 'InsufficientCoins']) {
     const key = name[0].toLowerCase() + name.slice(1);
     context[`set${name}`] = (value) => { context[key] = typeof value === 'function' ? value(context[key]) : value; };
   }

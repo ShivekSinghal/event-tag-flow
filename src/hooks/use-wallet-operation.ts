@@ -3,6 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import {
   clearWalletOperation, parseWalletOperationResult, readWalletOperation, saveWalletOperation,
+  readLastPosSale, savePosReceipt, type LastPosSale,
   type PendingWalletOperation, type WalletOperationRequest, type WalletOperationResult,
 } from "@/lib/walletOperation";
 
@@ -17,6 +18,7 @@ export function useWalletOperation() {
   const operatorRef = useRef(operator);
   operatorRef.current = operator;
   const [pending, setPending] = useState<PendingWalletOperation | null>(null);
+  const [lastSale, setLastSale] = useState<LastPosSale | null>(null);
   const [storageError, setStorageError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -26,6 +28,7 @@ export function useWalletOperation() {
   const refresh = useCallback(() => {
     try {
       setPending(operator ? readWalletOperation(sessionStorage, operator) : null);
+      setLastSale(operator ? readLastPosSale(sessionStorage, operator) : null);
       setStorageError(null);
     } catch (e) {
       setStorageError(e instanceof Error ? e.message : "Payment storage is unavailable.");
@@ -61,12 +64,17 @@ export function useWalletOperation() {
       }
       setPending(operation);
       window.dispatchEvent(new Event(changedEvent));
-      const { data, error: rpcError } = await supabase.rpc("execute_wallet_operation", {
+      const { data, error: rpcError } = await supabase.rpc(operation.request.kind === "void" ? "void_pos_sale" : "execute_wallet_operation", {
         p_operation_id: operation.id,
         p_request: operation.request,
       }).abortSignal(AbortSignal.timeout(20_000));
       if (rpcError) throw rpcError;
       const outcome = parseWalletOperationResult(data);
+      if (operation.request.kind === "void" && outcome.status === "succeeded" && outcome.voided_transaction_id !== operation.request.sale_transaction_id) {
+        throw new Error("Void receipt did not identify the original sale. Retry the saved operation.");
+      }
+      // Save the receipt before clearing retry state so a storage failure remains recoverable.
+      savePosReceipt(sessionStorage, operation, outcome);
       clearWalletOperation(sessionStorage, operation);
       completedResults.set(operator, outcome);
       if (operatorRef.current === operator) {
@@ -88,6 +96,7 @@ export function useWalletOperation() {
 
   return {
     pending: loadedOperator === operator ? pending : null,
+    lastSale: loadedOperator === operator ? lastSale : null,
     busy, error: loadedOperator === operator ? storageError || error : null,
     result: loadedOperator === operator ? result : null, submit,
     blocked: !operator || loadedOperator !== operator || Boolean(pending || storageError || busy),

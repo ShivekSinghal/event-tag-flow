@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { mkdtemp } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -24,6 +25,8 @@ test('independent PostgreSQL sessions: atomic retries, receipt races and rollbac
     await owner.query(functionSQL('supabase/migrations/20260904000100_harden_wallet_coin_flows.sql','credit_wallet_coins'));
     await owner.query(functionSQL('supabase/migrations/20260906090000_pinkredibles.sql','spend_wallet_coins'));
     await owner.query(migration);
+    await owner.query('CREATE TABLE game_round_players(transaction_id uuid)');
+    await owner.query(readFileSync('supabase/migrations/20260907184809_pos_sale_void_controls.sql','utf8'));
     for(const client of [a,b,c]){
       await client.query("select set_config('request.jwt.claim.sub',$1,false)",[admin]);
       await client.query('SET ROLE authenticated');
@@ -52,6 +55,17 @@ test('independent PostgreSQL sessions: atomic retries, receipt races and rollbac
     assert.equal(await balance(),before-1500+2000);
     const rows=await owner.query('select count(*)::int as count from transactions');
     assert.equal(rows.rows[0].count,3);
+    // Same and distinct void operation IDs serialize on the original sale.
+    const voidId=randomUUID(),req={kind:'void',wallet_id:wallet,sale_transaction_id:first.transaction_id,void_reason:'Wrong item'};
+    const reverse=(client,id)=>client.query('select void_pos_sale($1,$2) r',[id,JSON.stringify(req)]).then(r=>r.rows[0].r);
+    await a.query('BEGIN');const refund=await reverse(a,voidId);
+    assert.equal(refund.status,'succeeded');
+    let refunded=false;const second=reverse(b,voidId).then(r=>{refunded=true;return r;});
+    const distinct=reverse(c,randomUUID());
+    await new Promise(r=>setTimeout(r,150));assert.equal(refunded,false);
+    await a.query('COMMIT');assert.deepEqual(await second,refund);assert.deepEqual(await distinct,refund);
+    assert.equal(await balance(),before-750+2000);
+    assert.equal((await owner.query("select count(*)::int n from transactions where type='refund'")).rows[0].n,1);
   } finally {
     for(const client of clients) await client.end();
     await server.stop();

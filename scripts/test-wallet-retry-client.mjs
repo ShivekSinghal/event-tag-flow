@@ -60,7 +60,10 @@ test('actual retry hook persists identity through lost response, reload and safe
   await act(async()=>{attempt=h.current.submit();});
   assert.equal(JSON.stringify(h.calls[1].args),original);
   await act(async()=>{retry.resolve({data:{status:'succeeded',transaction_id:randomUUID(),new_coin_balance:1250},error:null});await attempt;});
-  assert.equal(h.current.result.status,'succeeded');assert.equal(h.entries.size,0);assert.equal(h.current.blocked,false);
+  assert.equal(h.current.result.status,'succeeded');assert.equal(h.current.pending,null);assert.equal(h.current.blocked,false);
+  assert.equal(h.current.lastSale.transactionId,h.current.result.transaction_id);
+  await h.unmount();await h.mount();
+  assert.equal(h.current.lastSale.balanceAfter,1250,'last sale survives remount/refresh storage recovery');
   await h.unmount();
 });
 
@@ -103,4 +106,34 @@ test('storage failure prevents any mutation and operator accounts cannot inherit
   assert.equal(other.current.pending,null);assert.equal(other.entries.size,1);
   await act(async()=>{await other.current.submit();});assert.equal(other.calls.length,1);assert.ok(original);
   await other.unmount();
+});
+
+test('void uses its own RPC, survives lost responses and marks the persistent receipt once',async()=>{
+  const h=harness();await h.mount();
+  const complete=async(req,data)=>{
+    const response=deferred();h.network.push(response);let attempt;
+    await act(async()=>{attempt=h.current.submit(req);});
+    await act(async()=>{response.resolve({data,error:null});await attempt;});
+  };
+  const sale=randomUUID();
+  await complete(request,{status:'succeeded',transaction_id:sale,new_coin_balance:1250});
+  await complete(request,{status:'rejected',message:'Insufficient coins'});
+  assert.equal(h.current.lastSale.transactionId,sale,'a rejected next sale preserves the receipt');
+  await complete({kind:'topup',wallet_id:request.wallet_id,reference:'Receipt'},
+    {status:'succeeded',transaction_id:randomUUID(),new_coin_balance:3250});
+  assert.equal(h.current.lastSale.balanceAfter,1250,'top-ups do not replace the historical sale');
+  const req={kind:'void',wallet_id:request.wallet_id,sale_transaction_id:sale,void_reason:'Wrong item'};
+  await complete(req,null);
+  const frozen=JSON.stringify(h.calls.at(-1));assert.equal(h.calls.at(-1).name,'void_pos_sale');
+  await h.unmount();await h.mount();assert.equal(h.current.pending.request.kind,'void');
+  const count=h.calls.length,response=deferred();h.network.push(response);let attempt;
+  await act(async()=>{attempt=h.current.submit();await h.current.submit();});
+  assert.equal(h.calls.length,count+1);assert.equal(JSON.stringify(h.calls.at(-1)),frozen);
+  const refund=randomUUID();
+  await act(async()=>{response.resolve({data:{status:'succeeded',transaction_id:refund,new_coin_balance:4000,
+    voided_transaction_id:sale,credited_coin_amount:750},error:null});await attempt;});
+  assert.equal(h.current.lastSale.refundTransactionId,refund);assert.equal(h.current.blocked,false);
+  await h.unmount();await h.mount();assert.equal(h.current.lastSale.refundTransactionId,refund);
+  await h.unmount();h.setUser({id:randomUUID()});await h.mount();assert.equal(h.current.lastSale,null);
+  await h.unmount();
 });

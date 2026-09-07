@@ -1,4 +1,4 @@
-export type WalletOperationKind = "spend" | "topup";
+export type WalletOperationKind = "spend" | "topup" | "void";
 
 export type WalletOperationRequest = {
   kind: WalletOperationKind;
@@ -12,6 +12,8 @@ export type WalletOperationRequest = {
   coin_package_id?: string;
   expected_coin_amount?: number;
   expected_inr_amount?: number;
+  sale_transaction_id?: string;
+  void_reason?: string;
 };
 
 export type PendingWalletOperation = {
@@ -29,6 +31,7 @@ export type WalletOperationResult = {
   credited_coin_amount?: number;
   spent_coin_amount?: number;
   inr_amount?: number;
+  voided_transaction_id?: string;
 };
 
 const prefix = "pinkd.wallet-operation.v1:";
@@ -38,7 +41,7 @@ export function readWalletOperation(storage: Storage, operator: string): Pending
   if (!raw) return null;
   const value = JSON.parse(raw) as PendingWalletOperation;
   if (value.version !== 1 || value.operator !== operator || !value.id || !value.request?.wallet_id
-    || !["spend", "topup"].includes(value.request.kind)) {
+    || !["spend", "topup", "void"].includes(value.request.kind)) {
     throw new Error("Saved payment could not be read. Ask an admin to reconcile it before continuing.");
   }
   return value;
@@ -62,4 +65,42 @@ export function parseWalletOperationResult(value: unknown): WalletOperationResul
     throw new Error("Payment receipt was incomplete.");
   }
   return result;
+}
+
+export type LastPosSale = {
+  transactionId: string;
+  walletId: string;
+  itemName: string;
+  coinAmount: number;
+  balanceAfter: number;
+  refundTransactionId?: string;
+};
+const salePrefix = "pinkd.last-pos-sale.v1:";
+
+export function readLastPosSale(storage: Storage, operator: string): LastPosSale | null {
+  const raw = storage.getItem(salePrefix + operator);
+  if (!raw) return null;
+  const value = JSON.parse(raw) as LastPosSale;
+  if (!value.transactionId || !value.walletId || !Number.isFinite(value.balanceAfter) || !Number.isFinite(value.coinAmount)) {
+    throw new Error("Last sale receipt could not be read. Ask an admin to check transactions.");
+  }
+  return value;
+}
+
+export function savePosReceipt(storage: Storage, operation: PendingWalletOperation, result: WalletOperationResult) {
+  if (result.status !== "succeeded") return;
+  const { request, operator } = operation;
+  if (request.kind === "spend") {
+    const receipt: LastPosSale = {
+      transactionId: result.transaction_id!, walletId: request.wallet_id,
+      itemName: request.item_name || "POS item", coinAmount: request.coin_amount!,
+      balanceAfter: result.new_coin_balance!,
+    };
+    storage.setItem(salePrefix + operator, JSON.stringify(receipt));
+  } else if (request.kind === "void") {
+    const previous = readLastPosSale(storage, operator);
+    if (previous?.transactionId === result.voided_transaction_id) {
+      storage.setItem(salePrefix + operator, JSON.stringify({ ...previous, refundTransactionId: result.transaction_id }));
+    }
+  }
 }
