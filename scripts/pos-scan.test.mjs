@@ -18,12 +18,13 @@ const compile = (source) => ts.transpileModule(source, {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
 }).outputText;
 
-function scannerHarness() {
+function scannerHarness({ nfc = true, dev = false, typedAllowed = false, promptValue = null } = {}) {
   let now = 0;
   let id = 0;
   const timers = new Map();
   const readers = [];
   const states = [];
+  const prompts = [];
   const schedule = (fn, delay, repeat = false) => {
     timers.set(++id, { fn, at: now + delay, delay, repeat });
     return id;
@@ -32,24 +33,29 @@ function scannerHarness() {
     permission = deferred();
     constructor() { readers.push(this); }
     scan({ signal }) { this.signal = signal; return this.permission.promise; }
-    read() { this.onreading?.({ serialNumber: 'aa:bb:cc:dd' }); }
+    read(event = { serialNumber: 'aa:bb:cc:dd' }) { this.onreading?.(event); }
   }
   const context = vm.createContext({
     exports: {}, AbortController,
     console: { log() {}, warn() {}, error() {} },
     navigator: { userAgent: 'test', platform: 'test', vibrate() {} },
-    window: { NDEFReader: Reader, location: { href: 'http://test.invalid' } },
+    window: {
+      ...(nfc ? { NDEFReader: Reader } : {}),
+      location: { href: 'http://test.invalid' },
+      prompt: (...args) => { prompts.push(args); return promptValue; },
+    },
     Date: { now: () => now },
     setTimeout: (fn, delay) => schedule(fn, delay),
     clearTimeout: (key) => timers.delete(key),
     setInterval: (fn, delay) => schedule(fn, delay, true),
     clearInterval: (key) => timers.delete(key),
   });
-  vm.runInContext(compile(read('src/utils/nfc.ts').replaceAll('import.meta.env', '({DEV:false})')), context);
+  const env = JSON.stringify({ DEV: dev, VITE_ALLOW_TYPED_TAG: typedAllowed ? 'true' : 'false' });
+  vm.runInContext(compile(read('src/utils/nfc.ts').replaceAll('import.meta.env', `(${env})`)), context);
   const manager = new context.exports.NFCManager();
   manager.setScanStateCallback((state) => states.push(state));
   return {
-    manager, readers, timers, states,
+    manager, readers, timers, states, prompts,
     advance(ms) {
       const end = now + ms;
       for (;;) {
@@ -79,13 +85,14 @@ const handlerNames = [
 const handlerStatements = pos.body.statements.filter((node) => ts.isVariableStatement(node)
   && node.declarationList.declarations.some((declaration) => handlerNames.includes(declaration.name.getText(posAST))));
 const availableNames = handlerStatements.flatMap((node) => node.declarationList.declarations.map((d) => d.name.getText(posAST)));
-const wallet = { id: 'wallet-a', attendee_name: 'Test', attendee_phone: '0000000000', tag_id: 'NFC-AABBCCDD', coin_balance: 2000, status: 'active' };
+const wallet = { id: 'wallet-a', attendee_name: 'Test', attendee_phone: '0000000000', tag_id: 'NFCAABBCCDD', coin_balance: 2000, status: 'active' };
 
 function posHarness() {
   const scanner = scannerHarness();
   const calls = [];
   const messages = [];
   const responses = [];
+  const queries = [];
   const payment = deferred();
   const context = {
     console: { error() {} }, nfcManager: scanner.manager,
@@ -99,9 +106,9 @@ function posHarness() {
     getErrorDetail: (error, key) => error?.[key], LOOKUP_REFERENCE_TAG: 'via:phone-lookup',
     toast: (message) => messages.push(message), addCard() {},
     supabase: {
-      from() {
+      from(table) {
         const query = {
-          select() { return query; }, eq() { return query; },
+          select() { return query; }, eq(column, value) { queries.push({ table, column, value }); return query; },
           single() { return responses.shift()?.promise || Promise.resolve({ data: wallet, error: null }); },
           maybeSingle() { return query.single(); },
         };
@@ -121,8 +128,101 @@ function posHarness() {
   vm.createContext(context);
   vm.runInContext(compile(handlerStatements.map((s) => s.getText(posAST)).join('\n')
     + `\nglobalThis.handlers = {${availableNames.join(',')}};`), context);
-  return { scanner, context, handlers: context.handlers, calls, messages, responses, payment };
+  return { scanner, context, handlers: context.handlers, calls, messages, responses, payment, queries };
 }
+
+test('full UIDs with the same six-character prefix remain distinct despite identical tag records', async () => {
+  const h = scannerHarness();
+  const ids = [];
+  for (const serialNumber of ['04:AB:CD:11:22:33:44', '04:AB:CD:99:88:77:66']) {
+    const scan = h.manager.startScanning();
+    h.readers.at(-1).read({ serialNumber, message: { records: [{ data: new Uint8Array([1, 2, 3, 4]).buffer }] } });
+    const result = await scan;
+    assert.equal(result.success, true);
+    ids.push(result.tagId);
+  }
+  assert.deepEqual(ids, ['NFC04ABCD11223344', 'NFC04ABCD99887766']);
+  assert.equal(h.timers.size, 0);
+});
+
+test('UID normalization retains all bytes across separators, case and canonical prefixes', async () => {
+  const h = scannerHarness();
+  for (const serialNumber of ['04:ab:cd:11:22:33:44', '04-ab-cd-11-22-33-44', '04 ab cd 11 22 33 44', '04abcd11223344', 'NFC04ABCD11223344']) {
+    const scan = h.manager.startScanning();
+    h.readers.at(-1).read({ serialNumber });
+    assert.equal((await scan).tagId, 'NFC04ABCD11223344');
+  }
+  for (const serialNumber of ['00000001', '00000000000000000001']) {
+    const scan = h.manager.startScanning();
+    h.readers.at(-1).read({ serialNumber });
+    assert.equal((await scan).tagId, `NFC${serialNumber}`, 'leading zeros and long UIDs survive');
+  }
+});
+
+test('missing or malformed serial numbers fail without inspecting tag-written data', async () => {
+  const h = scannerHarness();
+  for (const serialNumber of [undefined, null, '', ' ', 'NFC', 'ABC', '04:GG:11', '04/AB/CD', '04::AB', 'https://example.com', 1234]) {
+    const scan = h.manager.startScanning();
+    const reader = h.readers.at(-1);
+    const lateRead = reader.onreading;
+    reader.read({ serialNumber, get message() { throw new Error('Tag records must not be read'); } });
+    const result = await scan;
+    assert.equal(result.success, false);
+    assert.equal(result.tagId, '');
+    assert.match(result.error, /valid NFC UID/);
+    assert.equal(reader.signal.aborted, true);
+    assert.equal(reader.onreading, null);
+    lateRead({ serialNumber: '04:AB:CD:11:22:33:44' });
+    assert.equal(h.timers.size, 0);
+  }
+});
+
+test('typed test identifiers stay complete and are unavailable in a normal production build', async () => {
+  const production = scannerHarness({ nfc: false, promptValue: 'TEST-BAND-A3F' });
+  assert.equal((await production.manager.startScanning()).success, false);
+  assert.equal(production.prompts.length, 0);
+  for (const options of [{ dev: true }, { typedAllowed: true }]) {
+    const manual = scannerHarness({ nfc: false, promptValue: ' test-band-a3f ', ...options });
+    assert.equal((await manual.manager.startScanning()).tagId, 'TEST-BAND-A3F');
+    const canonical = scannerHarness({ nfc: false, promptValue: 'NFC04ABCD11223344', ...options });
+    assert.equal((await canonical.manager.startScanning()).tagId, 'NFC04ABCD11223344');
+  }
+});
+
+test('ordinary POS and round admission query the complete UID, not a display suffix', async () => {
+  for (const round of [false, true]) {
+    const h = posHarness();
+    const scan = round ? h.handlers.scanPlayerForRound() : h.handlers.handleScanForPayment(750, 'Game', 'game-a', 'games');
+    h.scanner.readers[0].read({ serialNumber: '04:AB:CD:11:22:33:44' });
+    await flush();
+    assert.deepEqual(h.queries[0], { table: 'wallets', column: 'tag_id', value: 'NFC04ABCD11223344' });
+    assert.equal(h.calls.length, 1);
+    h.payment.resolve({ data: { round_id: 'round-a', new_coin_balance: 1250 }, error: null });
+    await scan;
+  }
+});
+
+test('a serial-less scan never reaches a wallet query or payment', async () => {
+  const h = posHarness();
+  const scan = h.handlers.handleScanForPayment(750, 'Game', 'game-a', 'games');
+  h.scanner.readers[0].read({ message: { records: [{ data: new Uint8Array([1, 2, 3, 4]).buffer }] } });
+  await scan;
+  assert.equal(h.queries.length, 0);
+  assert.equal(h.calls.length, 0);
+});
+
+test('winner scanning also looks up the full UID before awarding the wallet', async () => {
+  const h = posHarness();
+  const scan = h.handlers.scanWinnerBand();
+  h.scanner.readers[0].read({ serialNumber: '04:AB:CD:99:88:77:66' });
+  await flush();
+  assert.deepEqual(h.queries[0], { table: 'wallets', column: 'tag_id', value: 'NFC04ABCD99887766' });
+  assert.equal(h.calls.length, 1);
+  assert.equal(h.calls[0].name, 'award_game_round');
+  assert.equal(h.calls[0].args.p_winner_wallet_id, wallet.id);
+  h.payment.resolve({ data: { awarded: 1, winner_name: 'Test', pinkredibles: 1, code: 'PINK-TEST01' }, error: null });
+  await scan;
+});
 
 test('opening lookup aborts NFC and keeps the sale beyond 30 seconds; confirmation debits once', async () => {
   const h = posHarness();

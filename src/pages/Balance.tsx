@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { nfcManager } from "@/utils/nfc";
+import { TagIdentifier } from "@/components/wallet/TagIdentifier";
 import { FindWalletFallback, type FoundWallet } from "@/components/wallet/FindWalletFallback";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
@@ -224,7 +225,7 @@ export default function Balance() {
                   <div className="space-y-2">
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Tag ID:</span>
-                      <Badge variant="outline">{walletData.tagId}</Badge>
+                      <Badge variant="outline"><TagIdentifier tagId={walletData.tagId} /></Badge>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Issued:</span>

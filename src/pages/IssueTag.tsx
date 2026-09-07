@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { TagIdentifier } from "@/components/wallet/TagIdentifier";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -685,7 +686,7 @@ export default function IssueTag() {
                     <div key={band.wallet_id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
                       <div className="min-w-0">
                         <span className="font-medium text-foreground">{band.attendee_name}</span>
-                        <span className="text-muted-foreground"> · ···{band.band_hint} · {band.coin_balance.toLocaleString("en-IN")} coins</span>
+                        <span className="text-muted-foreground"> · <TagIdentifier tagId={band.tag_id} /> · {band.coin_balance.toLocaleString("en-IN")} coins</span>
                         {band.status !== "active" ? <Badge variant="outline" className="ml-2 font-normal">{band.status}</Badge> : null}
                       </div>
                       {band.status === "active" ? (
@@ -866,7 +867,7 @@ export default function IssueTag() {
               <div>
                 <div className="font-medium text-foreground">Tag Scanned Successfully</div>
                 <div className="text-sm text-muted-foreground">
-                  Tag ID: <Badge variant="outline" className="ml-1">{scannedTag}</Badge>
+                  Tag ID: <Badge variant="outline" className="ml-1"><TagIdentifier tagId={scannedTag} /></Badge>
                 </div>
               </div>
             </div>

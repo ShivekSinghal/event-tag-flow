@@ -10,6 +10,7 @@ import { useFlyingCards } from "@/hooks/use-flying-cards";
 import { useStaffPermissions } from "@/hooks/use-staff-permissions";
 import { nfcManager, allowTypedTag } from "@/utils/nfc";
 import { FindWalletFallback, LOOKUP_REFERENCE_TAG, type FoundWallet } from "@/components/wallet/FindWalletFallback";
+import { TagIdentifier } from "@/components/wallet/TagIdentifier";
 import { formatCoins, getCoinBalance } from "@/lib/coins";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Package, CreditCard, DollarSign, Scan, AlertCircle, ArrowRight, CheckCircle, Calculator, Ticket } from "lucide-react";
@@ -1619,7 +1620,7 @@ export default function POS() {
                               <div className="font-medium text-foreground text-sm sm:text-base truncate">
                                 {scannedWallet.attendeeName}
                               </div>
-                              <div className="text-xs sm:text-sm text-muted-foreground">{scannedWallet.tagId}</div>
+                              <div className="text-xs sm:text-sm text-muted-foreground"><TagIdentifier tagId={scannedWallet.tagId} /></div>
                             </div>
                           </div>
                           <div className="flex items-center justify-between pt-3 border-t border-success/20">

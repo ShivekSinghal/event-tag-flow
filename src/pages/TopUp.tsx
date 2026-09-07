@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { nfcManager } from "@/utils/nfc";
+import { TagIdentifier } from "@/components/wallet/TagIdentifier";
 import { FindWalletFallback, LOOKUP_REFERENCE_TAG, type FoundWallet } from "@/components/wallet/FindWalletFallback";
 import { supabase } from "@/integrations/supabase/client";
 import { useFlyingCards } from "@/hooks/use-flying-cards";
@@ -260,7 +261,7 @@ export default function TopUp() {
                   </div>
                 </div>
                 <Badge variant="outline" className="border-success text-success">
-                  {scannedWallet.tagId}
+                  <TagIdentifier tagId={scannedWallet.tagId} />
                 </Badge>
               </div>
               

@@ -15,15 +15,8 @@ export interface NFCScanState {
   lastError?: string;
 }
 
-interface NFCRecord {
-  data?: DataView | ArrayBuffer;
-}
-
 interface NFCReadingEvent extends Event {
   serialNumber?: string;
-  message?: {
-    records?: NFCRecord[];
-  };
 }
 
 interface NDEFReaderLike {
@@ -134,7 +127,7 @@ export class NFCManager {
         const typed = window.prompt("No NFC on this device. Type the band's tag ID (test mode):", "");
         const value = (typed || "").trim();
         if (value.length >= 4) {
-          return { tagId: this.formatTagId(value), success: true };
+          return { tagId: this.formatTagId(value) || value.toUpperCase(), success: true };
         }
         return { tagId: '', success: false, error: 'No tag ID entered.' };
       }
@@ -205,6 +198,14 @@ export class NFCManager {
           console.log('✅ NFC tag detected!', event);
           const tagId = this.extractTagId(event);
           console.log('Extracted tag ID:', tagId);
+          if (!tagId) {
+            resolveOnce({
+              tagId: '',
+              success: false,
+              error: 'This band did not provide a valid NFC UID. Try another scan or use the staff wallet lookup.',
+            });
+            return;
+          }
           
           // Add success vibration when tag is detected
           this.vibrate([200, 100, 200]);
@@ -393,47 +394,17 @@ export class NFCManager {
    * Extract tag ID from NFC reading event
    */
   private extractTagId(event: NFCReadingEvent): string {
-    try {
-      // Try to get serial number first
-      if (event.serialNumber) {
-        return this.formatTagId(event.serialNumber);
-      }
-      
-      // Fallback to generating ID from records
-      if (event.message && event.message.records) {
-        const record = event.message.records[0];
-        if (record && record.data) {
-          const dataView = record.data instanceof DataView ? record.data : new DataView(record.data);
-          let id = '';
-          for (let i = 0; i < Math.min(4, dataView.byteLength); i++) {
-            id += dataView.getUint8(i).toString(16).padStart(2, '0');
-          }
-          return this.formatTagId(id);
-        }
-      }
-      
-      // Final fallback - return empty string for production
-      return '';
-      
-    } catch (error) {
-      console.warn('Error extracting tag ID:', error);
-      return '';
-    }
+    // Tag-written records are never an identity source, even when the UID is missing.
+    return typeof event.serialNumber === 'string' ? this.formatTagId(event.serialNumber) : '';
   }
 
   /**
-   * Format tag ID for consistent display
+   * Canonical wallet identity: retain every UID byte. Shorten only in the UI.
    */
   private formatTagId(rawId: string): string {
-    // Remove any non-alphanumeric characters and convert to uppercase
-    const cleanId = rawId.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-    
-    // Ensure it starts with NFC prefix
-    if (cleanId.startsWith('NFC')) {
-      return cleanId.substring(0, 9); // NFC + 6 characters
-    } else {
-      return `NFC${cleanId.substring(0, 6)}`;
-    }
+    const uid = rawId.trim().replace(/^NFC/i, '');
+    if (!/^[0-9a-f]{2}(?:[\s:-]?[0-9a-f]{2})*$/i.test(uid)) return '';
+    return `NFC${uid.replace(/[\s:-]/g, '').toUpperCase()}`;
   }
 
   /**
