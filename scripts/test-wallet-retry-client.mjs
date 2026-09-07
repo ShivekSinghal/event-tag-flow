@@ -75,7 +75,11 @@ test('unreadable response keeps operation; definitive rejection unlocks a new pa
     await act(async()=>{response.resolve({data,error:null});await attempt;});
   }
   assert.equal(h.current.result.status,'rejected');assert.equal(h.current.blocked,false);
+  assert.equal(h.current.resultRequest.wallet_id,request.wallet_id,'a definitive rejection retains the wallet for its top-up QR');
   assert.equal(h.calls[0].args.p_operation_id,h.calls[1].args.p_operation_id);
+  await act(async()=>h.current.clearRejectedResult());
+  assert.equal(h.current.result,null);
+  assert.equal(h.current.resultRequest,null,'starting another guest cannot show the old ticket QR');
   await h.unmount();
 });
 
@@ -93,6 +97,7 @@ test('a response arriving after navigation reaches the newly mounted operator sc
   await h.unmount();
   h.setUser({id:randomUUID()});await h.mount();
   assert.equal(h.current.result,null,'other operators cannot see the receipt');
+  assert.equal(h.current.resultRequest,null,'other operators cannot inherit a ticket link');
   await h.unmount();
 });
 

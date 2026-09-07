@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatCoins, formatInr, getCoinBalance } from "@/lib/coins";
 import { useWalletOperation } from "@/hooks/use-wallet-operation";
 import { WalletOperationStatus } from "@/components/wallet/WalletOperationStatus";
+import { TicketTopUpQr } from "@/components/wallet/TicketTopUpQr";
 import { 
   Wallet, 
   Scan, 
@@ -49,6 +50,9 @@ export default function TopUp() {
   const [selectedPackageId, setSelectedPackageId] = useState("");
   const [paymentReference, setPaymentReference] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isWalletLoading, setIsWalletLoading] = useState(false);
+  const walletLoadGeneration = useRef(0);
+  useEffect(() => () => { walletLoadGeneration.current += 1; nfcManager.stopScanning(); }, []);
 
   const fetchCoinPackages = useCallback(async () => {
     const { data, error } = await supabase
@@ -75,7 +79,13 @@ export default function TopUp() {
 
   // Shared by the NFC scan and the "Can't scan?" lookup: load one wallet row and show it.
   const loadWallet = async (column: "tag_id" | "id", value: string, viaLookup: boolean) => {
+    walletOperation.clearRejectedResult();
+    const generation = ++walletLoadGeneration.current;
+    setScannedWallet(null);
+    setIsWalletLoading(true);
     const { data: wallet, error } = await supabase.from("wallets").select("*").eq(column, value).single();
+    if (generation !== walletLoadGeneration.current) return;
+    setIsWalletLoading(false);
 
     if (error || !wallet) {
       toast({
@@ -112,10 +122,15 @@ export default function TopUp() {
   };
 
   const handleScanWallet = async () => {
+    walletOperation.clearRejectedResult();
+    const generation = ++walletLoadGeneration.current;
+    setScannedWallet(null);
+    setIsWalletLoading(false);
     setIsScanning(true);
     
     try {
       const result = await nfcManager.startScanning();
+      if (generation !== walletLoadGeneration.current) return;
       
       if (result.success) {
         await loadWallet("tag_id", result.tagId, false);
@@ -260,13 +275,17 @@ export default function TopUp() {
         </CardContent>
       </Card>
 
+      {!isScanning && (isWalletLoading
+        ? <p role="status" className="py-5 text-sm text-muted-foreground">Loading band...</p>
+        : <TicketTopUpQr walletId={scannedWallet?.id} />)}
+
       {/* Top-Up Amount Card */}
       {scannedWallet && (
         <Card className="shadow-card">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
               <Plus className="w-5 h-5 text-primary" />
-              <span>Select Coin Package</span>
+              <span>Counter payment: select coin package</span>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">

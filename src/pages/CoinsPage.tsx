@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { selectLinkedBand } from "@/lib/ticketTopUp";
 import { useToast } from "@/hooks/use-toast";
 import { toIntegerCoins } from "@/lib/coins";
 import { formatEventPrice } from "@/lib/eventPackages";
@@ -116,8 +118,9 @@ const stepperButtonClass = `h-11 w-11 rounded-full ${outlineButtonClass}`;
 
 export default function CoinsPage() {
   const { toast } = useToast();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const refFromUrl = (searchParams.get("ref") || "").trim().toUpperCase();
+  const bandFromUrl = (searchParams.get("band") || "").trim().toLowerCase() || null;
 
   const [refInput, setRefInput] = useState(refFromUrl);
   const [contactInput, setContactInput] = useState("");
@@ -125,6 +128,11 @@ export default function CoinsPage() {
   const [lookup, setLookup] = useState<PartyLookup | null>(null);
   const [proof, setProof] = useState(""); // what the visitor typed; re-sent as proof when ordering
   const [selectedBandId, setSelectedBandId] = useState<string | null>(null);
+  const [linkedBandRequested, setLinkedBandRequested] = useState(false);
+  const [bandConfirmed, setBandConfirmed] = useState(false);
+  const [bandWarning, setBandWarning] = useState("");
+  const lookupGeneration = useRef(0);
+  useEffect(() => () => { lookupGeneration.current += 1; }, []);
 
   const [packs, setPacks] = useState<CoinPack[]>([]);
   const [packsLoading, setPacksLoading] = useState(true);
@@ -189,7 +197,7 @@ export default function CoinsPage() {
   }, [toast]);
 
   const runLookup = useCallback(
-    async (orderRef: string, contact: string) => {
+    async (orderRef: string, contact: string, preferredBand: string | null = null) => {
       const cleanRef = orderRef.trim().toUpperCase();
       const cleanContact = contact.trim();
       const useRef = cleanRef.length >= 6;
@@ -199,11 +207,18 @@ export default function CoinsPage() {
         return;
       }
 
+      const generation = ++lookupGeneration.current;
       setLookupState("loading");
+      setLookup(null);
+      setSelectedBandId(null);
+      setBandConfirmed(false);
+      setBandWarning("");
+      setLinkedBandRequested(Boolean(preferredBand));
       const { data, error } = await supabase.rpc("lookup_party_order", {
         p_order_ref: useRef ? cleanRef : "",
         p_contact: cleanContact,
       });
+      if (generation !== lookupGeneration.current) return;
 
       if (error) {
         setLookupState("idle");
@@ -213,7 +228,9 @@ export default function CoinsPage() {
 
       const parsed = parseLookup(data);
       setLookup(parsed);
-      setSelectedBandId(parsed ? parsed.matched_wallet_id ?? (parsed.bands.length === 1 ? parsed.bands[0].wallet_id : null) : null);
+      const selected = parsed ? selectLinkedBand(parsed.bands, preferredBand, parsed.matched_wallet_id) : null;
+      setSelectedBandId(selected);
+      if (preferredBand && parsed && !selected) setBandWarning("The band in this link is not available on this ticket. Ask the counter to check it or choose your active band below.");
       setProof(useRef ? cleanRef : cleanContact);
       setLookupState(parsed ? "found" : "not_found");
     },
@@ -222,9 +239,11 @@ export default function CoinsPage() {
 
   // Auto-run when arriving from the confirmation email link.
   useEffect(() => {
-    if (refFromUrl.length >= 6) void runLookup(refFromUrl, "");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (refFromUrl.length >= 6) {
+      setRefInput(refFromUrl);
+      void runLookup(refFromUrl, "", bandFromUrl);
+    }
+  }, [refFromUrl, bandFromUrl, runLookup]);
 
   const handleLookupSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -232,6 +251,12 @@ export default function CoinsPage() {
   };
 
   const resetLookup = () => {
+    lookupGeneration.current += 1;
+    const next = new URLSearchParams(searchParams);
+    next.delete("ref"); next.delete("band");
+    setSearchParams(next, { replace: true });
+    setRefInput(""); setContactInput(""); setSelectedBandId(null);
+    setLinkedBandRequested(false); setBandConfirmed(false); setBandWarning("");
     setLookup(null);
     setLookupState("idle");
     setPaid(null);
@@ -259,6 +284,7 @@ export default function CoinsPage() {
 
   const handlePay = async () => {
     if (!lookup || selection.lines.length === 0 || isPaying) return;
+    if (linkedBandRequested && (!selectedBandId || !bandConfirmed)) return;
     if (lookup.bands.length > 1 && !selectedBandId) {
       toast({ title: "Pick a band first", description: "Choose whose wristband these coins are for.", variant: "destructive" });
       return;
@@ -321,7 +347,7 @@ export default function CoinsPage() {
 
       setPaid({ orderId: order.order_id, coins: selection.totalCoins, amountInr, isPaid: result.isPaid, provider: result.provider });
       setQuantities({});
-      void runLookup(refInput, contactInput); // refresh coins_purchased
+      void runLookup(refInput, contactInput, linkedBandRequested ? selectedBandId : null); // refresh coins_purchased
     } catch (error) {
       toast({ title: "Payment not completed", description: getPaymentErrorMessage(error, activeProvider), variant: "destructive" });
     } finally {
@@ -347,7 +373,7 @@ export default function CoinsPage() {
             <Badge className="mb-3 bg-primary/15 text-primary hover:bg-primary/15">Ticket holders only</Badge>
             <h1 className="text-3xl font-extrabold leading-tight sm:text-4xl">Pink'd Coins</h1>
             <p className="mt-2 text-sm text-white/60">
-              The party runs on Pink'd Coins. Buy them now, load them onto your wristband at the gate.
+              {lookup?.bands.length ? "The party runs on Pink'd Coins. Choose a pack and confirm your band. Coins are added after payment confirmation." : "The party runs on Pink'd Coins. Buy them now, load them onto your wristband at the gate."}
             </p>
           </div>
         </header>
@@ -507,11 +533,12 @@ export default function CoinsPage() {
                       Order <span className="font-mono font-semibold text-white">{lookup.order_ref}</span> · {lookup.party_entries} party {entryWord}
                     </div>
                   </div>
-                  <Button variant="ghost" size="sm" onClick={resetLookup} className="text-white/60 hover:bg-white/10 hover:text-white">
+                  <Button variant="ghost" size="sm" disabled={isPaying} onClick={resetLookup} className="text-white/60 hover:bg-white/10 hover:text-white">
                     Not you?
                   </Button>
                 </div>
-                {lookup.bands.length > 1 ? (
+                {bandWarning && <p role="alert" className="mt-3 text-sm text-amber-300">{bandWarning}</p>}
+                {lookup.bands.length > 1 || (linkedBandRequested && lookup.bands.length > 0) ? (
                   <div className="mt-4 rounded-xl border border-primary/30 bg-primary/10 p-3 text-sm">
                     <div className="mb-2 font-semibold">Whose band are these coins for?</div>
                     <div className="grid gap-2">
@@ -521,7 +548,8 @@ export default function CoinsPage() {
                           <button
                             type="button"
                             key={band.wallet_id}
-                            onClick={() => setSelectedBandId(band.wallet_id)}
+                            disabled={isPaying}
+                            onClick={() => { setSelectedBandId(band.wallet_id); setBandConfirmed(false); setBandWarning(""); }}
                             className={`flex items-center justify-between rounded-lg border px-3 py-2 text-left transition ${
                               active ? "border-primary bg-primary/20" : "border-white/15 bg-black/30 hover:border-white/40"
                             }`}
@@ -551,6 +579,10 @@ export default function CoinsPage() {
                     <span>{formatCoinLabel(lookup.coins_waiting)} already bought online, waiting to load at the gate.</span>
                   </div>
                 ) : null}
+                {linkedBandRequested && selectedBandId && <div className="mt-4 flex items-start gap-3">
+                  <Checkbox id="confirm-coin-band" checked={bandConfirmed} disabled={isPaying} onCheckedChange={checked => setBandConfirmed(checked === true)} />
+                  <Label htmlFor="confirm-coin-band" className="text-sm leading-5">I confirm these coins are for {lookup.bands.find(band => band.wallet_id === selectedBandId)?.name}'s selected band.</Label>
+                </div>}
                 <p className="mt-4 text-sm leading-relaxed text-white/60">
                   Your ticket already covers entry, the welcome drink and the four free games: Beer Pong, Jamaal
                   Challenge, Red Flag Green Flag and Squid Games. Everything else on the night runs on Pink'd Coins.
@@ -635,7 +667,7 @@ export default function CoinsPage() {
                   <Button
                     type="button"
                     size="lg"
-                    disabled={selection.lines.length === 0 || isPaying || (lookup.bands.length > 1 && !selectedBandId)}
+                    disabled={selection.lines.length === 0 || isPaying || (lookup.bands.length > 1 && !selectedBandId) || (linkedBandRequested && (!selectedBandId || !bandConfirmed))}
                     onClick={() => void handlePay()}
                     className="min-h-[52px] rounded-xl text-base font-bold"
                   >

@@ -152,7 +152,7 @@ export default function POS() {
   }, []);
   const roundScanGenerationRef = useRef(0);
   const [scannedWallet, setScannedWallet] = useState<ScannedWallet | null>(null);
-  const [insufficientCoins, setInsufficientCoins] = useState<{ balance: number; required: number } | null>(null);
+  const [insufficientCoins, setInsufficientCoins] = useState<{ balance: number; required: number; walletId: string } | null>(null);
   const [selectedGame, setSelectedGame] = useState<Game | null>(null);
   const [selectedDrink, setSelectedDrink] = useState<DrinkItem | null>(null);
   const [selectedCustomItem, setSelectedCustomItem] = useState<CustomItem | null>(null);
@@ -298,6 +298,7 @@ export default function POS() {
   }, [permissionsLoading, permittedGameIds]);
 
   const handleGameSelect = async (game: Game) => {
+    walletOperation.clearRejectedResult();
     if (!game.available) {
       toast({
         title: "Game Not Available",
@@ -424,6 +425,8 @@ export default function POS() {
   ) => {
     if (paymentInFlightRef.current) return;
     setLookupActive(false);
+    walletOperation.clearRejectedResult();
+    setInsufficientCoins(null);
     setScannedWallet(null);
     setLookupKey((key) => key + 1);
     setIsScanning(true);
@@ -495,6 +498,8 @@ export default function POS() {
 
   const cancelSaleScan = () => {
     if (paymentInFlightRef.current) return false;
+    walletOperation.clearRejectedResult();
+    setInsufficientCoins(null);
     scanGenerationRef.current += 1;
     nfcManager.stopScanning();
     setIsScanning(false);
@@ -556,7 +561,7 @@ export default function POS() {
     if (generation !== scanGenerationRef.current || !pendingSaleRef.current || paymentInFlightRef.current || walletOperation.blocked) return;
     setInsufficientCoins(null);
     if (price > wallet.currentBalance) {
-      setInsufficientCoins({ balance: wallet.currentBalance, required: price });
+      setInsufficientCoins({ balance: wallet.currentBalance, required: price, walletId: wallet.id });
       toast({
         title: "Insufficient Pink'd Coins",
         description: `Balance: ${formatCoins(wallet.currentBalance)} | Required: ${formatCoins(price)}`,

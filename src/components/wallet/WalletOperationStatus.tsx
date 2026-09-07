@@ -32,6 +32,6 @@ export function WalletOperationStatus({ operation, showSpendReceipt = true }: { 
       </> : <h2 className="font-bold">Payment unavailable</h2>}
       {error && <p className="text-sm text-muted-foreground">{error}</p>}
     </section>
-    {result?.status === "rejected" && /insufficient/i.test(result.message || "") && <InsufficientCoinsNotice />}</>
+    {result?.status === "rejected" && /insufficient/i.test(result.message || "") && <InsufficientCoinsNotice walletId={operation.resultRequest?.wallet_id} />}</>
   );
 }

@@ -107,6 +107,7 @@ function posHarness() {
     toast: (message) => messages.push(message), addCard() {},
     walletOperation: {
       blocked: false,
+      clearRejectedResult() {},
       submit(request) {
         calls.push({ name: 'execute_wallet_operation', args: { p_request: request } });
         return payment.promise.then((response) => response.data);

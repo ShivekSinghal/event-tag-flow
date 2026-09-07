@@ -10,6 +10,7 @@ import {
 const inFlight = new Set<string>();
 // Keep a response visible if its original screen unmounts while the request runs.
 const completedResults = new Map<string, WalletOperationResult>();
+const completedRequests = new Map<string, WalletOperationRequest>();
 const changedEvent = "pinkd-wallet-operation-changed";
 
 export function useWalletOperation() {
@@ -23,6 +24,7 @@ export function useWalletOperation() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<WalletOperationResult | null>(null);
+  const [resultRequest, setResultRequest] = useState<WalletOperationRequest | null>(null);
   const [loadedOperator, setLoadedOperator] = useState<string | undefined>();
 
   const refresh = useCallback(() => {
@@ -35,6 +37,7 @@ export function useWalletOperation() {
     }
     setBusy(Boolean(operator && inFlight.has(operator)));
     setResult(operator ? completedResults.get(operator) || null : null);
+    setResultRequest(operator ? completedRequests.get(operator) || null : null);
     setLoadedOperator(operator);
   }, [operator]);
 
@@ -50,6 +53,7 @@ export function useWalletOperation() {
     if (!operator || inFlight.has(operator)) return null;
     inFlight.add(operator);
     completedResults.delete(operator);
+    completedRequests.delete(operator);
     setBusy(true);
     setError(null);
     setResult(null);
@@ -77,6 +81,7 @@ export function useWalletOperation() {
       savePosReceipt(sessionStorage, operation, outcome);
       clearWalletOperation(sessionStorage, operation);
       completedResults.set(operator, outcome);
+      completedRequests.set(operator, operation.request);
       if (operatorRef.current === operator) {
         setPending(null);
         setResult(outcome);
@@ -94,11 +99,23 @@ export function useWalletOperation() {
     }
   }, [operator, refresh]);
 
+  const clearRejectedResult = useCallback(() => {
+    if (!operator || inFlight.has(operator) || completedResults.get(operator)?.status !== "rejected") return;
+    // Only dismiss a definitive rejection, never a pending operation or successful receipt.
+    completedResults.delete(operator);
+    completedRequests.delete(operator);
+    setError(null);
+    refresh();
+    window.dispatchEvent(new Event(changedEvent));
+  }, [operator, refresh]);
+
   return {
     pending: loadedOperator === operator ? pending : null,
     lastSale: loadedOperator === operator ? lastSale : null,
     busy, error: loadedOperator === operator ? storageError || error : null,
     result: loadedOperator === operator ? result : null, submit,
+    resultRequest: loadedOperator === operator ? resultRequest : null,
+    clearRejectedResult,
     blocked: !operator || loadedOperator !== operator || Boolean(pending || storageError || busy),
   };
 }
