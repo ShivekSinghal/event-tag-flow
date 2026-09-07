@@ -14,6 +14,18 @@ export type Database = {
   }
   public: {
     Tables: {
+      wallet_operations: {
+        Row: { operation_id: string; operator_id: string; operation_kind: string; request: Json; result: Json | null; created_at: string }
+        Insert: { operation_id: string; operator_id: string; operation_kind: string; request: Json; result?: Json | null; created_at?: string }
+        Update: { operation_id?: string; operator_id?: string; operation_kind?: string; request?: Json; result?: Json | null; created_at?: string }
+        Relationships: [{ foreignKeyName: "wallet_operations_operator_id_fkey"; columns: ["operator_id"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] }]
+      }
+      manual_topup_receipts: {
+        Row: { canonical_reference: string; transaction_id: string; created_at: string }
+        Insert: { canonical_reference: string; transaction_id: string; created_at?: string }
+        Update: { canonical_reference?: string; transaction_id?: string; created_at?: string }
+        Relationships: [{ foreignKeyName: "manual_topup_receipts_transaction_id_fkey"; columns: ["transaction_id"]; isOneToOne: false; referencedRelation: "transactions"; referencedColumns: ["id"] }]
+      }
       bookings: {
         Row: {
           amount: number
@@ -1028,6 +1040,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      canonical_manual_receipt: {
+        Args: { p_reference: string }
+        Returns: string
+      }
+      execute_wallet_operation: {
+        Args: { p_operation_id: string; p_request: Json }
+        Returns: Json
+      }
       create_event_order: {
         Args: {
           p_cart_items: Json

@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "test:wallet-retries": "node --test scripts/pos-scan.test.mjs scripts/test-wallet-retries.mjs scripts/test-wallet-retry-client.mjs",
     "test:live-sales": "node --test scripts/test-live-sales*.mjs",
     "dev": "vite",
     "build": "vite build",

@@ -9,8 +9,9 @@ import { nfcManager } from "@/utils/nfc";
 import { TagIdentifier } from "@/components/wallet/TagIdentifier";
 import { FindWalletFallback, LOOKUP_REFERENCE_TAG, type FoundWallet } from "@/components/wallet/FindWalletFallback";
 import { supabase } from "@/integrations/supabase/client";
-import { useFlyingCards } from "@/hooks/use-flying-cards";
 import { formatCoins, formatInr, getCoinBalance } from "@/lib/coins";
+import { useWalletOperation } from "@/hooks/use-wallet-operation";
+import { WalletOperationStatus } from "@/components/wallet/WalletOperationStatus";
 import { 
   Wallet, 
   Scan, 
@@ -39,8 +40,8 @@ interface ScannedWallet {
 }
 
 export default function TopUp() {
+  const walletOperation = useWalletOperation();
   const { toast } = useToast();
-  const { addCard } = useFlyingCards();
   const [isScanning, setIsScanning] = useState(false);
   const [viaLookup, setViaLookup] = useState(false);
   const [scannedWallet, setScannedWallet] = useState<ScannedWallet | null>(null);
@@ -137,6 +138,7 @@ export default function TopUp() {
   };
 
   const handleTopUp = async () => {
+    if (walletOperation.blocked) return;
     const selectedPackage = coinPackages.find((pkg) => pkg.id === selectedPackageId);
 
     if (!scannedWallet || !selectedPackage) {
@@ -162,44 +164,21 @@ export default function TopUp() {
     try {
       const inrAmount = Number(selectedPackage.inr_amount);
       const coinAmount = Number(selectedPackage.coin_amount);
-      const { data: topUpResult, error: topUpError } = await supabase
-        .rpc("credit_wallet_coins", {
-          p_wallet_id: scannedWallet.id,
-          p_coin_package_id: selectedPackage.id,
-          p_payment_reference: viaLookup ? `${paymentReference.trim()} ${LOOKUP_REFERENCE_TAG}` : paymentReference.trim(),
-        })
-        .single();
-
-      if (topUpError) {
-        throw topUpError;
-      }
-
-      const newBalance = Number(topUpResult.new_coin_balance);
-      
-      toast({
-        title: "Pink'd Coins Credited",
-        description: `${formatCoins(coinAmount)} added after ${formatInr(inrAmount)} payment. New balance: ${formatCoins(newBalance)}.`,
+      await walletOperation.submit({
+        kind: "topup",
+        wallet_id: scannedWallet.id,
+        coin_package_id: selectedPackage.id,
+        expected_coin_amount: coinAmount,
+        expected_inr_amount: inrAmount,
+        reference: viaLookup ? `${paymentReference.trim()} ${LOOKUP_REFERENCE_TAG}` : paymentReference.trim(),
       });
-
-      // Show flying card animation
-      addCard({
-        amount: coinAmount,
-        name: scannedWallet.attendeeName,
-        studio: "Staff Terminal", // You can get this from user context if needed
-        type: "topup"
-      });
-
-      // Update local state
-      setScannedWallet({
-        ...scannedWallet,
-        currentBalance: newBalance
-      });
+      setScannedWallet(null);
       setSelectedPackageId("");
       setPaymentReference("");
     } catch (error) {
       toast({
-        title: "Top-Up Failed",
-        description: "There was an error processing the top-up. Please try again.",
+        title: "Payment status unknown",
+        description: "Check the saved top-up before crediting again.",
         variant: "destructive",
       });
     } finally {
@@ -209,6 +188,8 @@ export default function TopUp() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-8">
+      <WalletOperationStatus operation={walletOperation} />
+      <fieldset disabled={walletOperation.blocked} className="min-w-0 space-y-8 disabled:opacity-60">
       {/* Header */}
       <div className="text-center">
         <h1 className="text-3xl font-bold text-foreground">Pink'd Coin Top-Up</h1>
@@ -362,6 +343,7 @@ export default function TopUp() {
           </div>
         </CardContent>
       </Card>
+      </fieldset>
     </div>
   );
 }

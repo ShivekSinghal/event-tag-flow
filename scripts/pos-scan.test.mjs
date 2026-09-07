@@ -105,6 +105,13 @@ function posHarness() {
     formatCoins: String, getCoinBalance: (row) => row.coin_balance,
     getErrorDetail: (error, key) => error?.[key], LOOKUP_REFERENCE_TAG: 'via:phone-lookup',
     toast: (message) => messages.push(message), addCard() {},
+    walletOperation: {
+      blocked: false,
+      submit(request) {
+        calls.push({ name: 'execute_wallet_operation', args: { p_request: request } });
+        return payment.promise.then((response) => response.data);
+      },
+    },
     supabase: {
       from(table) {
         const query = {
@@ -243,7 +250,7 @@ test('opening lookup aborts NFC and keeps the sale beyond 30 seconds; confirmati
   const second = h.handlers.handleLookupSelect({ wallet_id: wallet.id });
   await flush();
   assert.equal(h.calls.length, 1);
-  assert.match(h.calls[0].args.p_reference, /via:phone-lookup/);
+  assert.match(h.calls[0].args.p_request.reference, /via:phone-lookup/);
   assert.equal(h.handlers.cancelSaleScan(), false, 'cannot take over an already submitted debit');
   h.payment.resolve({ data: { new_coin_balance: 1250 }, error: null });
   await Promise.all([first, second]);
@@ -285,7 +292,7 @@ test('timeout retains the sale; explicit retry scans normally and invalidates pe
   h.scanner.readers[1].read();
   await flush();
   assert.equal(h.calls.length, 1);
-  assert.doesNotMatch(h.calls[0].args.p_reference, /via:phone-lookup/);
+  assert.doesNotMatch(h.calls[0].args.p_request.reference, /via:phone-lookup/);
   h.payment.resolve({ data: { new_coin_balance: 1250 }, error: null });
   await flush();
 });

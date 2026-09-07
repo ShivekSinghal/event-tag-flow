@@ -12,6 +12,8 @@ import { nfcManager, allowTypedTag } from "@/utils/nfc";
 import { FindWalletFallback, LOOKUP_REFERENCE_TAG, type FoundWallet } from "@/components/wallet/FindWalletFallback";
 import { TagIdentifier } from "@/components/wallet/TagIdentifier";
 import { formatCoins, getCoinBalance } from "@/lib/coins";
+import { useWalletOperation } from "@/hooks/use-wallet-operation";
+import { WalletOperationStatus } from "@/components/wallet/WalletOperationStatus";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Package, CreditCard, DollarSign, Scan, AlertCircle, ArrowRight, CheckCircle, Calculator, Ticket } from "lucide-react";
 
@@ -122,6 +124,7 @@ function getErrorDetail(error: unknown, key: "message" | "code" | "details" | "h
 }
 
 export default function POS() {
+  const walletOperation = useWalletOperation();
   const { toast } = useToast();
   const { addCard } = useFlyingCards();
   const {
@@ -547,7 +550,7 @@ export default function POS() {
     viaLookup: boolean,
     generation: number,
   ) => {
-    if (generation !== scanGenerationRef.current || !pendingSaleRef.current || paymentInFlightRef.current) return;
+    if (generation !== scanGenerationRef.current || !pendingSaleRef.current || paymentInFlightRef.current || walletOperation.blocked) return;
     if (price > wallet.currentBalance) {
       toast({
         title: "Insufficient Pink'd Coins",
@@ -562,40 +565,17 @@ export default function POS() {
     setIsProcessing(true);
 
     try {
-      const { data: paymentResult, error: paymentError } = await supabase
-        .rpc("spend_wallet_coins", {
-          p_wallet_id: wallet.id,
-          p_coin_amount: Math.round(price),
-          p_transaction_type: transactionType,
-          p_item_name: itemName,
-          p_item_category: transactionType,
-          p_game_id: gameId,
-          p_reference: `${transactionType.toUpperCase()}_${gameId || selectedDrink?.id || selectedCustomItem?.id || Date.now()}${viaLookup ? ` ${LOOKUP_REFERENCE_TAG}` : ""}`,
-        })
-        .single();
-
-      if (paymentError) {
-        throw paymentError;
-      }
-
-      const newBalance = Number(paymentResult.new_coin_balance);
-      pendingSaleRef.current = null;
-
-      toast({
-        title: "Payment Successful!",
-        description: `${formatCoins(price)} charged for ${itemName}. New balance: ${formatCoins(newBalance)}`,
+      await walletOperation.submit({
+        kind: "spend",
+        wallet_id: wallet.id,
+        coin_amount: Math.round(price),
+        transaction_type: transactionType,
+        item_name: itemName,
+        item_category: transactionType,
+        game_id: gameId,
+        reference: `${transactionType.toUpperCase()}_${gameId || selectedDrink?.id || selectedCustomItem?.id || Date.now()}${viaLookup ? ` ${LOOKUP_REFERENCE_TAG}` : ""}`,
       });
-
-      // Show flying card animation
-      addCard({
-        amount: price,
-        name: wallet.attendeeName,
-        studio: selectedGame?.studio || selectedDrink?.category || selectedCustomItem?.type || "POS",
-        type: "sale",
-      });
-
-      // Reset state
-      setScannedWallet({ ...wallet, currentBalance: newBalance });
+      // The durable operation panel owns recovery and the receipt, even after a refresh.
       resetTransaction();
     } catch (error) {
       console.error("Payment processing error:", error);
@@ -607,8 +587,8 @@ export default function POS() {
       });
 
       toast({
-        title: "Payment Failed",
-        description: `Error: ${getErrorDetail(error, "message") || "There was an error processing the payment. Please try again."}`,
+        title: "Payment status unknown",
+        description: "Check the saved payment before trying another charge.",
         variant: "destructive",
       });
     } finally {
@@ -815,6 +795,8 @@ export default function POS() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-4 px-4 sm:px-6 lg:px-8">
+      <WalletOperationStatus operation={walletOperation} />
+      <fieldset disabled={walletOperation.blocked} className="min-w-0 space-y-4 disabled:opacity-60">
       {/* Header */}
       <div className="text-center py-4">
         <div className="flex items-center justify-center space-x-3 mb-2">
@@ -1638,6 +1620,7 @@ export default function POS() {
             </div>
           </>
         )}
+      </fieldset>
     </div>
   );
 }
