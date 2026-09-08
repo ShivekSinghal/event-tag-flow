@@ -9,7 +9,7 @@ export default function GameRules() {
   const [query, setQuery] = useState("");
   const visibleGames = gameRules.filter((game) =>
     (group === "All games" || game.group === group)
-    && game.name.toLowerCase().includes(query.trim().toLowerCase()),
+    && `${game.name} ${game.aliases ?? ""}`.toLowerCase().includes(query.trim().toLowerCase()),
   );
 
   useEffect(() => {
@@ -65,7 +65,11 @@ export default function GameRules() {
               {game.prize && <p className="rules-prize"><Trophy size={15} />{game.prize}</p>}
               <details>
                 <summary>How to play <ChevronDown size={18} /></summary>
-                <ol>{game.rules.map((rule) => <li key={rule}>{rule}</li>)}</ol>
+                <ol>{game.rules.map((rule) => (
+                  <li key={typeof rule === "string" ? rule : rule.title}>
+                    {typeof rule === "string" ? rule : <><strong className="rules-step-title">{rule.title}</strong><p>{rule.body}</p></>}
+                  </li>
+                ))}</ol>
                 {game.note && <p className="rules-note">{game.note}</p>}
               </details>
             </article>
@@ -77,6 +81,7 @@ export default function GameRules() {
           <p>Paid play starts after the runner confirms your coin payment. Once a game starts, its entry fee is non-refundable. Free games need no coin payment or NFC scan.</p>
           <p>Listed game fees follow the event setup; confirm the fee and local format with the runner before paying. Donations start at 150 whole coins. Party entry is 18+.</p>
           <Link to="/contact-us">Ask the PINK'D team <ArrowUpRight size={15} /></Link>
+          <a className="rules-qr-link" href="/game-rules-qr.png" download="PINKD-Game-Rules-QR.png">Download game rules QR <ArrowUpRight size={15} /></a>
         </footer>
       </div>
     </main>

@@ -30,9 +30,21 @@ test('rewards and fees do not promise Pinkredibles for free or donation activiti
 
 test('latest Minute to Win It sequence supersedes the original SOP', () => {
   const game = gameRules.find(game => game.id === 'minute-to-win-it');
-  assert.match(game.rules[1], /7 or more/);
-  assert.match(game.note, /roll dice, 7 ball taps, stack 7 cups, drink, flip the cup/);
-  assert.match(game.outcome, /before the timer expires/);
+  assert.match(game.rules[1].body, /7 or more/);
+  assert.match(game.rules[3].body, /dice total = your cup count/);
+  assert.match(game.rules[8].body, /only the fastest person/);
+  assert.equal(game.aliases, 'Minute to Win It');
+  assert.equal(game.name, 'Minute to Minute');
+});
+
+test('new Bombastic and Hurdle mechanics replace the old SOP', () => {
+  const bomb = gameRules.find(game => game.id === 'bombastic');
+  assert.match(bomb.rules[0].body, /5 players. One line/);
+  assert.match(bomb.rules[2].body, /repeats it and adds/);
+  const hurdle = gameRules.find(game => game.id === 'hurdle');
+  assert.match(hurdle.rules[3].body, /\+7 seconds/);
+  assert.match(hurdle.rules[4].body, /lemon/);
+  assert.match(hurdle.rules[6].body, /10 full seconds/);
 });
 
 test('route is public and linked from the landing footer', () => {
