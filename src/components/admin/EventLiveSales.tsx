@@ -3,6 +3,8 @@ import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { AlertTriangle, Maximize2, Minimize2, RefreshCw } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLiveEventSales } from "@/hooks/use-live-event-sales";
+import { useEventAdmissions } from "@/hooks/use-event-admissions";
+import EventAttendance from "@/components/admin/EventAttendance";
 import { formatInr } from "@/lib/coins";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +20,9 @@ export default function EventLiveSales() {
   const { user, isAdmin } = useAuth();
   const { data, error, isPending, isFetching, refetch } = useLiveEventSales(user?.id, isAdmin);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [eventNumber, setEventNumber] = useState<number | null>(null);
+  const [studio, setStudio] = useState("all");
+  const admissions = useEventAdmissions(user?.id, isAdmin, eventNumber);
   const fullscreenButton = useRef<HTMLButtonElement>(null);
 
   if (!isAdmin) return <p role="alert">Admin access is required to view live sales.</p>;
@@ -47,7 +52,7 @@ export default function EventLiveSales() {
           <Badge variant={error ? "destructive" : "secondary"}>
             {error ? "Update delayed" : isFetching ? "Refreshing" : "Live · 15s"}
           </Badge>
-          <Button variant="outline" size="sm" onClick={() => void refetch()} disabled={isFetching}>
+          <Button variant="outline" size="sm" onClick={() => { void refetch(); void admissions.refetch(); }} disabled={isFetching || admissions.isFetching}>
             <RefreshCw className={`mr-2 h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
             Refresh
           </Button>
@@ -78,7 +83,7 @@ export default function EventLiveSales() {
         </div>
       )}
 
-      {data && (
+      {data && eventNumber === null && (
         <>
           {hasWarnings && (
             <div role="alert" className="space-y-1 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm">
@@ -113,7 +118,7 @@ export default function EventLiveSales() {
               {data.sessions.map((session) => (
                 <TableRow key={session.session_number}>
                   <TableCell className="whitespace-normal">
-                    <span className="block font-medium">Intensive {session.session_number}</span>
+                    <button type="button" className="block min-h-10 font-medium text-primary underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2" onClick={() => { setStudio("all"); setEventNumber(session.session_number); }}>Intensive {session.session_number}</button>
                     <span className="text-xs text-muted-foreground">{session.label}</span>
                   </TableCell>
                   <TableCell className="text-right font-semibold tabular-nums">{numberFormat.format(session.sold)}</TableCell>
@@ -125,7 +130,7 @@ export default function EventLiveSales() {
                 </TableRow>
               ))}
               <TableRow>
-                <TableCell className="font-medium">Party</TableCell>
+                <TableCell className="font-medium"><button type="button" className="min-h-10 text-primary underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2" onClick={() => { setStudio("all"); setEventNumber(0); }}>Party</button></TableCell>
                 <TableCell className="text-right font-semibold tabular-nums">{numberFormat.format(data.party.sold)}</TableCell>
                 <TableCell className="text-right tabular-nums">{numberFormat.format(data.party.on_hold)}</TableCell>
                 <TableCell className="text-right text-muted-foreground" aria-label="Party capacity not configured">—</TableCell>
@@ -136,6 +141,13 @@ export default function EventLiveSales() {
           <p className="text-xs text-muted-foreground">On hold: unpaid checkouts with an active reservation. Expired holds do not count as sales.</p>
         </>
       )}
+      {admissions.error && <div role="alert" className="rounded-lg border border-destructive/40 p-3 text-sm">
+        {admissions.error.message} {admissions.data && "Showing the last successful snapshot; check-in is paused until refresh succeeds."}
+        {eventNumber !== null && <Button variant="link" onClick={() => setEventNumber(null)}>Back to sales</Button>}
+      </div>}
+      {admissions.isPending && !admissions.error && <Skeleton aria-label="Loading attendees" className="h-48 w-full" />}
+      {admissions.data && <EventAttendance data={admissions.data} eventNumber={eventNumber}
+        onSelectEvent={setEventNumber} studio={studio} onStudioChange={setStudio} stale={Boolean(admissions.error)} />}
     </section>
   );
 

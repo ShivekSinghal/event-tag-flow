@@ -1086,6 +1086,22 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_event_admission_report: {
+        Args: { p_event_number?: number }
+        Returns: Json
+      }
+      set_event_admission_checkin: {
+        Args: {
+          p_item_id: string
+          p_admission_index: number
+          p_event_number: number
+          p_checked_in: boolean
+          p_expected_checked_in_at?: string
+          p_attendee_name?: string
+          p_attendee_phone?: string
+        }
+        Returns: Json
+      }
       void_pos_sale: {
         Args: { p_operation_id: string; p_request: Json }
         Returns: Json
