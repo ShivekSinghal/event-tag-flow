@@ -1,6 +1,7 @@
 import { pathToFileURL } from 'node:url';
 import { loadEnv } from 'vite';
 import { resolveBrowserSupabaseConfig } from '../src/integrations/supabase/browserConfig.mjs';
+import { checkCashBackend } from './check-cash-backend.mjs';
 
 export async function checkWalletBackend(env, request = fetch) {
   if (!env.VERCEL_ENV && !env.VERCEL) return { skipped: true };
@@ -36,6 +37,7 @@ export async function checkWalletBackend(env, request = fetch) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
     const outcome = await checkWalletBackend({ ...loadEnv('production', process.cwd(), 'VITE_'), ...process.env });
+    await checkCashBackend({ ...loadEnv('production', process.cwd(), 'VITE_'), ...process.env });
     console.log(outcome.skipped ? 'Production backend gate not required for this local/preview build.' : 'Production retry and POS void RPCs are present and protected.');
   } catch (error) {
     console.error(error instanceof Error ? error.message : 'Backend readiness check failed.');

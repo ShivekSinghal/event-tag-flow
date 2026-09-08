@@ -12,7 +12,8 @@ import {
   Menu,
   X,
   TrendingUp,
-  Ticket
+  Ticket,
+  Banknote
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
@@ -27,6 +28,7 @@ const navigation = [
   { name: "Pinkredibles", href: "/pinkredibles", icon: Ticket },
   { name: "Check Coins", href: "/balance", icon: CreditCard },
   { name: "Donation Progress", href: "/donation-progress", icon: TrendingUp },
+  { name: "Cash Desk", href: "/cash-booking", icon: Banknote },
 ];
 
 export default function Layout() {
@@ -40,7 +42,7 @@ export default function Layout() {
   const filteredNavigation = navigation.filter(item => {
     if (isAdmin) return true; // Admin can see all
     if (isStaff) return item.href === '/pos' || item.href === '/pinkredibles'; // Staff can run assigned games and check Pinkredible codes.
-    if (isStudioManager) return item.href === '/issue-tag' || item.href === '/topup' || item.href === '/pinkredibles'; // Studio manager: bands, top up, redeem Pinkredibles at registration
+    if (isStudioManager) return item.href === '/issue-tag' || item.href === '/topup' || item.href === '/pinkredibles' || item.href === '/cash-booking'; // Studio manager: bands, top up, redeem Pinkredibles, cash desk
     return false;
   });
   

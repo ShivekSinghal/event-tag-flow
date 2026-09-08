@@ -29,3 +29,5 @@ verify_jwt = false
 
 [functions.event-confirmation-email]
 verify_jwt = true
+[functions.cash-booking]
+verify_jwt = false

@@ -1,5 +1,6 @@
 import type { FormEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCashCheckout } from "@/hooks/useCashCheckout";
 import { flushSync } from "react-dom";
 import { Link } from "react-router-dom";
 import {
@@ -252,10 +253,15 @@ export default function EventLanding() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [form, setForm] = useState<CheckoutFormState>(initialFormState);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const submissionGuard = useRef(false);
+  const cashCheckout = useCashCheckout();
+  const [cashStudio, setCashStudio] = useState("");
+  const [cashStudios, setCashStudios] = useState<string[]>([]);
   const [confirmedOrder, setConfirmedOrder] = useState<{
     id: string;
     total: number;
-    status: "paid" | "pending";
+    status: "paid" | "pending" | "cash_hold";
+    holdExpiresAt?: string;
     customerEmail: string;
     purchasedItems?: string;
     includesIntensives?: boolean;
@@ -307,6 +313,29 @@ export default function EventLanding() {
   const { status: partyStatus, isLive: partyStatusLive, refresh: refreshPartyStatus } = usePartyStatus();
   const [revealClock, setRevealClock] = useState(() => Date.now());
   const [paymentProvider, setPaymentProvider] = useState<PaymentProvider>("cashfree");
+  // "Pay cash at the studio": only offered at a counter (page opened with ?counter=1, remembered
+  // on that device) — online buyers never see it. 5-minute hold, confirmed by the manager.
+  const [counterMode] = useState(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("counter") === "0") { localStorage.removeItem("pinkd_counter_mode"); return false; }
+      if (params.get("counter") === "1") { localStorage.setItem("pinkd_counter_mode", "1"); return true; }
+      return localStorage.getItem("pinkd_counter_mode") === "1";
+    } catch { return false; }
+  });
+  const [payChoice, setPayChoice] = useState<"online" | "cash">("online");
+  useEffect(() => {
+    if (!counterMode) return;
+    let active = true;
+    void supabase.from("cash_studios").select("name").order("name").then(({ data }) => {
+      if (active) setCashStudios((data || []).map(s => s.name));
+    });
+    return () => { active = false; };
+  }, [counterMode]);
+  const cashReceiptId = cashCheckout.receipt?.order_id;
+  useEffect(() => {
+    if (cashCheckout.pending || cashReceiptId) setIsCartOpen(true);
+  }, [cashCheckout.pending, cashReceiptId]);
   const [paymentSettingsLoading, setPaymentSettingsLoading] = useState(true);
   const [isGatewayActive, setIsGatewayActive] = useState(false);
   const [isGatewayOpening, setIsGatewayOpening] = useState(false);
@@ -616,6 +645,7 @@ export default function EventLanding() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (submissionGuard.current || cashCheckout.pending || cashCheckout.busy) return;
     let paymentAbortController: AbortController | null = null;
 
     if (!hasCheckoutItems) {
@@ -636,6 +666,21 @@ export default function EventLanding() {
       return;
     }
 
+    if (counterMode && payChoice === "cash") {
+      if (!cashStudio) {
+        toast({ title: "Select the cash collection studio", variant: "destructive" });
+        return;
+      }
+      const receipt = await cashCheckout.submit({
+        customer_name: form.name.trim(), customer_phone: form.phone.trim(), customer_email: form.email.trim(),
+        customer_studio: form.studio, cash_studio: cashStudio, attribution: getLandingAttribution() as unknown as Json,
+        cart_items: cartLines.map(line => ({ item_type: "event_package", package_key: line.packageId, quantity: line.quantity, selected_time_slots: line.selectedTimeSlots })),
+      });
+      if (receipt) { setCart([]); setForm(initialFormState); setConfirmedOrder(null); refreshPartyStatus(); }
+      return;
+    }
+
+    submissionGuard.current = true;
     flushSync(() => {
       setIsSubmitting(true);
       setIsCartOpen(false);
@@ -678,6 +723,7 @@ export default function EventLanding() {
 
       const orderId = data.order_id;
       const orderTotal = Number(data.total_amount_inr);
+
       let paymentFlowCompleted = false;
       let attemptedPaymentProvider: PaymentProvider = paymentProvider;
 
@@ -784,6 +830,7 @@ export default function EventLanding() {
         variant: "destructive",
       });
     } finally {
+      submissionGuard.current = false;
       if (paymentAbortControllerRef.current === paymentAbortController) {
         paymentAbortControllerRef.current = null;
       }
@@ -1510,15 +1557,45 @@ export default function EventLanding() {
             </SheetDescription>
           </SheetHeader>
 
+          {(cashCheckout.pending || cashCheckout.error) && (
+            <div role="alert" className="mt-4 space-y-3 rounded-md border border-primary p-3 text-sm">
+              <p>{cashCheckout.error || "A cash reservation needs to be recovered before another payment."}</p>
+              {cashCheckout.pending && <Button type="button" disabled={cashCheckout.busy} onClick={async () => {
+                const receipt = await cashCheckout.submit();
+                if (receipt) { setCart([]); setForm(initialFormState); refreshPartyStatus(); }
+              }}>Check / Retry safely</Button>}
+            </div>
+          )}
+          {cashCheckout.receipt && (
+            <div role="status" className="mt-4 space-y-2 rounded-md border border-primary/40 p-3 text-sm">
+              <strong>{["paid", "completed"].includes(cashCheckout.receipt.payment_status || "") ? "Cash payment confirmed" : "Cash reservation"}</strong>
+              <p>Ref {cashCheckout.receipt.order_id.slice(0, 8).toUpperCase()} · {formatEventPrice(cashCheckout.receipt.total_amount_inr)}</p>
+              <p>{cashCheckout.receipt.cash_studio || cashStudio}</p>
+              {["paid", "completed"].includes(cashCheckout.receipt.payment_status || "") ? (
+                <p>{cashCheckout.receipt.email_sent ? "Confirmation email sent." : "Payment recorded. Confirmation email is queued; do not pay again."}</p>
+              ) : cashCheckout.receipt.payment_status === "cancelled" ? <p>Reservation cancelled. Check with the manager before booking again.</p> : (
+                <p>Reserved until {new Date(cashCheckout.receipt.hold_expires_at).toLocaleTimeString("en-IN")}. Show this reference to the manager. Do not hand over cash after the deadline unless the manager revives the hold.</p>
+              )}
+            </div>
+          )}
+
           {confirmedOrder ? (
             <div className="mt-5 rounded-md border border-success/30 bg-success/10 p-3 text-sm text-success">
               <div className="flex items-center gap-2 font-semibold">
                 <CheckCircle2 className="h-4 w-4" />
-                {confirmedOrder.status === "paid" ? "Payment confirmed" : "Order saved"}
+                {confirmedOrder.status === "paid" ? "Payment confirmed" : confirmedOrder.status === "cash_hold" ? "Pay at the counter now" : "Order saved"}
               </div>
               <div className="mt-1 text-success/85">
                 Ref {confirmedOrder.id.slice(0, 8).toUpperCase()} · {formatEventPrice(confirmedOrder.total)}
               </div>
+              {confirmedOrder.status === "cash_hold" ? (
+                <div className="mt-2 rounded-md border border-success/40 bg-black/30 p-3 text-success">
+                  <div className="text-2xl font-black tracking-widest">{confirmedOrder.id.slice(0, 8).toUpperCase()}</div>
+                  <div className="mt-1 text-sm">
+                    Hand <b>{formatEventPrice(confirmedOrder.total)}</b> in cash to the studio manager and show this reference. They'll email you a 6-digit code — read it out to them and you're booked. Your seat is held for 5 minutes.
+                  </div>
+                </div>
+              ) : null}
               <div className="mt-2 space-y-1 text-success/85">
                 {confirmedOrder.purchasedItems ? <div>{confirmedOrder.purchasedItems}</div> : null}
                 <div>{eventDateLabel}</div>
@@ -1699,9 +1776,45 @@ export default function EventLanding() {
               </div>
             </div>
 
-            <div className="mt-5 rounded-md border border-primary/25 bg-primary/10 p-3 text-sm text-white/72">
-              Secure payment via {getGatewayLabel(paymentProvider)} · UPI, cards and netbanking.
-            </div>
+            {counterMode ? (
+              <div className="mt-5 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPayChoice("online")}
+                  disabled={isSubmitting || cashCheckout.busy || cashCheckout.pending}
+                  aria-pressed={payChoice === "online"}
+                  className={`rounded-md border p-3 text-left text-sm ${payChoice === "online" ? "border-primary bg-primary/10 text-white" : "border-white/12 bg-black/35 text-white/72"}`}
+                >
+                  <div className="font-bold">Pay online</div>
+                  <div className="text-xs opacity-80">{getGatewayLabel(paymentProvider)} · UPI, cards</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPayChoice("cash")}
+                  disabled={isSubmitting || cashCheckout.busy || cashCheckout.pending || !cashStudios.length}
+                  aria-pressed={payChoice === "cash"}
+                  className={`rounded-md border p-3 text-left text-sm ${payChoice === "cash" ? "border-primary bg-primary/10 text-white" : "border-white/12 bg-black/35 text-white/72"}`}
+                >
+                  <div className="font-bold">Cash at the studio</div>
+                  <div className="text-xs opacity-80">Pay the manager now · 5-min hold</div>
+                </button>
+              </div>
+            ) : (
+              <div className="mt-5 rounded-md border border-primary/25 bg-primary/10 p-3 text-sm text-white/72">
+                Secure payment via {getGatewayLabel(paymentProvider)} · UPI, cards and netbanking.
+              </div>
+            )}
+
+            {counterMode && payChoice === "cash" && (
+              <div className="mt-3 space-y-2 text-sm">
+                <label htmlFor="cash-collection-studio">Cash collection studio</label>
+                <select id="cash-collection-studio" value={cashStudio} disabled={cashCheckout.busy || cashCheckout.pending} onChange={e => setCashStudio(e.target.value)} className="h-11 w-full rounded-md border border-white/20 bg-black px-3">
+                  <option value="">Select where you are paying</option>
+                  {cashStudios.map(studio => <option key={studio}>{studio}</option>)}
+                </select>
+                <p>Cash covers tickets and intensives only. Coin packs require online payment.</p>
+              </div>
+            )}
 
             <div className="mt-3 rounded-md border border-white/12 bg-black/35 p-3 text-sm font-bold uppercase leading-6 text-white/78">
               <div className="flex items-start gap-2">
@@ -1715,13 +1828,15 @@ export default function EventLanding() {
 
             <Button
               type="submit"
-              disabled={isSubmitting || !hasCheckoutItems}
+              disabled={isSubmitting || cashCheckout.busy || cashCheckout.pending || !hasCheckoutItems}
               className="mt-5 h-12 w-full bg-primary text-base font-bold text-black hover:bg-primary/90"
             >
               <CreditCard className="mr-2 h-4 w-4" />
-              {isSubmitting || paymentSettingsLoading
-                ? `Opening ${getGatewayLabel(paymentProvider)}...`
-                : `Pay with ${getGatewayLabel(paymentProvider)}`}
+              {counterMode && payChoice === "cash"
+                ? (isSubmitting ? "Reserving…" : "Reserve & pay cash at the counter")
+                : isSubmitting || paymentSettingsLoading
+                  ? `Opening ${getGatewayLabel(paymentProvider)}...`
+                  : `Pay with ${getGatewayLabel(paymentProvider)}`}
             </Button>
 
           </form>
