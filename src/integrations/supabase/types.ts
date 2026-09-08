@@ -678,6 +678,8 @@ export type Database = {
       }
       games: {
         Row: {
+          activity_group: string
+          pricing_mode: string
           available: boolean
           awards_pinkredible: boolean
           created_at: string
@@ -692,6 +694,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          activity_group?: string
+          pricing_mode?: string
           available?: boolean
           awards_pinkredible?: boolean
           players_max?: number | null
@@ -706,6 +710,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          activity_group?: string
+          pricing_mode?: string
           available?: boolean
           awards_pinkredible?: boolean
           players_max?: number | null
