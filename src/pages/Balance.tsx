@@ -31,7 +31,7 @@ type WalletWithTransactions = Tables<"wallets"> & {
 
 interface DisplayTransaction {
   id: string;
-  type: "Coin Purchase" | "Sale";
+  type: "Coin Purchase" | "Sale" | "Refund";
   amount: number;
   inrAmount: number | null;
   description: string;
@@ -45,6 +45,8 @@ interface WalletBalanceView {
   issuedDate: string;
   status: string;
   currentBalance: number;
+  pinkredibles: number;
+  pinkredibleCode: string | null;
   totalTopUp: number;
   totalSpent: number;
   transactions: DisplayTransaction[];
@@ -107,11 +109,13 @@ export default function Balance() {
       issuedDate: new Date(wallet.created_at).toLocaleDateString(),
       status: wallet.status,
       currentBalance: getCoinBalance(wallet),
+      pinkredibles: Number((wallet as { pinkredible_balance?: number }).pinkredible_balance ?? 0),
+      pinkredibleCode: ((wallet as { pinkredible_code?: string | null }).pinkredible_code ?? null),
       totalTopUp,
       totalSpent,
       transactions: transactions.map((transaction): DisplayTransaction => ({
         id: transaction.id,
-        type: transaction.type === 'load' || transaction.type === 'coin_purchase' ? 'Coin Purchase' : 'Sale',
+        type: transaction.type === 'load' || transaction.type === 'coin_purchase' ? 'Coin Purchase' : transaction.type === 'refund' ? 'Refund' : 'Sale',
         amount: getCoinAmount(transaction),
         inrAmount: transaction.inr_amount,
         description: transaction.description,
@@ -250,6 +254,17 @@ export default function Balance() {
                         {formatCoins(walletData.currentBalance)}
                       </div>
                     </div>
+                    {walletData.pinkredibles > 0 && (
+                      <div className="rounded-lg border border-primary/30 bg-primary/10 px-4 py-3">
+                        <div className="text-sm text-muted-foreground">Pinkredibles won 🏆</div>
+                        <div className="text-2xl font-extrabold">{walletData.pinkredibles}</div>
+                        {walletData.pinkredibleCode && (
+                          <div className="text-xs text-muted-foreground">
+                            code <span className="font-mono text-foreground">{walletData.pinkredibleCode}</span> · redeem at registration, ₹100 each, till 11 Oct
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

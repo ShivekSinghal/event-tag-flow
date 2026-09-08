@@ -62,25 +62,30 @@ PINKD_PLAYWRIGHT_ROOT=/path/to/node_modules PINKD_TEST_URL=http://127.0.0.1:8095
 
 ## Remaining release gates and deployment order
 
-1. Identify a dedicated Pink'D test Supabase project. Do not reuse an unrelated
-   application's staging database. Replay the complete migration history there;
-   regenerate/check Supabase types against that resulting schema.
-2. Deploy the cash migration and Edge Function to that isolated stack. Verify
-   JWT/RLS with separate real admin, assigned manager, other-studio manager and
-   staff sessions, and check token recovery and gateway rejection of cash orders.
-3. Create a protected Vercel preview against that stack. Test real code delivery,
-   resend failure, confirmation and reconciliation alert delivery, refresh after
-   a lost response, checkout counter-mode persistence/reset and online checkout.
-4. Complete the physical Android scan-to-lookup rehearsal. Desktop simulations
-   are not a substitute. Confirm new managers' studio assignments.
-5. Review a production migration dry run from a clean worktree; apply ONLY
+The approved release uses the existing production database. Do not create a test
+database, Supabase branch or additional Git test branch. Hosted staging is waived;
+local concurrency and browser results do not establish production correctness.
+
+1. Record the current production deployment for rollback. Review production
+   schema and migration history: historical remote versions differ from some
+   local filenames, so a blanket include-all push is not safe.
+2. Authenticate the Supabase CLI, configure the new code secret and verify the
+   existing Resend sender. Keep manager access restricted until assignments exist.
+3. Review a production migration dry run from a clean worktree; apply ONLY
    `20260907192000_cash_bookings.sql`, not the excluded performance migration.
    Deploy `cash-booking`, `event-payment-create`, and `event-payment-verify`, plus
    any shared-email consumers selected by the reviewed function deployment.
-6. Verify readiness RPC `cash_backend_version` returns 1 and cash-booking GET
+4. Verify readiness RPC `cash_backend_version` returns 1 and cash-booking GET
    returns ready=true. The production prebuild gate checks both before shipping.
-7. Recheck remote main, merge cash only, verify automatic Vercel deployment and
+   Verify restricted RPC access, shared capacity accounting and gateway rejection
+   of cash orders against the deployed backend.
+5. Complete a user-assisted cash confirmation with genuine email delivery. Do
+   not mark an order paid merely to simulate receiving cash. Verify confirmation
+   and reconciliation alerts, including delivery retry behavior.
+6. Recheck remote main, merge cash only, verify automatic Vercel deployment and
    reload staff terminals. Retain the previous production deployment for rollback.
+7. Before venue NFC operations, complete the physical Android scan-to-lookup
+   rehearsal. Desktop simulations are not a substitute.
 
 Do not merge before these gates: main's auto-deployment is intentionally enabled.
 No deadline overrides a capacity, authorization or payment-integrity failure.

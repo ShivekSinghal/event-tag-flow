@@ -79,6 +79,7 @@ const handlerNames = [
   'handleScanForPayment', 'cancelSaleScan', 'retrySaleScan', 'handleLookupSelect', 'processPayment', 'resetTransaction',
   'findWalletByTag', 'scanBand', 'cancelRoundScan', 'payRoundPlayer', 'payPlayerByTag', 'handleRoundLookupSelect',
   'scanPlayerForRound', 'awardWinner', 'awardWinnerByTag', 'scanWinnerBand', 'closeRoundNoWinner',
+  'walletToScanned', 'stopAwardScan', 'loadAwardCandidate', 'startAward', 'handleAwardLookup', 'cancelAward', 'confirmAward',
 ];
 // Execute the actual component handlers with fake I/O. No copy of the payment/scan logic
 // lives in the tests, and no Supabase connection or real debit is made.
@@ -100,6 +101,9 @@ function posHarness() {
     paymentInFlightRef: { current: false }, selectedGame: { id: 'game-a', name: 'Game', price: 750 },
     selectedDrink: null, selectedCustomItem: null, isScanning: false, isProcessing: false,
     lookupActive: false, lookupKey: 0,
+    awardGameRef: { current: null }, awardSubmitRef: { current: false }, awardEntry: '', eligibleEntries: [],
+    awardCandidate: null, isAwarding: false, isAwardScanning: false, awardLookupKey: 0,
+    awardOperation: { blocked: false, submit(request) { calls.push({ name:'award_pinkredible', args:{p_request:request} });return Promise.resolve({status:'succeeded',first_name:'Test',code:'PINK-TEST01'}); } },
     activeRound: { round_id: 'round-a', game_name: 'Game', entry_coins: 750, players_paid: 1, players_needed: 2 },
     parseRound: (value) => value,
     formatCoins: String, getCoinBalance: (row) => row.coin_balance,
@@ -124,12 +128,13 @@ function posHarness() {
       },
       rpc(name, args) {
         calls.push({ name, args });
+        if(name==='eligible_pinkredible_entries') return Promise.resolve({data:[{transaction_id:'entry-a',created_at:'2026-09-08T00:00:00Z',coin_amount:750}],error:null});
         return { single: () => payment.promise, then: (...args) => payment.promise.then(...args) };
       },
     },
   };
   for (const name of ['IsScanning', 'LookupActive', 'LookupKey', 'ScannedWallet', 'IsProcessing', 'SelectedGame',
-    'SelectedDrink', 'SelectedCustomItem', 'ShowCustomAmountInput', 'CustomAmount', 'ActiveRound', 'IsPickingWinner', 'IsAwarding', 'InsufficientCoins']) {
+    'SelectedDrink', 'SelectedCustomItem', 'ShowCustomAmountInput', 'CustomAmount', 'ActiveRound', 'IsPickingWinner', 'IsAwarding', 'InsufficientCoins', 'AwardGame', 'AwardCandidate', 'EligibleEntries', 'AwardEntry', 'IsAwardScanning', 'AwardLookupKey']) {
     const key = name[0].toLowerCase() + name.slice(1);
     context[`set${name}`] = (value) => { context[key] = typeof value === 'function' ? value(context[key]) : value; };
   }
@@ -198,7 +203,7 @@ test('typed test identifiers stay complete and are unavailable in a normal produ
 });
 
 test('ordinary POS and round admission query the complete UID, not a display suffix', async () => {
-  for (const round of [false, true]) {
+  for (const round of availableNames.includes('scanPlayerForRound') ? [false, true] : [false]) {
     const h = posHarness();
     const scan = round ? h.handlers.scanPlayerForRound() : h.handlers.handleScanForPayment(750, 'Game', 'game-a', 'games');
     h.scanner.readers[0].read({ serialNumber: '04:AB:CD:11:22:33:44' });
@@ -221,16 +226,45 @@ test('a serial-less scan never reaches a wallet query or payment', async () => {
 
 test('winner scanning also looks up the full UID before awarding the wallet', async () => {
   const h = posHarness();
-  const scan = h.handlers.scanWinnerBand();
+  const direct = Boolean(h.handlers.startAward);
+  const scan = direct ? h.handlers.startAward({id:'game-a',name:'Game',available:true,awardsPinkredible:true}) : h.handlers.scanWinnerBand();
   h.scanner.readers[0].read({ serialNumber: '04:AB:CD:99:88:77:66' });
   await flush();
   assert.deepEqual(h.queries[0], { table: 'wallets', column: 'tag_id', value: 'NFC04ABCD99887766' });
   assert.equal(h.calls.length, 1);
-  assert.equal(h.calls[0].name, 'award_game_round');
-  assert.equal(h.calls[0].args.p_winner_wallet_id, wallet.id);
+  assert.equal(h.calls[0].name, direct ? 'eligible_pinkredible_entries' : 'award_game_round');
+  assert.equal(direct ? h.calls[0].args.p_wallet_id : h.calls[0].args.p_winner_wallet_id, wallet.id);
   h.payment.resolve({ data: { awarded: 1, winner_name: 'Test', pinkredibles: 1, code: 'PINK-TEST01' }, error: null });
   await scan;
+  if (direct) {
+    await h.handlers.confirmAward();
+    assert.equal(h.calls[1].name,'award_pinkredible');
+    assert.equal(h.calls[1].args.p_request.entry_transaction_id,'entry-a');
+  }
 });
+
+if(availableNames.includes('startAward')) {
+  test('winner lookup invalidates late NFC and cancellation invalidates delayed wallet lookup',async()=>{
+    const h=posHarness(),response=deferred();h.responses.push(response);
+    const scan=h.handlers.startAward({id:'game-a',name:'Game',available:true,awardsPinkredible:true});
+    h.scanner.readers[0].read();await flush();h.handlers.stopAwardScan();
+    response.resolve({data:wallet,error:null});await scan;assert.equal(h.context.awardCandidate,null);assert.equal(h.calls.length,0);
+    const delayed=deferred();h.responses.push(delayed);const lookup=h.handlers.handleAwardLookup({wallet_id:wallet.id});
+    h.handlers.cancelAward();delayed.resolve({data:wallet,error:null});await lookup;
+    assert.equal(h.context.awardCandidate,null);assert.equal(h.calls.length,0);
+  });
+  test('an unresolved award blocks ordinary scans and duplicate award clicks',async()=>{
+    const h=posHarness();h.context.awardOperation.blocked=true;
+    await h.handlers.handleScanForPayment(750,'Game','game-a','games');assert.equal(h.scanner.readers.length,0);
+    h.context.awardOperation.blocked=false;
+    const scan=h.handlers.startAward({id:'game-a',name:'Game',available:true,awardsPinkredible:true});h.scanner.readers[0].read();await scan;
+    const response=deferred();h.context.awardOperation.submit=req=>{h.calls.push({name:'award',args:req});return response.promise;};
+    const one=h.handlers.confirmAward(),two=h.handlers.confirmAward();
+    assert.equal(h.calls.filter(c=>c.name==='award').length,1);
+    assert.equal(h.handlers.stopAwardScan(),false);
+    response.resolve({status:'succeeded'});await Promise.all([one,two]);
+  });
+}
 
 test('opening lookup aborts NFC and keeps the sale beyond 30 seconds; confirmation debits once', async () => {
   const h = posHarness();

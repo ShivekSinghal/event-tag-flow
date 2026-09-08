@@ -63,7 +63,7 @@ export function PosSaleControls({ operation, saleInProgress = false }: { operati
     </section>}
     {isAdmin && <section className="space-y-3 border-t border-border py-4" aria-label="Admin sale controls">
       <h2 className="font-semibold">Admin sale controls</h2>
-      {saleInProgress && <p className="text-sm text-muted-foreground">Finish or cancel the current sale or round before voiding a sale.</p>}
+      {saleInProgress && <p className="text-sm text-muted-foreground">Finish or cancel the current sale or award before voiding a sale.</p>}
       <form className="flex flex-wrap items-end gap-2" onSubmit={e => { e.preventDefault(); void findSale(transactionId); }}>
         <div className="min-w-0 flex-1 basis-64 space-y-1">
           <Label htmlFor="void-sale-id">Sale transaction ID</Label>

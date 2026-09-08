@@ -9,8 +9,7 @@ import { Input } from "@/components/ui/input";
 
 /**
  * Pinkredibles: the digital reward ticket for winning a paid game (1 = ₹100 off course
- * registration on hashtag.dance). Nothing is printed. Awards happen when a paid game round
- * closes (one per round, onto the winner's or captain's band). The attendee sees the
+ * registration on hashtag.dance). Nothing is printed. Awards happen after a paid game, linked to the winner's eligible entry. The attendee sees the
  * count and their coupon code on /coins. This page is for the team: check a code, redeem at
  * registration (admin / studio manager), and see recent movements.
  */
@@ -139,7 +138,7 @@ export default function Pinkredibles() {
           <h1 className="text-2xl font-bold flex items-center gap-2"><Ticket className="h-6 w-6 text-primary" /> Pinkredibles</h1>
           <p className="text-sm text-muted-foreground max-w-2xl">
             The reward for winning a paid game: 1 Pinkredible = ₹100 off course registration. Digital only. One winner is awarded
-            after each completed round, and the attendee sees the balance and coupon code on the coins page. Valid until 11 October 2026.
+            after each paid game, and the attendee sees the balance and coupon code on the coins page. Valid until 11 October 2026.
           </p>
         </div>
         {summary ? (
