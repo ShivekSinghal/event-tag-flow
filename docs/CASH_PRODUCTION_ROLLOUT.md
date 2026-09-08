@@ -27,20 +27,23 @@
   intentional public checkout/status RPCs, role-checked listing/assignments and
   private RLS tables with no client policies. Existing platform warnings remain.
 
-## Release gate still pending
+## User-assisted cash check completed
 
-The user must complete a genuine cash booking and confirm receipt of cash through
-Cash Desk using the emailed code. Confirm actual customer confirmation and
-reconciliation alert delivery, then inspect the recorded receipt and capacity.
-No order has been marked paid to simulate cash being received.
+The user reported completing the genuine cash check. Booking `E0895BF0` is paid
+for INR 2,000 at Preet Vihar, confirmed at 00:52:41 UTC on 8 September 2026.
+Code, confirmation and alert notifications each have one provider ID and status
+sent, with no recorded error. These records prove provider acceptance, not an
+independent recipient-inbox inspection. Party booked count changed from 29 to 30;
+held count is zero, session counts are unchanged and no duplicate notification
+generation exists. The agent did not mark the order paid or simulate cash receipt.
 
 Use the already existing protected cash preview:
 `https://event-tag-flow-dezq14rgg-shiveks-projects.vercel.app/?counter=1`
 and its `/cash-booking` route. Hosted staging is waived; this preview connects to
 the production backend. Do not create a separate test database or branch.
 
-Main and production frontend remain on `884076d`. After the cash check passes,
-merge/push cash first, verify automatic deployment, then deploy the reviewed
+Main and production frontend were on `884076d` before release. The cash check
+now permits merging/pushing cash first. Verify automatic deployment, then deploy the reviewed
 award migration with explicit out-of-order handling and release awards.
 The combined implementation was locally merged as `828b111`; its lint, app/server
 TypeScript, build, 33 database/recovery tests, 42 POS-control tests and mocked
