@@ -1943,6 +1943,7 @@ export default function EventLanding() {
           <span>Pink'd · A <b>FUN'draiser</b> by Hashtag For Dance · 7 years of Pink'd · 2026</span>
           <span>Payments processed by {getGatewayLabel(paymentProvider)} · Tickets are non-refundable and non-transferable</span>
           <nav aria-label="Policy links">
+            <Link to="/game-rules">Game Rules</Link>
             <Link to="/contact-us">Contact Us</Link>
             <Link to="/terms-and-conditions">Terms & Conditions</Link>
             <Link to="/refunds-cancellations">Refunds & Cancellations</Link>

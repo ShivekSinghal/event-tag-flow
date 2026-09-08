@@ -1,0 +1,71 @@
+.pinkd-game-rules { min-height: 100vh; background: #080808; color: #fafafa; font-family: Manrope, Arial, sans-serif; letter-spacing: 0; }
+.pinkd-game-rules * { box-sizing: border-box; }
+.pinkd-game-rules .rules-wrap { width: min(1120px, 100%); margin: 0 auto; padding-inline: 24px; }
+.pinkd-game-rules .rules-header { border-bottom: 1px solid #292929; background: #080808; }
+.pinkd-game-rules .rules-header .rules-wrap { display: flex; min-height: 84px; align-items: center; justify-content: space-between; gap: 20px; }
+.pinkd-game-rules .rules-header img { width: 98px; height: 52px; object-fit: contain; }
+.pinkd-game-rules nav { display: flex; align-items: center; gap: 24px; font-size: 13px; font-weight: 700; }
+.pinkd-game-rules nav a, .pinkd-game-rules .rules-footer a { display: inline-flex; align-items: center; gap: 6px; }
+.pinkd-game-rules .rules-coins, .pinkd-game-rules a:hover { color: #ff007f; }
+.pinkd-game-rules .rules-main { padding-top: 34px; padding-bottom: 30px; }
+.pinkd-game-rules .rules-kicker { color: #ff007f; font-size: 12px; font-weight: 800; margin-bottom: 8px; }
+.pinkd-game-rules h1 { font-size: 42px; line-height: 1.15; font-weight: 800; }
+.pinkd-game-rules h1 span { color: #ff007f; }
+.pinkd-game-rules .rules-heading > p:last-child { margin-top: 12px; color: #bcbcbc; font-size: 15px; }
+.pinkd-game-rules .rules-basics { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; padding-block: 22px; margin-top: 22px; border-block: 1px solid #292929; }
+.pinkd-game-rules .rules-basics > div { display: flex; gap: 12px; font-size: 13px; line-height: 1.7; color: #bcbcbc; }
+.pinkd-game-rules .rules-basics svg { flex: 0 0 20px; color: #ff007f; margin-top: 3px; }
+.pinkd-game-rules .rules-basics strong { color: #fafafa; }
+.pinkd-game-rules .rules-basics a { text-decoration: underline; text-underline-offset: 3px; }
+.pinkd-game-rules .rules-controls { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 28px; }
+.pinkd-game-rules .rules-filters { display: flex; flex-wrap: wrap; gap: 4px; }
+.pinkd-game-rules .rules-filters button { min-height: 44px; padding: 10px 12px; border-bottom: 2px solid transparent; color: #adadad; font-size: 13px; font-weight: 700; }
+.pinkd-game-rules .rules-filters button[aria-pressed="true"] { color: #ff007f; border-color: #ff007f; }
+.pinkd-game-rules .rules-filters button:hover { color: #fafafa; }
+.pinkd-game-rules .rules-search { display: flex; align-items: center; gap: 9px; width: 230px; min-height: 44px; padding: 0 12px; border: 1px solid #3d3d3d; border-radius: 6px; color: #bcbcbc; }
+.pinkd-game-rules .rules-search input { width: 100%; min-width: 0; padding-block: 10px; background: transparent; color: #fafafa; outline: none; font: inherit; font-size: 14px; }
+.pinkd-game-rules .rules-search:focus-within { border-color: #ff007f; }
+.pinkd-game-rules .rules-search > svg { flex-shrink: 0; }
+.pinkd-game-rules .rules-search button { min-width: 24px; height: 42px; display: grid; place-items: center; }
+.pinkd-game-rules .rules-result-count { margin: 16px 0 12px; color: #a3a3a3; font-size: 12px; }
+.pinkd-game-rules .rules-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.pinkd-game-rules .rules-game { min-width: 0; background: #121212; border: 1px solid #303030; border-radius: 8px; padding: 22px; scroll-margin-top: 20px; }
+.pinkd-game-rules .rules-game-meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; font-size: 12px; color: #bcbcbc; }
+.pinkd-game-rules .rules-game-meta strong { color: #ff409f; }
+.pinkd-game-rules .rules-game-meta strong.rules-free { color: #62ddad; }
+.pinkd-game-rules h2 { margin-top: 12px; font-size: 22px; line-height: 1.35; font-weight: 800; overflow-wrap: anywhere; }
+.pinkd-game-rules .rules-outcome { margin-top: 8px; color: #bcbcbc; font-size: 14px; line-height: 1.7; }
+.pinkd-game-rules .rules-prize { display: flex; align-items: center; gap: 7px; margin-top: 12px; font-size: 12px; color: #eed18a; }
+.pinkd-game-rules details { margin-top: 16px; border-top: 1px solid #303030; }
+.pinkd-game-rules summary { display: flex; min-height: 48px; align-items: center; justify-content: space-between; gap: 12px; padding-top: 8px; list-style: none; cursor: pointer; font-size: 13px; font-weight: 700; }
+.pinkd-game-rules summary::-webkit-details-marker { display: none; }
+.pinkd-game-rules details[open] summary svg { transform: rotate(180deg); }
+.pinkd-game-rules ol { margin: 12px 0 0; padding-left: 21px; list-style: decimal; color: #d0d0d0; font-size: 14px; line-height: 1.8; }
+.pinkd-game-rules li + li { margin-top: 10px; }
+.pinkd-game-rules li::marker { color: #ff409f; font-weight: 700; }
+.pinkd-game-rules .rules-note { margin-top: 16px; border-left: 2px solid #ff007f; padding-left: 12px; font-size: 12px; line-height: 1.8; color: #bcbcbc; }
+.pinkd-game-rules .rules-empty { padding-block: 40px; text-align: center; }
+.pinkd-game-rules .rules-empty button { color: #ff409f; text-decoration: underline; padding: 14px; }
+.pinkd-game-rules .rules-footer { border-top: 1px solid #303030; margin-top: 30px; padding-top: 22px; color: #a3a3a3; font-size: 12px; line-height: 1.8; }
+.pinkd-game-rules .rules-footer p + p { margin-top: 8px; }
+.pinkd-game-rules .rules-footer a { margin-top: 16px; color: #fafafa; }
+.pinkd-game-rules :is(a, button, summary):focus-visible { outline: 2px solid #ff007f; outline-offset: 4px; }
+@media (max-width: 760px) {
+  .pinkd-game-rules .rules-wrap { padding-inline: 18px; }
+  .pinkd-game-rules .rules-header .rules-wrap { min-height: 72px; gap: 12px; }
+  .pinkd-game-rules .rules-header img { width: 76px; height: 44px; }
+  .pinkd-game-rules nav { gap: 14px; font-size: 12px; }
+  .pinkd-game-rules .rules-main { padding-top: 26px; }
+  .pinkd-game-rules h1 { font-size: 34px; }
+  .pinkd-game-rules .rules-basics { grid-template-columns: 1fr; gap: 16px; }
+  .pinkd-game-rules .rules-controls { flex-direction: column-reverse; align-items: stretch; margin-top: 20px; gap: 12px; }
+  .pinkd-game-rules .rules-search { width: 100%; }
+  .pinkd-game-rules .rules-filters { gap: 0; }
+  .pinkd-game-rules .rules-filters button { padding-inline: 9px; }
+  .pinkd-game-rules .rules-grid { grid-template-columns: 1fr; }
+  .pinkd-game-rules .rules-game { padding: 18px; }
+}
+@media print {
+  .pinkd-game-rules .rules-controls, .pinkd-game-rules .rules-header nav { display: none; }
+  .pinkd-game-rules .rules-game { break-inside: avoid; }
+}

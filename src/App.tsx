@@ -19,6 +19,7 @@ import EventLanding from "./pages/EventLanding";
 import CoinsPage from "./pages/CoinsPage";
 import AttendeesPage from "./pages/AttendeesPage";
 import PolicyPage from "./pages/PolicyPages";
+import GameRules from "./pages/GameRules";
 import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
@@ -38,6 +39,7 @@ const App = () => (
             <Route path="/coins" element={<CoinsPage />} />
             <Route path="/attendees" element={<AttendeesPage />} />
             <Route path="/contact-us" element={<PolicyPage type="contact" />} />
+            <Route path="/game-rules" element={<GameRules />} />
             <Route path="/terms-and-conditions" element={<PolicyPage type="terms" />} />
             <Route path="/refunds-cancellations" element={<PolicyPage type="refunds" />} />
             <Route path="/pinkd-login" element={<Auth />} />
