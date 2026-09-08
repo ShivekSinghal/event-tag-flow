@@ -317,15 +317,16 @@ export default function StaffManagement() {
 
       {/* Edit User Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
+        <DialogContent className="flex max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[480px]">
+          <DialogHeader className="shrink-0 border-b p-5 pr-12 text-left">
             <DialogTitle>Edit User</DialogTitle>
           </DialogHeader>
           {editingUser && (
-            <div className="space-y-4 py-4">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+              <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-5 [scrollbar-gutter:stable]" data-staff-assignment-scroll>
               <div>
                 <Label className="text-sm font-medium">User</Label>
-                <div className="mt-1 text-sm text-muted-foreground">
+                <div className="mt-1 break-words text-sm text-muted-foreground">
                   {editingUser.full_name || editingUser.email}
                 </div>
               </div>
@@ -381,15 +382,15 @@ export default function StaffManagement() {
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">Games</Label>
                     {games.map((game) => (
-                      <div key={game.id} className="flex items-center space-x-2">
+                      <div key={game.id} className="flex min-h-11 items-center gap-3">
                         <Checkbox
                           id={`game-${game.id}`}
                           checked={hasPermission('game', game.id)}
                           onCheckedChange={() => togglePermission('game', game.id)}
                         />
-                        <Label htmlFor={`game-${game.id}`} className="flex items-center space-x-2">
-                          <Gamepad2 className="w-4 h-4" />
-                          <span>{game.name} ({game.studio})</span>
+                        <Label htmlFor={`game-${game.id}`} className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 leading-5">
+                          <Gamepad2 className="h-4 w-4 shrink-0" />
+                          <span className="min-w-0 break-words">{game.name} ({game.studio})</span>
                         </Label>
                       </div>
                     ))}
@@ -397,9 +398,11 @@ export default function StaffManagement() {
                 </div>
               )}
 
-              <div className="flex justify-end space-x-2 pt-4">
+              </div>
+              <div className="flex shrink-0 justify-end gap-3 border-t bg-background p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
                 <Button
                   variant="outline"
+                  className="h-11 flex-1 sm:flex-none"
                   onClick={() => {
                     setIsEditDialogOpen(false);
                     setEditingUser(null);
@@ -408,6 +411,7 @@ export default function StaffManagement() {
                   Cancel
                 </Button>
                 <Button
+                  className="h-11 flex-[2] font-semibold sm:flex-none"
                   onClick={() => {
                     if (editingUser) {
                       handleUpdateUser(editingUser.id, {
