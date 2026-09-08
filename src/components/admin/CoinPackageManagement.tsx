@@ -10,10 +10,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { activityGroups, pricingModes } from "@/lib/activities";
 
 type CoinPackage = Tables<"coin_packages">;
 
-type GamePrice = Pick<Tables<"games">, "id" | "name" | "price" | "available">;
+type GamePrice = Pick<Tables<"games">, "id" | "name" | "price" | "available" | "activity_group" | "pricing_mode" | "awards_pinkredible">;
 
 type PosItemPrice = Pick<Tables<"pos_items">, "id" | "name" | "category" | "coin_price" | "active" | "display_order">;
 
@@ -35,7 +37,7 @@ export default function CoinPackageManagement() {
 
       const [packageResult, gamesResult, posItemsResult] = await Promise.all([
         supabase.from("coin_packages").select("*").order("display_order", { ascending: true }),
-        supabase.from("games").select("id, name, price, available").order("name"),
+        supabase.from("games").select("id, name, price, available, activity_group, pricing_mode, awards_pinkredible").order("name"),
         supabase.from("pos_items").select("*").order("display_order", { ascending: true }),
       ]);
 
@@ -48,12 +50,15 @@ export default function CoinPackageManagement() {
         (gamesResult.data || []).map((game) => ({
           id: game.id,
           name: game.name,
-          price: toIntegerCoins(game.price),
+          price: Number(game.price),
           available: game.available,
+          activity_group: game.activity_group,
+          pricing_mode: game.pricing_mode,
+          awards_pinkredible: game.awards_pinkredible,
         })),
       );
       setPosItems(
-        (posItemsResult.data || []).map((item) => ({
+        (posItemsResult.data || []).filter(item => item.category !== "custom_game").map((item) => ({
           id: item.id,
           name: item.name,
           category: item.category,
@@ -108,11 +113,20 @@ export default function CoinPackageManagement() {
 
   const saveGamePrices = async () => {
     try {
+      for (const game of games) {
+        if (!Number.isInteger(game.price) || game.price < 0 || game.price > 2147483647 ||
+          (game.pricing_mode === "donation" && game.price < 150) ||
+          (game.pricing_mode === "free" && game.price !== 0) ||
+          (game.pricing_mode === "fixed" && game.available && game.price <= 0)) {
+          throw new Error(`Check ${game.name}: use whole coins, zero for free activities, and at least 150 for donations.`);
+        }
+      }
       setIsSaving(true);
       const updates = games.map((game) =>
         supabase
           .from("games")
-          .update({ price: toIntegerCoins(game.price) })
+          .update({ price: game.price, available: game.available, activity_group: game.activity_group,
+            pricing_mode: game.pricing_mode, awards_pinkredible: game.pricing_mode === "fixed" && game.awards_pinkredible })
           .eq("id", game.id),
       );
       const results = await Promise.all(updates);
@@ -167,16 +181,16 @@ export default function CoinPackageManagement() {
   }
 
   return (
-    <Card className="shadow-card">
+    <Card className="shadow-card min-w-0 w-full">
       <CardHeader>
         <CardTitle className="flex items-center space-x-2">
           <Coins className="w-5 h-5 text-primary" />
           <span>Pink'd Coin Admin Console</span>
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-8">
+      <CardContent className="space-y-8 min-w-0 px-4 sm:px-6">
         <section className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <h3 className="text-lg font-semibold">Coin Packages</h3>
             <Button onClick={savePackages} disabled={isSaving} size="sm">
               <Save className="w-4 h-4 mr-2" />
@@ -249,7 +263,7 @@ export default function CoinPackageManagement() {
         </section>
 
         <section className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <h3 className="flex items-center gap-2 text-lg font-semibold">
               <Package className="w-4 h-4 text-primary" />
               Game Prices
@@ -261,9 +275,9 @@ export default function CoinPackageManagement() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {games.map((game) => (
-              <div key={game.id} className="flex items-center justify-between gap-3 p-3 border rounded-lg">
+              <div key={game.id} className="min-w-0 flex flex-wrap items-center justify-between gap-3 p-3 border rounded-lg">
                 <div className="min-w-0">
-                  <div className="font-medium truncate">{game.name}</div>
+                  <div className="font-medium break-words">{game.name}</div>
                   <Badge variant={game.available ? "outline" : "destructive"} className="mt-1">
                     {game.available ? "Available" : "Sold Out"}
                   </Badge>
@@ -271,23 +285,54 @@ export default function CoinPackageManagement() {
                 <Input
                   aria-label={`${game.name} coin price`}
                   type="number"
-                  min="0"
+                  min={game.pricing_mode === "donation" ? "150" : "0"}
                   step="1"
                   className="w-32"
-                  value={game.price}
+                  disabled={game.pricing_mode === "free"}
+                  value={Number.isNaN(game.price) ? "" : game.price}
                   onChange={(event) =>
                     setGames((prev) =>
-                      prev.map((row) => (row.id === game.id ? { ...row, price: toIntegerCoins(event.target.value) } : row)),
+                      prev.map((row) => (row.id === game.id ? { ...row, price: event.target.value === "" ? NaN : Number(event.target.value) } : row)),
                     )
                   }
                 />
+                <div className="grid w-full grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1 min-w-0">
+                    <Label>Activity group</Label>
+                    <Select value={game.activity_group} onValueChange={group => setGames(prev => prev.map(row => {
+                      if (row.id !== game.id) return row;
+                      const mode = group === "free" ? "free" : group === "donations" ? "donation" : "fixed";
+                      return { ...row, activity_group: group, pricing_mode: mode,
+                        price: mode === "free" ? 0 : mode === "donation" ? Math.max(150, row.price || 150) : row.price,
+                        awards_pinkredible: mode === "fixed" && row.awards_pinkredible };
+                    }))}>
+                      <SelectTrigger aria-label={`${game.name} activity group`}><SelectValue /></SelectTrigger>
+                      <SelectContent>{activityGroups.map(group => <SelectItem key={group.value} value={group.value}>{group.label}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1 min-w-0">
+                    <Label>Pricing mode</Label>
+                    <Select value={game.pricing_mode} onValueChange={mode => setGames(prev => prev.map(row => row.id === game.id ? {
+                      ...row, pricing_mode: mode, activity_group: mode === "free" ? "free" : mode === "donation" ? "donations" : "other",
+                      price: mode === "free" ? 0 : mode === "donation" ? Math.max(150, row.price || 150) : row.price,
+                      awards_pinkredible: mode === "fixed" && row.awards_pinkredible,
+                    } : row))}>
+                      <SelectTrigger aria-label={`${game.name} pricing mode`}><SelectValue /></SelectTrigger>
+                      <SelectContent>{pricingModes.map(mode => <SelectItem key={mode} value={mode}>{mode === "donation" ? "Donation (minimum)" : mode === "free" ? "Free" : "Fixed price"}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  <label className="flex items-center gap-2 text-sm">
+                    <Checkbox checked={game.available} onCheckedChange={checked => setGames(prev => prev.map(row => row.id === game.id ? { ...row, available: checked === true } : row))} />
+                    Available
+                  </label>
+                </div>
               </div>
             ))}
           </div>
         </section>
 
         <section className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <h3 className="flex items-center gap-2 text-lg font-semibold">
               <Utensils className="w-4 h-4 text-primary" />
               Drink, Food, and Custom Prices

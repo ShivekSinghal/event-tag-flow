@@ -20,15 +20,9 @@ import { InsufficientCoinsNotice } from "@/components/wallet/InsufficientCoinsNo
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Package, CreditCard, DollarSign, Scan, AlertCircle, ArrowRight, CheckCircle, Calculator, Trophy } from "lucide-react";
 
-interface Game {
-  id: string;
-  name: string;
-  description: string;
-  price: number;
-  studio: string;
-  available: boolean;
-  awardsPinkredible: boolean;
-}
+import { ActivityPicker, type Activity as Game } from "@/components/wallet/ActivityPicker";
+import { parseDonationCoins } from "@/lib/activities";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 
 interface DrinkItem {
@@ -55,7 +49,7 @@ interface PosItem {
   display_order: number;
 }
 
-type PosSection = "games" | "drinks" | "food" | "custom-games";
+type PosSection = "games" | "drinks" | "food";
 
 interface ScannedWallet {
   id: string;
@@ -99,6 +93,9 @@ export default function POS() {
   }, []);
   const [scannedWallet, setScannedWallet] = useState<ScannedWallet | null>(null);
   const [insufficientCoins, setInsufficientCoins] = useState<{ balance: number; required: number; walletId: string } | null>(null);
+  const [donationGame, setDonationGame] = useState<Game | null>(null);
+  const [donationAmount, setDonationAmount] = useState("150");
+  const donationConfirmRef = useRef(false);
   const [selectedGame, setSelectedGame] = useState<Game | null>(null);
   const [selectedDrink, setSelectedDrink] = useState<DrinkItem | null>(null);
   const [selectedCustomItem, setSelectedCustomItem] = useState<CustomItem | null>(null);
@@ -112,6 +109,7 @@ export default function POS() {
   const [foodItems, setFoodItems] = useState<DrinkItem[]>([]);
   const [customItems, setCustomItems] = useState<CustomItem[]>([]);
   const [isLoadingGames, setIsLoadingGames] = useState(false);
+  const [gamesError, setGamesError] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<PosSection>("games");
   // Award a Pinkredible to a winner: pick the game (trophy button), scan the winner, confirm.
   const [awardGame, setAwardGame] = useState<Game | null>(null);
@@ -125,18 +123,13 @@ export default function POS() {
   const [isAwarding, setIsAwarding] = useState(false);
   const lastAward = awardOperation.receipt ? { name: awardOperation.receipt.first_name, game: awardOperation.receipt.game, pinkredibles: awardOperation.receipt.pinkredibles, code: awardOperation.receipt.code } : null;
 
-  const hasCustomGames = useMemo(
-    () => gamePermissions.some((game) => ["Dunk a Company Member", "Karaoke"].includes(game.name)),
-    [gamePermissions],
-  );
   const availableSections = useMemo<PosSection[]>(() => {
     const sections: PosSection[] = [];
     if (gamePermissions.length > 0) sections.push("games");
-    if (hasCustomGames) sections.push("custom-games");
     if (hasDrinksPermission) sections.push("drinks");
     if (hasFoodPermission) sections.push("food");
     return sections;
-  }, [gamePermissions.length, hasCustomGames, hasDrinksPermission, hasFoodPermission]);
+  }, [gamePermissions.length, hasDrinksPermission, hasFoodPermission]);
   const permittedGameIds = useMemo(() => gamePermissions.map((game) => game.id), [gamePermissions]);
 
   useEffect(() => {
@@ -169,7 +162,7 @@ export default function POS() {
       );
       setCustomItems(
         items
-          .filter((item) => item.category === "custom_food" || item.category === "custom_game")
+          .filter((item) => item.category === "custom_food")
           .map((item) => ({
             id: item.id,
             name: item.name,
@@ -198,27 +191,30 @@ export default function POS() {
       if (!permissionsLoading) {
         if (permittedGameIds.length > 0) {
           setIsLoadingGames(true);
+          setGamesError(null);
           const { data: gamesData, error } = await supabase
             .from("games")
-            .select("*")
+            .select("id, name, description, price, studio, available, awards_pinkredible, activity_group, pricing_mode")
             .in("id", permittedGameIds)
             .eq("available", true);
 
           if (isCurrent && !error && gamesData) {
-            // Filter out games that should only appear as custom amount items
-            const regularGames = gamesData.filter((g) => !["Dunk a Company Member", "Karaoke"].includes(g.name));
-
             setGames(
-              regularGames.map((g) => ({
+              gamesData.map((g) => ({
                 id: g.id,
                 name: g.name,
                 description: g.description || "",
                 price: typeof g.price === "string" ? parseFloat(g.price) : g.price,
                 studio: g.studio,
                 available: g.available,
-                awardsPinkredible: Boolean((g as { awards_pinkredible?: boolean }).awards_pinkredible),
+                activity_group: g.activity_group,
+                pricing_mode: g.pricing_mode,
+                awardsPinkredible: g.awards_pinkredible,
               })),
             );
+          } else if (isCurrent && error) {
+            setGames([]);
+            setGamesError("Activities could not load. Confirm the activity setup migration is installed, then refresh this page.");
           }
         } else if (isCurrent) {
           setGames([]);
@@ -235,6 +231,7 @@ export default function POS() {
 
   const handleGameSelect = async (game: Game) => {
     walletOperation.clearRejectedResult();
+    if (game.pricing_mode === "free") return;
     if (!game.available) {
       toast({
         title: "Game Not Available",
@@ -248,6 +245,14 @@ export default function POS() {
       return;
     }
 
+    if (walletOperation.blocked || paymentInFlightRef.current) return;
+    if (game.pricing_mode === "donation") {
+      resetTransaction();
+      donationConfirmRef.current = false;
+      setDonationAmount(String(Math.max(150, game.price)));
+      setDonationGame(game);
+      return;
+    }
     setSelectedGame(game);
     setSelectedDrink(null);
     setSelectedCustomItem(null);
@@ -473,6 +478,10 @@ export default function POS() {
     generation: number,
   ) => {
     if (generation !== scanGenerationRef.current || !pendingSaleRef.current || paymentInFlightRef.current || walletOperation.blocked) return;
+    if (!Number.isSafeInteger(price) || price <= 0 || price > 2147483647) {
+      toast({ title: "Invalid amount", description: "Coins must be a positive whole number.", variant: "destructive" });
+      return;
+    }
     setInsufficientCoins(null);
     if (price > wallet.currentBalance) {
       setInsufficientCoins({ balance: wallet.currentBalance, required: price, walletId: wallet.id });
@@ -492,7 +501,7 @@ export default function POS() {
       await walletOperation.submit({
         kind: "spend",
         wallet_id: wallet.id,
-        coin_amount: Math.round(price),
+        coin_amount: price,
         transaction_type: transactionType,
         item_name: itemName,
         item_category: transactionType,
@@ -652,6 +661,34 @@ export default function POS() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-4 px-4 sm:px-6 lg:px-8">
+      <Dialog open={Boolean(donationGame)} onOpenChange={open => { if (!open) setDonationGame(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{donationGame?.name}</DialogTitle>
+            <DialogDescription>Minimum {Math.max(150, donationGame?.price ?? 150)} Pink'D Coins</DialogDescription>
+          </DialogHeader>
+          <form className="space-y-4" onSubmit={event => {
+            event.preventDefault();
+            if (!donationGame || donationConfirmRef.current || walletOperation.blocked) return;
+            const amount = parseDonationCoins(donationAmount, donationGame.price);
+            if (amount === null) return;
+            donationConfirmRef.current = true;
+            const game = donationGame;
+            setDonationGame(null);
+            setSelectedGame({ ...game, price: amount });
+            void handleScanForPayment(amount, game.name, game.id, "games");
+          }}>
+            <Label htmlFor="donation-coins">Donation in coins</Label>
+            <Input id="donation-coins" type="text" inputMode="numeric" autoFocus
+              value={donationAmount} onChange={event => setDonationAmount(event.target.value)} />
+            {parseDonationCoins(donationAmount, donationGame?.price ?? 150) === null &&
+              <p role="alert" className="text-sm text-destructive">Enter whole coins, at least {Math.max(150, donationGame?.price ?? 150)}.</p>}
+            <Button type="submit" className="w-full" disabled={parseDonationCoins(donationAmount, donationGame?.price ?? 150) === null || walletOperation.blocked}>
+              <Scan className="mr-2 h-4 w-4" /> Continue to band
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
       <WalletOperationStatus operation={walletOperation} showSpendReceipt={false} />
       {awardOperation.error && <p role="alert" className="border border-primary p-3">{awardOperation.error}</p>}
       {awardOperation.pending && <section className="space-y-2 border border-primary p-3" aria-label="Pending Pinkredible award"><p>Award outcome needs confirmation. No new charge or award will be started.</p><Button disabled={awardOperation.busy} onClick={async () => {
@@ -687,7 +724,7 @@ export default function POS() {
 
       {/* Show sections only if user has permissions */}
       {!permissionsLoading &&
-        (gamePermissions.length > 0 || hasFoodPermission || hasDrinksPermission || hasCustomGames) && (
+        (gamePermissions.length > 0 || hasFoodPermission || hasDrinksPermission) && (
           <>
             {/* Section Tabs */}
             <div className="flex flex-wrap justify-center gap-2 px-4">
@@ -713,18 +750,6 @@ export default function POS() {
                   <CreditCard className="w-3 h-3 sm:w-4 sm:h-4" />
                   <span className="hidden xs:inline">Drinks</span>
                   <span className="xs:hidden">🥤</span>
-                </Button>
-              )}
-              {hasCustomGames && (
-                <Button
-                  variant={activeSection === "custom-games" ? "default" : "outline"}
-                  onClick={() => setActiveSection("custom-games")}
-                  className="flex items-center space-x-2 text-xs sm:text-sm"
-                  size="sm"
-                >
-                  <DollarSign className="w-3 h-3 sm:w-4 sm:h-4" />
-                  <span className="hidden xs:inline">Custom Games</span>
-                  <span className="xs:hidden">🎯</span>
                 </Button>
               )}
               {hasFoodPermission && (
@@ -781,14 +806,10 @@ export default function POS() {
                         {activeSection === "games" && <Package className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />}
                         {activeSection === "drinks" && <CreditCard className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />}
                         {activeSection === "food" && <DollarSign className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />}
-                        {activeSection === "custom-games" && (
-                          <DollarSign className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
-                        )}
                         <span className="text-sm sm:text-base">
                           {activeSection === "games" && "Available Games"}
                           {activeSection === "drinks" && "Drinks Menu"}
                           {activeSection === "food" && "Food & Custom Items"}
-                          {activeSection === "custom-games" && "Custom Game Items"}
                         </span>
                       </div>
                       <div className="flex items-center space-x-2">
@@ -809,68 +830,17 @@ export default function POS() {
                             <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-3" />
                             <p className="text-muted-foreground">Loading games...</p>
                           </div>
+                        ) : gamesError ? (
+                          <p role="alert" className="p-3 text-destructive">{gamesError}</p>
                         ) : games.length === 0 ? (
                           <div className="text-center py-8 text-muted-foreground">
                             <Package className="w-12 h-12 mx-auto mb-3 opacity-50" />
                             <p>No games available</p>
                           </div>
                         ) : (
-                          <div className="grid grid-cols-1 gap-3">
-                            {games.map((game) => (
-                              <div
-                                key={game.id}
-                                className={`flex items-center justify-between p-3 sm:p-4 border rounded-lg transition-smooth ${
-                                  selectedGame?.id === game.id
-                                    ? "bg-primary/10 border-primary"
-                                    : game.available
-                                      ? "hover:bg-secondary/50 cursor-pointer active:bg-secondary/70"
-                                      : "bg-destructive/5 border-destructive/20 cursor-not-allowed opacity-60"
-                                }`}
-                                onClick={() => game.available && handleGameSelect(game)}
-                              >
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center space-x-2">
-                                    <span className="font-medium text-foreground text-sm sm:text-base truncate">
-                                      {game.name}
-                                    </span>
-                                    {selectedGame?.id === game.id && (
-                                      <Badge variant="default" className="text-xs shrink-0">
-                                        ✓ Selected
-                                      </Badge>
-                                    )}
-                                    {!game.available && (
-                                      <Badge variant="destructive" className="text-xs shrink-0">
-                                        ❌ Sold Out
-                                      </Badge>
-                                    )}
-                                  </div>
-                                  <p className="text-xs sm:text-sm text-muted-foreground mt-1">{game.description}</p>
-                                </div>
-                                <div className="text-right shrink-0 ml-2 flex items-center gap-2">
-                                  <span className="font-bold text-sm sm:text-lg text-success">
-                                    {formatCoins(game.price)}
-                                  </span>
-                                  {game.awardsPinkredible && (
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      size="sm"
-                                      aria-label={`Award Pinkredible for ${game.name}`}
-                                      title="Award Pinkredible to the winner"
-                                      className="h-9 px-2 border-primary/40 text-primary"
-                                      disabled={!game.available || isScanning || isProcessing || isAwardScanning || Boolean(awardGame) || awardOperation.blocked}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        void startAward(game);
-                                      }}
-                                    >
-                                      <Trophy className="w-4 h-4" />
-                                    </Button>
-                                  )}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
+                          <ActivityPicker games={games} selectedId={selectedGame?.id}
+                            disabled={isScanning || isProcessing || isAwardScanning || Boolean(awardGame) || awardOperation.blocked || walletOperation.blocked}
+                            onSelect={game => void handleGameSelect(game)} onAward={game => void startAward(game)} />
                         )}
                       </>
                     )}
@@ -1057,7 +1027,7 @@ export default function POS() {
                             .filter((item) => {
                               // Show food items if user has food permission
                               if (item.type === "food") return hasFoodPermission;
-                              // Don't show game items here - they are in Custom Games section
+                              // Games are loaded only from the canonical games table.
                               return false;
                             })
                             .map((item) => (
@@ -1140,103 +1110,7 @@ export default function POS() {
                       </div>
                     )}
 
-                    {/* Custom Games Section */}
-                    {activeSection === "custom-games" && (
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-1 gap-3">
-                          {customItems
-                            .filter((item) => {
-                              // Only show game-type custom items that the user has specific permission for
-                              if (item.type === "game") {
-                                return gamePermissions.some((game) => game.name === item.name);
-                              }
-                              return false;
-                            })
-                            .map((item) => (
-                              <div
-                                key={item.id}
-                                className={`flex items-center justify-between p-3 sm:p-4 border rounded-lg transition-smooth cursor-pointer active:bg-secondary/70 ${
-                                  selectedCustomItem?.id === item.id
-                                    ? "bg-primary/10 border-primary"
-                                    : "hover:bg-secondary/50"
-                                }`}
-                                onClick={() => handleCustomItemSelect(item)}
-                              >
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center space-x-2">
-                                    <span className="font-medium text-foreground text-sm sm:text-base truncate">
-                                      {item.name}
-                                    </span>
-                                    {selectedCustomItem?.id === item.id && (
-                                      <Badge variant="default" className="text-xs shrink-0">
-                                        Selected
-                                      </Badge>
-                                    )}
-                                  </div>
-                                  <div className="text-xs sm:text-sm text-muted-foreground mt-1 capitalize">
-                                    {item.type}
-                                  </div>
-                                </div>
-                                <div className="text-xs sm:text-sm font-medium text-primary shrink-0">
-                                  {formatCoins(item.price)}
-                                </div>
-                              </div>
-                            ))}
-                        </div>
 
-                        {/* Custom Coin Input */}
-                        {showCustomAmountInput && selectedCustomItem && (
-                          <Card className="border-primary/20">
-                            <CardHeader>
-                              <CardTitle className="text-lg">Enter Pink'd Coins for {selectedCustomItem.name}</CardTitle>
-                            </CardHeader>
-                            <CardContent className="space-y-4">
-                              {/* Predefined Amount Buttons for Games */}
-                              {selectedCustomItem.type === "game" && (
-                                <div>
-                                  <p className="text-sm text-muted-foreground mb-3">Quick Select Coins:</p>
-                                  <div className="grid grid-cols-4 gap-2 mb-4">
-                                    {[1, 50, 100, 200, 500, 1000, 2000].map((amount) => (
-                                      <Button
-                                        key={amount}
-                                        variant={customAmount === amount.toString() ? "default" : "outline"}
-                                        size="sm"
-                                        onClick={() => setCustomAmount(amount.toString())}
-                                        className="h-12"
-                                      >
-                                        {formatCoins(amount)}
-                                      </Button>
-                                    ))}
-                                  </div>
-                                  <div className="text-center text-sm text-muted-foreground mb-3">
-                                    Or enter custom coin amount:
-                                  </div>
-                                </div>
-                              )}
-
-                              <div className="flex items-center space-x-4">
-                                <div className="flex-1">
-                                  <Input
-                                    type="number"
-                                    placeholder="Enter Pink'd Coins"
-                                    value={customAmount}
-                                    onChange={(e) => setCustomAmount(e.target.value)}
-                                    min="0"
-                                    step="1"
-                                  />
-                                </div>
-                                <Button
-                                  onClick={handleCustomAmountConfirm}
-                                  disabled={!customAmount || parseFloat(customAmount) <= 0}
-                                >
-                                  Confirm & Scan
-                                </Button>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        )}
-                      </div>
-                    )}
                   </CardContent>
                 </Card>
               </div>
