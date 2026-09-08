@@ -4,8 +4,9 @@
 
 Manas's original patch is preserved as `3386b38`, based on main `884076d`.
 Corrective work is a separate commit. Release cash independently first; this
-branch does not depend on cash. Main automatic production deployment stays on.
-Neither this branch nor its database migration has been deployed in this pass.
+feature does not depend on cash. The integration now retains both release
+histories. Main automatic production deployment stays on. Neither feature's
+database migration has been deployed in this pass.
 
 Games use the existing retry-safe ordinary POS charge, including full UID scans,
 lookup markers, top-up QR, persistent receipts and admin voids. Trophy selection
@@ -52,19 +53,21 @@ PINKD_PLAYWRIGHT_ROOT=/path/to/node_modules PINKD_TEST_URL=http://127.0.0.1:8096
 
 1. Finish and release cash first. Reconcile this branch with the released cash
    changes, retaining BOTH readiness gates and generated type additions.
-2. Replay the complete schema on a dedicated isolated Supabase stack; generate
-   and review schema types there. Run real hosted role and revoked-assignment
-   tests, expiry checks and protected-preview browser tests.
+2. Use the existing production database only, as approved. Do not create a test
+   database or extra Git branch. Hosted staging is waived. Run combined local
+   checks, then verify schema types and permissions against the deployed backend.
 3. Inspect outstanding rounds again immediately before switching terminals.
    A read-only production query during implementation returned no rounds; that
    is not a guarantee about future state. Do not silently close/refund rounds.
-4. Complete Android winner-scan -> lookup -> late NFC read rehearsal; require one
-   award and no extra charge. Test lost responses and refresh on the actual phone.
-5. Review production migration dry run carefully: award migration
+4. Review production migration dry run carefully: award migration
    `20260907191000_pinkredibles_award.sql` sorts BEFORE the cash migration. Use
    reviewed out-of-order migration handling; exclude unrelated migrations.
-6. Deploy reviewed backend first, verify direct_award_backend_version=1, then
+5. Deploy reviewed backend first; verify eligibility, durable retries, cooldown,
+   award/void protection and direct_award_backend_version=1, then
    merge main and verify automatic frontend deployment. Keep rollback deployment
    available and reload all terminals.
+6. Before venue NFC operations, complete Android winner-scan -> lookup -> late
+   NFC read rehearsal; require one award and no extra charge. Test lost responses
+   and refresh on the actual phone. This hardware check remains outstanding.
 
 Do not promote based only on simulated browser or focused SQL results.

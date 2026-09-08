@@ -20,6 +20,18 @@ export type Database = {
         Update: { operation_id?: string; actor_id?: string; request?: Json; result?: Json | null; created_at?: string }
         Relationships: []
       }
+      cash_studios: {
+        Row: { name: string }
+        Insert: { name: string }
+        Update: { name?: string }
+        Relationships: []
+      }
+      cash_manager_studios: {
+        Row: { user_id: string; studio: string }
+        Insert: { user_id: string; studio: string }
+        Update: { user_id?: string; studio?: string }
+        Relationships: []
+      }
       wallet_operations: {
         Row: { operation_id: string; operator_id: string; operation_kind: string; request: Json; result: Json | null; created_at: string }
         Insert: { operation_id: string; operator_id: string; operation_kind: string; request: Json; result?: Json | null; created_at?: string }
@@ -1190,6 +1202,13 @@ export type Database = {
         Returns: Json
       }
       auto_credit_coin_order: { Args: { p_coin_order_id: string }; Returns: Json }
+      cash_backend_version: { Args: Record<PropertyKey, never>; Returns: number }
+      create_cash_event_order_checkout: { Args: { p_operation_id: string; p_checkout_token_hash: string; p_request: Json }; Returns: Json }
+      cash_checkout_status: { Args: { p_order_id: string; p_checkout_token_hash: string }; Returns: Json }
+      list_cash_desk_orders: {
+        Args: { p_studio?: string | null }
+        Returns: Json
+      }
       staff_find_wallet: {
         Args: { p_query: string }
         Returns: {
