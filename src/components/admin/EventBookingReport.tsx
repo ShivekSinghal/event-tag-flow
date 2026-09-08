@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CalendarDays, CheckCircle, Coins, Download, FileSpreadsheet, Filter, RefreshCw, Save, Ticket, Timer, Users } from "lucide-react";
+import { Banknote, CalendarDays, CheckCircle, Coins, Download, FileSpreadsheet, Filter, RefreshCw, Save, Ticket, Timer, Users } from "lucide-react";
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json, Tables } from "@/integrations/supabase/types";
@@ -27,9 +27,25 @@ const ORDER_SELECT_BASIC = "*, event_order_items(*)";
 
 const ALL_PACKAGES = "all-packages";
 const ALL_STATUSES = "all-statuses";
+const ALL_METHODS = "all-methods";
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  cash: "Cash",
+  cashfree: "Cashfree",
+  razorpay: "Razorpay",
+  manual: "Manual",
+};
 const SUCCESS_STATUSES = new Set(["paid", "completed"]);
 const PENDING_STATUSES = new Set(["pending", "manual_payment"]);
 const PAYMENT_STATUSES = ["manual_payment", "pending", "paid", "completed", "failed", "cancelled", "refunded"];
+
+function paymentMethod(provider: string | null) {
+  return provider?.trim().toLowerCase() || "manual";
+}
+
+function paymentMethodLabel(provider: string | null) {
+  const method = paymentMethod(provider);
+  return PAYMENT_METHOD_LABELS[method] || method.replace(/[_-]/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
+}
 
 function titleCaseStatus(status: string | null) {
   return (status || "pending").replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
@@ -119,6 +135,7 @@ export default function EventBookingReport() {
   const [isExpiring, setIsExpiring] = useState(false);
   const [packageFilter, setPackageFilter] = useState(ALL_PACKAGES);
   const [statusFilter, setStatusFilter] = useState(ALL_STATUSES);
+  const [methodFilter, setMethodFilter] = useState(ALL_METHODS);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
@@ -197,6 +214,11 @@ export default function EventBookingReport() {
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [orders]);
 
+  const methodOptions = useMemo(() => Array.from(new Set([
+    ...Object.keys(PAYMENT_METHOD_LABELS),
+    ...orders.map((order) => paymentMethod(order.payment_provider)),
+  ])), [orders]);
+
   const filteredOrders = useMemo(() => {
     return orders.filter((order) => {
       const orderDate = order.created_at || "";
@@ -204,11 +226,12 @@ export default function EventBookingReport() {
       const packageMatches =
         packageFilter === ALL_PACKAGES || getOrderItems(order).some((item) => item.package_key === packageFilter);
       const statusMatches = statusFilter === ALL_STATUSES || status === statusFilter;
+      const methodMatches = methodFilter === ALL_METHODS || paymentMethod(order.payment_provider) === methodFilter;
       const fromMatches = !dateFrom || orderDate >= `${dateFrom}T00:00:00`;
       const toMatches = !dateTo || orderDate <= `${dateTo}T23:59:59`;
-      return packageMatches && statusMatches && fromMatches && toMatches;
+      return packageMatches && statusMatches && methodMatches && fromMatches && toMatches;
     });
-  }, [dateFrom, dateTo, orders, packageFilter, statusFilter]);
+  }, [dateFrom, dateTo, orders, packageFilter, statusFilter, methodFilter]);
 
   const stats = useMemo(() => {
     const packageMap = new Map<
@@ -219,12 +242,18 @@ export default function EventBookingReport() {
     let coinRevenue = 0;
     let pendingPayments = 0;
     let successfulPayments = 0;
+    let cashCollected = 0;
+    let cashOrders = 0;
 
     filteredOrders.forEach((order) => {
       const status = order.payment_status || "pending";
       const orderIsSuccessful = SUCCESS_STATUSES.has(status);
 
       if (orderIsSuccessful) {
+        if (paymentMethod(order.payment_provider) === "cash") {
+          cashCollected += Number(order.total_amount_inr || 0);
+          cashOrders += 1;
+        }
         if (order.booking_source === COINS_SOURCE) {
           coinRevenue += Number(order.total_amount_inr || 0);
         } else {
@@ -258,6 +287,8 @@ export default function EventBookingReport() {
       coinRevenue,
       pendingPayments,
       successfulPayments,
+      cashCollected,
+      cashOrders,
       packageStats: Array.from(packageMap.entries())
         .map(([packageKey, packageData]) => ({
           packageKey,
@@ -475,7 +506,7 @@ export default function EventBookingReport() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="grid gap-3 md:grid-cols-5">
+        <div className="grid gap-3 md:grid-cols-6">
           <div className="space-y-2 md:col-span-2">
             <Label>Package / Item</Label>
             <Select value={packageFilter} onValueChange={setPackageFilter}>
@@ -509,6 +540,20 @@ export default function EventBookingReport() {
             </Select>
           </div>
           <div className="space-y-2">
+            <Label htmlFor="payment-method-filter">Payment method</Label>
+            <Select value={methodFilter} onValueChange={setMethodFilter}>
+              <SelectTrigger id="payment-method-filter">
+                <SelectValue placeholder="All methods" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_METHODS}>All methods</SelectItem>
+                {methodOptions.map((method) => (
+                  <SelectItem key={method} value={method}>{paymentMethodLabel(method)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
             <Label>From</Label>
             <Input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} />
           </div>
@@ -537,11 +582,12 @@ export default function EventBookingReport() {
           </Button>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {[
             { label: "Total Orders", value: stats.totalOrders.toString(), icon: Users },
             { label: "Ticket revenue", value: formatEventPrice(stats.ticketRevenue), icon: Ticket },
             { label: "Coin revenue", value: formatEventPrice(stats.coinRevenue), icon: Coins },
+            { label: `Cash collected (${stats.cashOrders} ${stats.cashOrders === 1 ? "order" : "orders"})`, value: formatEventPrice(stats.cashCollected), icon: Banknote },
             { label: "Pending Payments", value: stats.pendingPayments.toString(), icon: Filter },
             { label: "Successful Payments", value: stats.successfulPayments.toString(), icon: CheckCircle },
           ].map((item) => {
@@ -638,7 +684,7 @@ export default function EventBookingReport() {
                       <div className="font-bold">{formatEventPrice(Number(order.total_amount_inr || 0))}</div>
                       <Badge variant={statusVariant(order.payment_status)}>{titleCaseStatus(order.payment_status)}</Badge>
                       <div className="text-xs text-muted-foreground">
-                        {(order.payment_provider || "manual").toUpperCase()}
+                        {paymentMethodLabel(order.payment_provider)}
                         {order.cashfree_payment_status || order.razorpay_payment_status
                           ? ` · ${order.cashfree_payment_status || order.razorpay_payment_status}`
                           : ""}
