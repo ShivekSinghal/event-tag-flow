@@ -10,7 +10,8 @@ const endpoint=`https://${project}.supabase.co/functions/v1/send-auth-email`;
 async function management(path,method='GET',body) {
  const response=await fetch(base+path,{method,headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});
  if(!response.ok) throw new Error(`Management API ${method} ${path} failed (${response.status}); no secret values logged.`);
- return response.status===204 ? null : response.json();
+ const text=await response.text();
+ return text ? JSON.parse(text) : null;
 }
 const current=await management('/config/auth');
 const summary=value=>({site_url:value.site_url,email_hook_enabled:value.hook_send_email_enabled,email_hook_uri:value.hook_send_email_uri,custom_smtp_configured:Boolean(value.smtp_host),otp_expiry_seconds:value.mailer_otp_exp,emails_per_hour:value.rate_limit_email_sent});

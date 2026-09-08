@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readFileSync} from 'node:fs';
 import {randomBytes} from 'node:crypto';
+import {spawnSync} from 'node:child_process';
 import {Webhook} from 'standardwebhooks';
 import ts from 'typescript';
 
@@ -9,6 +10,31 @@ const source=readFileSync('supabase/functions/send-auth-email/handler.ts','utf8'
 const {buildAuthEmails,createAuthEmailHandler}=await import('data:text/javascript;base64,'+Buffer.from(ts.transpile(source,{module:ts.ModuleKind.ESNext})).toString('base64'));
 const config={configured:true,supabaseUrl:'https://project.supabase.co',siteUrl:'https://pinkd.hashtag.dance'};
 const secret=randomBytes(32).toString('base64');
+
+test('Auth configuration accepts empty successful secret responses before enabling the hook',()=>{
+ const script=readFileSync('scripts/configure-auth-email.mjs','utf8');
+ const harness=`
+ process.argv.push('--apply','--approved-project','xdaienqjbybomctsoiro');
+ process.env.SUPABASE_ACCESS_TOKEN='test-only';
+ let config={site_url:'https://old.example',hook_send_email_enabled:false,rate_limit_email_sent:2};
+ let calls=0;
+ globalThis.fetch=async(url,options={})=>{
+   calls++;
+   if(url.endsWith('/secrets'))return new Response(null,{status:200});
+   if(url.endsWith('/functions/v1/send-auth-email'))return new Response(null,{status:401});
+   if(url.endsWith('/config/auth')){
+     if(options.method==='PATCH')config={...config,...JSON.parse(options.body)};
+     return Response.json(config);
+   }
+   throw Error('Unexpected network request');
+ };
+ await import('data:text/javascript;base64,${Buffer.from(script).toString('base64')}');
+ if(calls!==5 || !config.hook_send_email_enabled || config.mailer_otp_exp!==3600)throw Error('Configuration incomplete');
+ `;
+ const result=spawnSync(process.execPath,['--input-type=module','-e',harness],{encoding:'utf8'});
+ assert.equal(result.status,0,result.stderr);
+ assert.ok(!result.stdout.includes('whsec_'));
+});
 const verifier=new Webhook(secret);
 const payload=(action='recovery')=>({user:{email:'staff@example.test'},email_data:{email_action_type:action,token_hash:'a'.repeat(64),token:'123456',redirect_to:'https://evil.example',site_url:'https://evil.example'}});
 function signed(value=payload(),date=new Date(),id='test-message') {

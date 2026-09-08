@@ -3,7 +3,10 @@ import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 const { chromium } = createRequire(process.env.PINKD_PLAYWRIGHT_ROOT + '/package.json')('playwright');
 const base = process.env.PINKD_TEST_URL || 'http://127.0.0.1:8102';
-if (!['localhost','127.0.0.1'].includes(new URL(base).hostname)) throw new Error('Only local mocked tests are permitted.');
+const local = ['localhost','127.0.0.1'].includes(new URL(base).hostname);
+const preview = new URL(base).hostname === process.env.PINKD_APPROVED_PREVIEW_HOST
+  && new URL(base).hostname.endsWith('.vercel.app') && Boolean(process.env.PINKD_PREVIEW_BYPASS);
+if (!local && !preview) throw new Error('Only local or explicitly approved protected previews are permitted.');
 const user = { id:'00000000-0000-4000-8000-000000000001', aud:'authenticated', role:'authenticated', email:'operator@example.test' };
 const wallet = { id:'00000000-0000-4000-8000-000000000002', attendee_name:'Test Guest', attendee_phone:'0000000000', tag_id:'NFC04AA11223344', coin_balance:5000, status:'active' };
 const manifest = readFileSync('scripts/apply-activity-staff.sql','utf8');
@@ -21,7 +24,10 @@ try {
     const savedGames = [];
     await context.route('**/*', async route => {
       const url = new URL(route.request().url());
-      if (url.origin===new URL(base).origin) return route.continue();
+      if (url.origin===new URL(base).origin) {
+        if (!['GET','HEAD'].includes(route.request().method())) return route.abort();
+        return route.continue({headers:{...route.request().headers(),...(preview ? {'x-vercel-protection-bypass':process.env.PINKD_PREVIEW_BYPASS} : {})}});
+      }
       if (!url.hostname.endsWith('.supabase.co')) return route.abort();
       const name=url.pathname.split('/').at(-1), json=value=>route.fulfill({json:value});
       if(name==='user') return json(user);

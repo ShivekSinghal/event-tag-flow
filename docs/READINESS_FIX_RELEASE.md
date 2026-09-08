@@ -2,9 +2,9 @@
 
 Scope: the two findings selected from the 8 September audit. No cash-coin top-up rollout, payment/webhook changes, attendee ownership redesign, or broad role changes are bundled here.
 
-Status on 9 September: implemented in `codex/event-readiness-fixes`, not deployed. Production approval was requested; no response received during implementation. The production migration, email function/configuration and real recovery-email test remain pending.
+Status on 9 September: production release approved. The activity migration is live as `20260908203802`, and secured `send-auth-email` v50 is deployed. Auth now uses the production URL, a signed email hook, a one-hour expiry and a 60/hour email limit. One authorised recovery email reached the owner's Gmail inbox; its link targets `/reset-password`. No reset link was consumed and no password was changed. Frontend promotion and roster reconciliation follow the checked release order below.
 
-Verification: 24 activity/Auth-email test executions and 39 POS/NFC/award/retry regressions passed (some shared fixtures repeat). Lint, app TypeScript, email-handler TypeScript and build passed. Mocked activity browser checks passed at 390px and 1440px, including 30-second lookup takeover, late NFC, duplicate confirmation and lost-response recovery. Auth configuration dry run made no changes and confirmed the old URL, disabled hook and two-email hourly limit are still live. The first browser run hit an older process on occupied port 8096; the rerun used the confirmed new server at port 8110 and passed.
+Verification: 63 activity/Auth/POS/NFC/award/retry executions passed, followed by 39 activity/Auth/live-sales/coin-QR executions; shared fixtures repeat. A new regression also verifies empty successful Management API responses. Lint, app TypeScript and build passed. The protected hosted preview passed mocked activity checks at 390px and 1440px, including 30-second lookup takeover, late NFC, duplicate confirmation, lost-response recovery and restricted staff groups. Real public route, signed-out access and cart checks passed without submitting orders. Physical Android NFC is still unverified.
 
 ## Included
 
@@ -32,7 +32,7 @@ Run `scripts/test-activities-browser.mjs` against the isolated local server with
 ## Approved live release order
 
 1. Confirm production approval and record the current frontend rollback deployment. Do not merge unrelated staged branches.
-2. Inspect current games and staff configuration. Apply only `20260908131049_activity_groups_and_donations.sql`; reconcile its actual recorded migration timestamp. Do not blanket-repair old migration history or deploy unrelated SQL.
+2. Inspect current games and staff configuration. Apply only `20260908203802_activity_groups_and_donations.sql`; this timestamp matches production migration history. Do not blanket-repair old migration history or deploy unrelated SQL.
 3. Verify 15 canonical active games and the numeric spending signature. Anonymous callers must remain denied. Do not charge a real wallet merely to test the migration.
 4. Release the frontend and have stall phones refresh. Older donation requests without a game ID will intentionally fail rather than charge/report against an unidentified activity.
 5. Deploy only `send-auth-email` plus `handler.ts`, with JWT verification disabled because the handler verifies the Auth hook signature. Existing `RESEND_API_KEY` and a verified `AUTH_EMAIL_FROM` or `EVENT_CONFIRMATION_EMAIL_FROM` are required. Do not expose those values or enable the old insecure handler.
@@ -42,7 +42,7 @@ Run `scripts/test-activities-browser.mjs` against the isolated local server with
 
 ## Still pending outside this patch
 
-- Production promotion/configuration until approved, and real password-reset delivery/completion.
+- Frontend production promotion and staff assignment readback; recipient completion of a password reset remains user-controlled.
 - Android NFC/lookup race rehearsal and venue network testing.
 - Counter-manager and remaining staff assignments, test-band blocking after rehearsal.
 - Dedicated cash coin top-ups, prominent POS acknowledgement, enhanced Check Balance and timed void release.

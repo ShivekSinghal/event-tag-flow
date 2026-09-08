@@ -38,7 +38,7 @@ Status: local implementation only. Production deployment and staff changes requi
 
 ## Approved deployment order
 
-1. Apply only the reviewed `20260908131049_activity_groups_and_donations.sql` migration. Do not include unrelated migrations or scratch directories. Check the migration dry run first. Do not downgrade the database if reverting only the frontend.
+1. Apply only the reviewed `20260908203802_activity_groups_and_donations.sql` migration. Do not include unrelated migrations or scratch directories. Check the migration dry run first. Do not downgrade the database if reverting only the frontend.
 2. Deploy a protected frontend preview, verify, and obtain production promotion approval. An old client's custom-game request without a game ID is intentionally rejected with an activity-unavailable message; upgrade staff phones before opening donations.
 3. After account-change approval, run `scripts/provision-akash-staff.mjs` with `--apply --approved-project xdaienqjbybomctsoiro --credentials-out /absolute/private-directory/akash.json`. Set the service-role key through a protected environment, never in Git or command arguments. Directory mode must be 700; output mode is 600. Deliver this one password privately to Akash. The script never resets an existing account.
 4. Run `scripts/apply-activity-staff.sql` in a trusted administrator database session. It fails atomically if profiles, roles, canonical games, or prices differ. Expected result: 33 game assignments across 9 staff operators. It never grants roles, food/drinks, or cash-manager access.
