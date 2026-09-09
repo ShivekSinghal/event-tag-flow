@@ -11,7 +11,9 @@
 .pinkd-game-rules .rules-kicker { color: #ff007f; font-size: 12px; font-weight: 800; margin-bottom: 8px; }
 .pinkd-game-rules h1 { font-size: 42px; line-height: 1.15; font-weight: 800; }
 .pinkd-game-rules h1 span { color: #ff007f; }
-.pinkd-game-rules .rules-heading > p:last-child { margin-top: 12px; color: #bcbcbc; font-size: 15px; }
+.pinkd-game-rules .rules-heading > p:not(.rules-kicker) { margin-top: 12px; color: #bcbcbc; font-size: 15px; }
+.pinkd-game-rules .rules-pdf-download { display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-height: 44px; margin-top: 20px; padding: 10px 16px; border-radius: 6px; background: #ff007f; color: #080808; font-size: 14px; font-weight: 800; }
+.pinkd-game-rules .rules-pdf-download:hover { background: #ff409f; color: #080808; }
 .pinkd-game-rules .rules-basics { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; padding-block: 22px; margin-top: 22px; border-block: 1px solid #292929; }
 .pinkd-game-rules .rules-basics > div { display: flex; gap: 12px; font-size: 13px; line-height: 1.7; color: #bcbcbc; }
 .pinkd-game-rules .rules-basics svg { flex: 0 0 20px; color: #ff007f; margin-top: 3px; }

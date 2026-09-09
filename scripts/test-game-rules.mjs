@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import ts from 'typescript';
@@ -6,6 +7,16 @@ import ts from 'typescript';
 const source = readFileSync(new URL('../src/data/gameRules.ts', import.meta.url), 'utf8');
 const { outputText } = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext } });
 const { gameRules, gameRuleGroups } = await import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`);
+
+test('complete PDF matches current rules and is independent of page filters', () => {
+  const manifest = JSON.parse(readFileSync(new URL('../public/game-rules-pdf-manifest.json', import.meta.url), 'utf8'));
+  const pdf = readFileSync(new URL('../public/PINKD-Game-Rules.pdf', import.meta.url));
+  assert.equal(manifest.sourceSha256, createHash('sha256').update(source).digest('hex'), 'Regenerate the complete PDF after changing rules, then update its manifest');
+  assert.equal(manifest.pdfSha256, createHash('sha256').update(pdf).digest('hex'));
+  assert.equal(manifest.games, gameRules.length);
+  assert.equal(pdf.subarray(0, 5).toString(), '%PDF-');
+  assert.match(readFileSync(new URL('../src/pages/GameRules.tsx', import.meta.url), 'utf8'), /href="\/PINKD-Game-Rules.pdf" download="PINKD-Game-Rules.pdf"/);
+});
 
 test('all 15 canonical activities have unique ids and complete rules', () => {
   assert.equal(gameRules.length, 15);

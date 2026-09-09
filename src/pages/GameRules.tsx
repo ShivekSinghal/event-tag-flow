@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, ArrowUpRight, ChevronDown, Search, ShieldCheck, Trophy, X } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, ChevronDown, Download, Search, ShieldCheck, Trophy, X } from "lucide-react";
 import { gameRuleGroups, gameRules, type GameRuleGroup } from "@/data/gameRules";
 import "./GameRules.css";
 
@@ -35,6 +35,7 @@ export default function GameRules() {
           <p className="rules-kicker">PINK'D / THE PLAYBOOK</p>
           <h1>Game rules<span>.</span></h1>
           <p>Pick your game. Know the challenge. Make it count.</p>
+          <a className="rules-pdf-download" href="/PINKD-Game-Rules.pdf" download="PINKD-Game-Rules.pdf"><Download size={18} /> Download all rules (PDF)</a>
         </div>
 
         <section className="rules-basics" aria-label="Before you play">
