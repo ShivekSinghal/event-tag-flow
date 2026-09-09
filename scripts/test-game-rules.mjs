@@ -56,12 +56,40 @@ test('all 15 canonical activities have unique ids and complete rules', () => {
   });
 });
 
-test('rewards and fees do not promise Pinkredibles for free or donation activities', () => {
+test('display rewards follow the September 10 handoff; fees remain unchanged', () => {
   for (const game of gameRules) {
     if (game.group === 'Free') assert.equal(game.cost, 'Free');
-    if (['Free', 'Donations', 'Tier 1'].includes(game.group)) assert.equal(game.prize, undefined);
-    if (['Tier 2', 'Tier 3'].includes(game.group)) assert.match(game.prize, /1 Pinkredible/);
+    if (['Donations', 'Tier 1'].includes(game.group)) assert.equal(game.prize, undefined);
+    if (game.group === 'Tier 1') assert.equal(game.cost, '450 coins');
+    if (game.group === 'Tier 2') assert.equal(game.cost, '750 coins');
+    if (game.group === 'Tier 3') assert.equal(game.cost, '1,000 coins');
     if (game.group === 'Donations') assert.match(game.cost, /150\+/);
+  }
+  for (const id of ['beer-pong', 'squid-games', 'jamaal-challenge']) assert.equal(gameRules.find(game => game.id === id).prize, '1 Pinkredible');
+  assert.equal(gameRules.find(game => game.id === 'cricket').prize, 'A beer each for the winning team');
+  assert.equal(gameRules.find(game => game.id === 'bombastic').prize, 'A shot');
+});
+
+test('all supplied game instructions are preserved without omissions or obsolete additions', () => {
+  const headings = [
+    ['minute-to-win-it', 'MINUTE TO MINUTE'], ['bombastic', 'BOMBASTIC'], ['limbo', 'LIMBO'],
+    ['hurdle', 'HURDLE'], ['issue-with-a-tissue', 'ISSUE WITH A TISSUE'], ['cricket', 'CRICKET'],
+    ['shoot-your-shot', 'SHOOT YOUR SHOT'], ['wing-person-for-hire', 'WINGPERSON FOR HIRE'],
+    ['spin-the-wheel', 'SPIN THE WHEEL'], ['beer-pong', 'BEER PONG:'], ['squid-games', 'SQUID GAMES:'],
+    ['jamaal-challenge', 'JAMAL CHALLENGE:'], ['busk-for-a-cause', 'BUSK FOR A CAUSE:'],
+    ['karaoke', 'KARAOKE:'], ['red-flag-green-flag', 'RED FLAG GREEN FLAG:'],
+  ];
+  const lines = readFileSync(new URL('../docs/game-rules-handoff-2026-09-10.txt', import.meta.url), 'utf8').split(/\n|\u2028/).map(line => line.trim());
+  const normalize = text => text.replace(/\s+/g, ' ').trim();
+  for (const [index, [id, heading]] of headings.entries()) {
+    const start = lines.indexOf(heading) + 1;
+    const end = headings[index + 1] ? lines.indexOf(headings[index + 1][1]) : lines.length;
+    assert.ok(start > 0 && end > start, id);
+    const expected = lines.slice(start, end).filter(line => !/^(?:TIER \d:?|FREE GAMES:|HOW TO PLAY:?)$/.test(line)).map(line => line.replace(/^\d+\.\s+/, '')).join('\n');
+    const game = gameRules.find(game => game.id === id);
+    const actual = game.rules.map(rule => `${rule.title}\n${rule.body}`).join('\n');
+    assert.equal(normalize(actual), normalize(expected), id);
+    assert.equal(game.note, undefined, 'Old supplementary copy must not override the handoff');
   }
 });
 

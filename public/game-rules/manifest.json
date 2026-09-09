@@ -1,110 +1,110 @@
 {
-  "sourceSha256": "3cbe93ffccdf1dcdb788ac09c4c662d82bc1cd88363f92398a8825ed6603a627",
+  "sourceSha256": "c63020e13ff27094f6060b60df8a628b46007ee1150f2082468fefab1397012b",
   "routesSha256": "e39d221b9edf521d2bcecc83c18e669b96041a9d2a96de14b99798383a93627f",
   "games": [
     {
       "id": "shoot-your-shot",
       "routeId": "game1",
       "url": "https://pinkd.hashtag.dance/games-rules/game1",
-      "pdfSha256": "c41afcc848572f57e42a91ca9b9f8a919ed2d0e69dc6f4d9f198323878413a4e",
+      "pdfSha256": "315e84b1ab7e9282d7882a442c2ba1bf65d69dfd71e485a521b0c6c7a0177147",
       "qrSha256": "bdf3dd44b7ce83e15d025f731e5fe1fb1a6cff84b32b844bb94ff67c46929d73"
     },
     {
       "id": "spin-the-wheel",
       "routeId": "game2",
       "url": "https://pinkd.hashtag.dance/games-rules/game2",
-      "pdfSha256": "92eb7b13fa929950f1bb11c54c680ad3e4f582108a924324957fc2e2646ed198",
+      "pdfSha256": "e0c10d5f64413574ea3876c7963076efe0f999e9a19017835a33c880d340986a",
       "qrSha256": "5c9c9a8f50fb56e94b126748185c322541fcf5f5388d7dc6c147ba3ff78259fb"
     },
     {
       "id": "wing-person-for-hire",
       "routeId": "game3",
       "url": "https://pinkd.hashtag.dance/games-rules/game3",
-      "pdfSha256": "4e60d18ffd01f4f8714ab5c2ccf80d6c4be00e3e7c68036ffef296549532a4e5",
+      "pdfSha256": "3f788bc8fffe58c06cd5f90194c8bae8599e05657bc911c12949d06128dc28e1",
       "qrSha256": "7c7bb314233ee8ceebafd52f730219506cfdae0ac8c981d78dd73b0354b6afaa"
     },
     {
       "id": "hurdle",
       "routeId": "game4",
       "url": "https://pinkd.hashtag.dance/games-rules/game4",
-      "pdfSha256": "56f9eec52e78d7b4a310743192aaef9821cd4a9e01acd232898ab7baf15bea85",
+      "pdfSha256": "ca8e89b0bc04ebc2f18b0f694ea06e0c2b3ae0256f80fc731348a52caa801727",
       "qrSha256": "06aab4d8e14811427e52c1c23211300dc67e8ba8b2dc994d0255405a432a031d"
     },
     {
       "id": "cricket",
       "routeId": "game5",
       "url": "https://pinkd.hashtag.dance/games-rules/game5",
-      "pdfSha256": "9481bb65ea74fd99689e75bc3022094b4d3464ac39360d2e36fe0cbffc897c1f",
+      "pdfSha256": "cc2db8fc98e4c4514171325c1120d4728480aea4c08df1489ab069ef120a8576",
       "qrSha256": "9a9a7658e06ffc15282f44f9644401b57703b7d620ed2bb7a40ba91c8a8b1503"
     },
     {
       "id": "issue-with-a-tissue",
       "routeId": "game6",
       "url": "https://pinkd.hashtag.dance/games-rules/game6",
-      "pdfSha256": "7c6e4fb7ca5e17cd3b9d7e0956e03102d47a5729519b886a2b1c07f024408d92",
+      "pdfSha256": "3d61b593eb43bea0ca9bf7592794685c77b16a0cdeae4d6a7f5f3235d13af729",
       "qrSha256": "8cface7b288b3bda9d6d16427af10a2f331c5ae9bad0ab0292a86270fcd88060"
     },
     {
       "id": "limbo",
       "routeId": "game7",
       "url": "https://pinkd.hashtag.dance/games-rules/game7",
-      "pdfSha256": "d8e9b778dee89dd4decdbdb6349cc4094617dd62ec7b111a3c5e567dfb7cbed0",
+      "pdfSha256": "fe0772cc2778e03bd6c7c4d045358a14ad58aa6cae1c92c2d7242f70999ac6f6",
       "qrSha256": "24d79ff865f39cd03f2b73b120f5e7da209c7e8016e8386b62bbabecc107cce9"
     },
     {
       "id": "bombastic",
       "routeId": "game8",
       "url": "https://pinkd.hashtag.dance/games-rules/game8",
-      "pdfSha256": "fe40b8b9efab18c9caad6a287ee079e6419ce974f3d03925f254901abf20767e",
+      "pdfSha256": "42675ffab9ded2274e4388c46b8e4a59c18b1f5be02e9debe01e10ef19126575",
       "qrSha256": "e09e355ee22e0359f67714a22176c5e89e86a0a8072afc64113deca601954026"
     },
     {
       "id": "minute-to-win-it",
       "routeId": "game9",
       "url": "https://pinkd.hashtag.dance/games-rules/game9",
-      "pdfSha256": "885173cbc76aea0db5aa6eda12e91f0572d27b90696c43126a0a1dd5925cbff2",
+      "pdfSha256": "934502714065987d11a38445b6d91fd5b6871797b0adad320b37fec2b0300299",
       "qrSha256": "866d9de084c9b61bad2aad118a3dd29589fce2525f1882fc58557c1d230cf4b9"
     },
     {
       "id": "red-flag-green-flag",
       "routeId": "game10",
       "url": "https://pinkd.hashtag.dance/games-rules/game10",
-      "pdfSha256": "e3f06de9054b5893d0510c81ec29535c7b182d319a42a71c0d702092ea030d5e",
+      "pdfSha256": "f765baebb552ea7cebf5b6d6007a9927acac86d865344b535aa9615736d08142",
       "qrSha256": "0e410f59def62b3fe1de972e886307c61580b44040bfbdbd152411193a63f396"
     },
     {
       "id": "jamaal-challenge",
       "routeId": "game11",
       "url": "https://pinkd.hashtag.dance/games-rules/game11",
-      "pdfSha256": "247e61ae32d8311bb6f28ae7b4fdd2758d00c8271d9c95cb55b760653dbeba7d",
+      "pdfSha256": "10f117509643f13609e5d618f5cea6dc26dbf4c6d939fa3ccadaebdabc97f025",
       "qrSha256": "5e78ce791325863f29bb658eab9ddac29146bf8f3f677f0a9dc5fd9c6915d3e1"
     },
     {
       "id": "squid-games",
       "routeId": "game12",
       "url": "https://pinkd.hashtag.dance/games-rules/game12",
-      "pdfSha256": "d29a80bdb85033dbcf4f8d16ba66ff90a9491d86beab5c1adbdef64e742d53d2",
+      "pdfSha256": "e70ae675075b693cb81819f00d2b1d503d8dcfa0a9f684789cb991cb245e1ccf",
       "qrSha256": "7e1dbc2647fe4dd88c64056e55310c67d20cf27a931af30e624d06aa5256fc91"
     },
     {
       "id": "beer-pong",
       "routeId": "game13",
       "url": "https://pinkd.hashtag.dance/games-rules/game13",
-      "pdfSha256": "722948f89ad021a63366c3ba55325343b6b80912b06d191dfd3df52f7a49130d",
+      "pdfSha256": "d9cf7afea1fea958952e37618adb1fba9c74dda2c8b8e22915ad58b51063e084",
       "qrSha256": "fa630dbdf87995a57969f8e2d722845877b642c2aa98169e5e2b60f96bef9a31"
     },
     {
       "id": "karaoke",
       "routeId": "game14",
       "url": "https://pinkd.hashtag.dance/games-rules/game14",
-      "pdfSha256": "fadf24489815f21da703890e65d4549e83f277660151d1a0c62dd134c7d635d0",
+      "pdfSha256": "a6b581dae9418680b0c6387eceefc90978445a097259948bf0783aa164b09b0e",
       "qrSha256": "da3068422280612267ada8c1494fcf5d31e608082d84bde42d98cbfa14d428be"
     },
     {
       "id": "busk-for-a-cause",
       "routeId": "game15",
       "url": "https://pinkd.hashtag.dance/games-rules/game15",
-      "pdfSha256": "878b85996dcd928fbe37da735c1eaa8f1f24a8c53123b3f2247f3680d49772fa",
+      "pdfSha256": "98d9d7bcc2b4931d5dd77cfc0d2b1dc1459dc0ac14f99900489bd4fc5c9f8289",
       "qrSha256": "bb13446095d93f46b72e5c2eaf1b24b2f02f73f0392071079be9602430a62b81"
     }
   ]

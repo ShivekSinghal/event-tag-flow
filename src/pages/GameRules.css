@@ -45,6 +45,7 @@
 .pinkd-game-rules ol { margin: 12px 0 0; padding-left: 21px; list-style: decimal; color: #d0d0d0; font-size: 14px; line-height: 1.8; }
 .pinkd-game-rules li + li { margin-top: 10px; }
 .pinkd-game-rules .rules-step-title { display: block; color: #fafafa; margin-bottom: 3px; font-size: 14px; }
+.pinkd-game-rules li p { white-space: pre-line; overflow-wrap: anywhere; }
 .pinkd-game-rules li:has(.rules-step-title) + li { margin-top: 18px; }
 .pinkd-game-rules li::marker { color: #ff409f; font-weight: 700; }
 .pinkd-game-rules .rules-note { margin-top: 16px; border-left: 2px solid #ff007f; padding-left: 12px; font-size: 12px; line-height: 1.8; color: #bcbcbc; }

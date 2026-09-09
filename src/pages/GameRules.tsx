@@ -42,7 +42,7 @@ export default function GameRules() {
 
         <section className="rules-basics" aria-label="Before you play">
           <div><ShieldCheck size={20} /><p><strong>Play fair.</strong> The runner explains the format and decides disputes. No interference; respect consent. Alcohol is always optional, with a non-alcoholic alternative.</p></div>
-          <div><Trophy size={20} /><p><strong>Win a Pinkredible.</strong> Tier 2 and Tier 3 prizes are digital. Each Pinkredible gives Rs. 100 off course registration, not cash. Check your band on <Link to="/coins">My coins</Link>.</p></div>
+          <div><Trophy size={20} /><p><strong>Win a Pinkredible.</strong> Pinkredibles are digital. Each Pinkredible gives Rs. 100 off course registration, not cash. Check your band on <Link to="/coins">My coins</Link>.</p></div>
         </section>
 
         <div className="rules-controls">

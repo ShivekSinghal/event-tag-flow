@@ -46,7 +46,7 @@ export default function GameRulePage() {
         <footer className="rules-footer">
           <p>Play fair. The runner explains the format and decides disputes. No interference; respect consent. Alcohol is always optional, with a non-alcoholic alternative.</p>
           <p>Paid play starts after the runner confirms your coin payment. Once a game starts, its entry fee is non-refundable. Free games need no coin payment or NFC scan.</p>
-          {game.prize && <p>Each Pinkredible gives Rs. 100 off course registration, not cash. Check your band on My coins.</p>}
+          {game.prize?.includes("Pinkredible") && <p>Each Pinkredible gives Rs. 100 off course registration, not cash. Check your band on My coins.</p>}
           <p>Confirm the fee and local format with the runner before paying. Donations start at 150 whole coins. Party entry is 18+.</p>
           <Link to="/game-rules"><ArrowLeft size={15} /> All game rules</Link>
         </footer>

@@ -142,9 +142,11 @@ parser = argparse.ArgumentParser()
 parser.add_argument('data', type=Path)
 parser.add_argument('assets', type=Path)
 parser.add_argument('--docx', type=Path)
+parser.add_argument('--docx-only', action='store_true')
 args = parser.parse_args()
 games = json.loads(args.data.read_text())
-for game in games:
-    make_pdf(game, args.assets / f"{game['routeId']}.pdf")
+if not args.docx_only:
+    for game in games:
+        make_pdf(game, args.assets / f"{game['routeId']}.pdf")
 if args.docx:
     make_docx(games, args.assets, args.docx)
