@@ -8,6 +8,32 @@ const source = readFileSync(new URL('../src/data/gameRules.ts', import.meta.url)
 const { outputText } = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext } });
 const { gameRules, gameRuleGroups } = await import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`);
 
+test('every game has a stable public route and matching individual PDF and QR', async () => {
+  const routesSource = readFileSync(new URL('../src/data/gameRuleRoutes.ts', import.meta.url), 'utf8');
+  const compiled = ts.transpileModule(routesSource, { compilerOptions: { module: ts.ModuleKind.ESNext } });
+  const { gameRuleRouteIds, gameRulePath } = await import(`data:text/javascript;base64,${Buffer.from(compiled.outputText).toString('base64')}`);
+  const manifest = JSON.parse(readFileSync(new URL('../public/game-rules/manifest.json', import.meta.url), 'utf8'));
+  const hash = data => createHash('sha256').update(data).digest('hex');
+  assert.equal(manifest.sourceSha256, hash(source), 'Regenerate individual game PDFs after editing rules');
+  assert.equal(manifest.routesSha256, hash(routesSource));
+  assert.equal(manifest.games.length, gameRules.length);
+  assert.equal(new Set(Object.values(gameRuleRouteIds)).size, gameRules.length);
+  assert.deepEqual(Object.keys(gameRuleRouteIds), gameRules.map(game => game.id));
+  for (const game of gameRules) {
+    const entry = manifest.games.find(item => item.id === game.id);
+    assert.equal(entry.routeId, gameRuleRouteIds[game.id]);
+    assert.equal(entry.url, `https://pinkd.hashtag.dance${gameRulePath(game.id)}`);
+    const pdf = readFileSync(new URL(`../public/game-rules/${entry.routeId}.pdf`, import.meta.url));
+    const qr = readFileSync(new URL(`../public/game-rules/${entry.routeId}.png`, import.meta.url));
+    assert.equal(pdf.subarray(0, 5).toString(), '%PDF-');
+    assert.equal(hash(pdf), entry.pdfSha256);
+    assert.equal(hash(qr), entry.qrSha256);
+  }
+  const app = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8');
+  assert.match(app, /path="\/games-rules\/:gameId" element={<GameRulePage \/>}/);
+  assert.ok(app.indexOf('path="/games-rules/:gameId"') < app.indexOf('<ProtectedRoute'));
+});
+
 test('complete PDF matches current rules and is independent of page filters', () => {
   const manifest = JSON.parse(readFileSync(new URL('../public/game-rules-pdf-manifest.json', import.meta.url), 'utf8'));
   const pdf = readFileSync(new URL('../public/PINKD-Game-Rules.pdf', import.meta.url));

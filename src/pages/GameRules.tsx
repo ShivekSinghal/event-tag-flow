@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeft, ArrowUpRight, ChevronDown, Download, Search, ShieldCheck, Trophy, X } from "lucide-react";
 import { gameRuleGroups, gameRules, type GameRuleGroup } from "@/data/gameRules";
+import { gameRulePath } from "@/data/gameRuleRoutes";
+import { GameRuleInstructions } from "@/components/GameRuleInstructions";
 import "./GameRules.css";
 
 export default function GameRules() {
@@ -66,13 +68,9 @@ export default function GameRules() {
               {game.prize && <p className="rules-prize"><Trophy size={15} />{game.prize}</p>}
               <details>
                 <summary>How to play <ChevronDown size={18} /></summary>
-                <ol>{game.rules.map((rule) => (
-                  <li key={typeof rule === "string" ? rule : rule.title}>
-                    {typeof rule === "string" ? rule : <><strong className="rules-step-title">{rule.title}</strong><p>{rule.body}</p></>}
-                  </li>
-                ))}</ol>
-                {game.note && <p className="rules-note">{game.note}</p>}
+                <GameRuleInstructions game={game} />
               </details>
+              <Link className="rules-game-link" to={gameRulePath(game.id)}>Open game page & PDF <ArrowUpRight size={16} /></Link>
             </article>
           ))}
         </div>

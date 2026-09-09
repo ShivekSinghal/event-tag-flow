@@ -55,6 +55,13 @@
 .pinkd-game-rules .rules-footer a { margin-top: 16px; color: #fafafa; }
 .pinkd-game-rules .rules-footer .rules-qr-link { margin-left: 24px; }
 .pinkd-game-rules :is(a, button, summary):focus-visible { outline: 2px solid #ff007f; outline-offset: 4px; }
+.pinkd-game-rules .rules-game-link { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; margin-top: 10px; font-size: 13px; font-weight: 700; color: #ff409f; }
+.pinkd-game-rules .rules-single { max-width: 820px; }
+.pinkd-game-rules .rules-single h1 { overflow-wrap: anywhere; }
+.pinkd-game-rules .rules-single-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; margin-top: 18px; color: #ff409f; font-size: 15px; }
+.pinkd-game-rules .rules-single-meta .rules-prize { margin-top: 0; }
+.pinkd-game-rules .rules-single-meta .rules-free { color: #62ddad; }
+.pinkd-game-rules .rules-instructions { margin-top: 30px; border-top: 1px solid #303030; padding-top: 12px; }
 @media (max-width: 760px) {
   .pinkd-game-rules .rules-wrap { padding-inline: 18px; }
   .pinkd-game-rules .rules-header .rules-wrap { min-height: 72px; gap: 12px; }
