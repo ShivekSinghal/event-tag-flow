@@ -22,6 +22,25 @@ export const EVENT_TIME_SLOTS = [
   "Thursday, Sept 10 @ 8:00 PM",
 ];
 
+// Preserve all four canonical slots for historical bookings and reports.
+// Wednesday's completed sessions are no longer offered for new bookings.
+export const BOOKABLE_EVENT_TIME_SLOTS = EVENT_TIME_SLOTS.slice(2);
+
+export function isBookableEventSlot(slot: string) {
+  return BOOKABLE_EVENT_TIME_SLOTS.includes(slot);
+}
+
+export function isPackageBookable(option: EventPackageOption) {
+  return (option.intensiveCount || 0) <= BOOKABLE_EVENT_TIME_SLOTS.length;
+}
+
+export function areBookingSlotsValid(option: EventPackageOption, slots: string[]) {
+  return isPackageBookable(option)
+    && slots.length === (option.intensiveCount || 0)
+    && new Set(slots).size === slots.length
+    && slots.every(isBookableEventSlot);
+}
+
 export const EVENT_PACKAGE_OPTIONS: EventPackageOption[] = [
   {
     id: "one-intensive",

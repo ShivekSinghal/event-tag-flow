@@ -68,6 +68,9 @@ import {
   EventPackageOption,
   formatEventPrice,
   getDefaultTimeSlots,
+  areBookingSlotsValid,
+  isBookableEventSlot,
+  isPackageBookable,
   isPackageRevealed,
   normalizeEventPackage,
 } from "@/lib/eventPackages";
@@ -411,7 +414,7 @@ export default function EventLanding() {
   }, [eventOptions, revealClock]);
 
   const revealedEventOptions = useMemo(
-    () => eventOptions.filter((option) => isPackageRevealed(option, revealClock)),
+    () => eventOptions.filter((option) => isPackageRevealed(option, revealClock) && isPackageBookable(option)),
     [eventOptions, revealClock],
   );
 
@@ -419,22 +422,23 @@ export default function EventLanding() {
   // moment Pay is clicked; everything shown here is display only.
   const partyPhase = partyStatus?.phase ?? null;
   const partyMeter = useMemo(() => getPartyMeter(partyPhase), [partyPhase]);
-  const sessionAvailability = useMemo(() => getSessionAvailability(partyStatus), [partyStatus]);
+  const sessionAvailability = useMemo(
+    () => getSessionAvailability(partyStatus).filter((session) => isBookableEventSlot(session.label)),
+    [partyStatus],
+  );
   const soldOutSlots = useMemo(
     () => new Set(sessionAvailability.filter((session) => session.soldOut).map((session) => session.label)),
     [sessionAvailability],
   );
-  const anySessionSoldOut = soldOutSlots.size > 0;
-  const allSessionsSoldOut = soldOutSlots.size >= EVENT_TIME_SLOTS.length;
   const isOptionSoldOut = useCallback(
     (option: EventPackageOption | null | undefined) => {
       if (!option) return false;
       const intensives = option.intensiveCount || 0;
-      if (intensives >= EVENT_TIME_SLOTS.length) return anySessionSoldOut;
-      if (intensives > 0) return allSessionsSoldOut || EVENT_TIME_SLOTS.length - soldOutSlots.size < intensives;
+      if (!isPackageBookable(option)) return true;
+      if (intensives > 0) return sessionAvailability.length - soldOutSlots.size < intensives;
       return false;
     },
-    [allSessionsSoldOut, anySessionSoldOut, soldOutSlots],
+    [sessionAvailability.length, soldOutSlots],
   );
   const displayEventOptions = useMemo(
     () =>
@@ -532,6 +536,7 @@ export default function EventLanding() {
   }, [displayEventOptions]);
 
   const openPackageModal = (option: EventPackageOption) => {
+    if (!isPackageBookable(option)) return;
     setConfirmedOrder(null);
     setSelectedPackage(option);
     setPendingSlots(getDefaultTimeSlots(option));
@@ -539,6 +544,7 @@ export default function EventLanding() {
   };
 
   const togglePendingSlot = (slot: string) => {
+    if (!isBookableEventSlot(slot)) return;
     if (!selectedPackage?.intensiveCount || selectedPackage.intensiveCount >= EVENT_TIME_SLOTS.length) return;
 
     if (soldOutSlots.has(slot)) {
@@ -564,7 +570,7 @@ export default function EventLanding() {
     if (pendingSlots.length >= selectedPackage.intensiveCount) {
       toast({
         title: "That's Your Limit",
-        description: `This pass covers ${selectedPackage.intensiveCount} sessions. Deselect one first, or book 4 Intensives to attend everything.`,
+        description: `This pass covers ${selectedPackage.intensiveCount} sessions. Deselect one first.`,
         variant: "destructive",
       });
       return;
@@ -588,7 +594,7 @@ export default function EventLanding() {
     const allowedSlots = selectedPackage.intensiveCount || 0;
     const selectedTimeSlots = allowedSlots >= EVENT_TIME_SLOTS.length ? EVENT_TIME_SLOTS : pendingSlots;
 
-    if (allowedSlots > 0 && allowedSlots < EVENT_TIME_SLOTS.length && selectedTimeSlots.length !== allowedSlots) {
+    if (!areBookingSlotsValid(selectedPackage, selectedTimeSlots)) {
       toast({
         title: allowedSlots === 1 ? "Pick Your Session" : `Pick ${allowedSlots} Sessions`,
         description: allowedSlots === 1
@@ -652,6 +658,15 @@ export default function EventLanding() {
       toast({
         title: "Cart Is Empty",
         description: "Add at least one pass before checkout.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (cartLines.some((line) => !areBookingSlotsValid(line.option, line.selectedTimeSlots))) {
+      toast({
+        title: "Session No Longer Available",
+        description: "Remove the affected pass and choose from the remaining Thursday sessions.",
         variant: "destructive",
       });
       return;
@@ -886,7 +901,7 @@ export default function EventLanding() {
       ? partyMeter.stickyLine
       : primaryGroupOption?.pax
         ? `Crews from ${formatEventPrice(Math.round(primaryGroupOption.priceInr / primaryGroupOption.pax))} per head`
-        : "Crews from ₹4,800 per head";
+        : "Intensives and party passes";
   const crewSoldOut = isOptionSoldOut(primaryGroupOption);
   const renderSessionNotes = () => {
     const notes = sessionAvailability.map((session) => ({ session, note: getSeatNote(session) })).filter((entry) => entry.note);
@@ -915,7 +930,7 @@ export default function EventLanding() {
           <div className="price">{formatEventPrice(option.priceInr)}</div>
           <ul className="incl">
             <li><CheckCircle2 />One 90-minute session, Rajouri Garden</li>
-            <li><CheckCircle2 />You choose the day and time — styles drop closer to the date</li>
+            <li><CheckCircle2 />Choose Thursday at 6:00 PM or 8:00 PM</li>
             <li className="dim">No party entry</li>
           </ul>
           {renderSessionNotes()}
@@ -928,12 +943,12 @@ export default function EventLanding() {
         <>
           <div>
             <h3>2 Intensives</h3>
-            <div className="sub">Pick any two sessions</div>
+            <div className="sub">Both Thursday sessions</div>
           </div>
           <div className="price">{formatEventPrice(option.priceInr)}</div>
           <ul className="incl">
-            <li><CheckCircle2 />Two sessions, either evening or one each</li>
-            <li><CheckCircle2 />You choose the days and times</li>
+            <li><CheckCircle2 />Two sessions on Thursday, September 10</li>
+            <li><CheckCircle2 />6:00 PM and 8:00 PM, Rajouri Garden</li>
             <li className="dim">No party entry</li>
           </ul>
           {renderSessionNotes()}
@@ -1072,7 +1087,7 @@ export default function EventLanding() {
             </div>
             <div className="hero-cta">
               <a className="btn btn-pink" href="#passes">Book your pass</a>
-              <a className="btn btn-ghost" href="#crew">{crewCtaLabel}</a>
+              {primaryGroupOption ? <a className="btn btn-ghost" href="#crew">{crewCtaLabel}</a> : null}
             </div>
             <div className="cause-pill-wrap">
               <span className="cause-pill">
@@ -1150,10 +1165,10 @@ export default function EventLanding() {
       <section id="schedule">
         <div className="wrap">
           <div className="sec-head">
-            <span className="kicker">The three days · 7th anniversary edition</span>
-            <h2>Two days to elevate. One night to celebrate.</h2>
+            <span className="kicker">Still to come · 7th anniversary edition</span>
+            <h2>One evening to elevate. One night to celebrate.</h2>
             <p className="lead">
-              Two evenings of intensives at the Hashtag Rajouri Garden studio, then the whole floor heads to a farmhouse in Sector 58 for a night that runs till the sun comes up.
+              Thursday's intensives at the Hashtag Rajouri Garden studio, then the whole floor heads to a farmhouse in Sector 58 on Friday for a night that runs till the sun comes up.
             </p>
           </div>
           <div className="days">
@@ -1191,7 +1206,7 @@ export default function EventLanding() {
                 venueUrl: partyDirectionsUrl,
                 party: true,
               },
-            ].map((day) => (
+            ].filter((day) => day.party || day.slots.some((slot) => sessionAvailability.some((session) => session.key === slot[3]))).map((day) => (
               <article
                 className={`day ${day.party ? "party" : ""}`}
                 key={day.date}
@@ -1243,13 +1258,13 @@ export default function EventLanding() {
         <div className="wrap">
           <div className="sec-head">
             <span className="kicker">Faculty</span>
-            <h2>Four rooms. Ten teachers.</h2>
+            <h2>Thursday's faculty.</h2>
             <p className="lead">
-              Every session is co-led by Hashtag company members. Styles drop on Instagram before the event — a full pass gets you into all four, whatever they turn out to be.
+              Every session is co-led by Hashtag company members. Choose one or both of the remaining Thursday intensives.
             </p>
           </div>
           <div className="fac-grid">
-            {facultyCards.map(({ time, names, label, image }) => (
+            {facultyCards.filter((_, index) => isBookableEventSlot(EVENT_TIME_SLOTS[index])).map(({ time, names, label, image }) => (
               <a className="fac" href="#passes" key={label}>
                 <img src={image} alt={names} />
                 <div className="info">
@@ -1312,15 +1327,15 @@ export default function EventLanding() {
         <div className="wrap">
           <div className="sec-head">
             <span className="kicker">Passes</span>
-            <h2>Come alone. Or come as a crew and pay less.</h2>
+            <h2>Book the remaining intensives. Join the party.</h2>
             <p className="lead">
-              Bundle prices are flat — they don't move with the party phase. Group passes lock in the lowest per-head rate we offer.
+              Choose one or both Thursday sessions, or book your Friday party entry.
             </p>
           </div>
 
           {packagesLoading ? <div className="loading-card">Loading available packages...</div> : null}
 
-          <div className="crew-grid" id="crew">
+          {primaryGroupOption || secondaryGroupOption ? <div className="crew-grid" id="crew">
             {primaryGroupOption ? (
               <article className="crewcard">
                 <span className="ribbon">Best value · Crew of {primaryGroupOption.pax || 10}</span>
@@ -1386,11 +1401,11 @@ export default function EventLanding() {
                 </div>
               </article>
             ) : null}
-          </div>
+          </div> : null}
 
-          <p className="custom">
+          {primaryGroupOption ? <p className="custom">
             Crew of 7, 12, 20? <a href="https://wa.me/919205488417?text=Hi%2C%20I%20want%20a%20custom%20crew%20quote%20for%20Pink%27d" target="_blank" rel="noopener noreferrer">Message us for a custom quote</a> — studios and colleges welcome.
-          </p>
+          </p> : null}
 
           <div className="divider">Individual passes</div>
           <div className="solo-grid">
@@ -1888,8 +1903,8 @@ export default function EventLanding() {
             [
               "Do I pick my intensive sessions?",
               smallIntensivePassesLive
-                ? "A 4-intensive or full pass covers all four sessions across both evenings. With 1 Intensive you pick any one session, with 2 Intensives any two — day and time only; styles are announced closer to the date. Each session is capped at 120 seats, and a full session is greyed out in the picker."
-                : "A 4-intensive or full pass covers all four sessions across both evenings. Each session is capped at 120 seats. Styles are announced closer to the date.",
+                ? "Choose Thursday at 6:00 PM or 8:00 PM with 1 Intensive, or both with 2 Intensives. Wednesday's sessions have ended and are no longer available for new bookings. Each session is capped at 120 seats; full sessions are disabled in the picker. Existing passes remain valid for the sessions they include."
+                : "Wednesday's sessions have ended. Only remaining sessions are offered for new bookings, subject to availability. Existing passes remain valid for the sessions they include.",
             ],
             [
               "How do I get Pink'd Coins for the games?",
