@@ -678,6 +678,7 @@ export type Database = {
       }
       games: {
         Row: {
+          contributes_to_dare_board: boolean
           activity_group: string
           pricing_mode: string
           available: boolean
@@ -695,6 +696,7 @@ export type Database = {
         }
         Insert: {
           activity_group?: string
+          contributes_to_dare_board?: boolean
           pricing_mode?: string
           available?: boolean
           awards_pinkredible?: boolean
@@ -711,6 +713,7 @@ export type Database = {
         }
         Update: {
           activity_group?: string
+          contributes_to_dare_board?: boolean
           pricing_mode?: string
           available?: boolean
           awards_pinkredible?: boolean
