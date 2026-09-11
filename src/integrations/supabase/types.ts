@@ -1182,6 +1182,7 @@ export type Database = {
       expire_stale_event_orders: { Args: never; Returns: number }
       get_event_party_status: { Args: never; Returns: Json }
       get_event_live_sales: { Args: never; Returns: Json }
+      get_donation_collection_progress: { Args: never; Returns: Json }
       get_party_entry_counts: {
         Args: never
         Returns: {
