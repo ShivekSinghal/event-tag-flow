@@ -27,7 +27,7 @@ const navigation = [
   { name: "POS Sale", href: "/pos", icon: ShoppingCart },
   { name: "Pinkredibles", href: "/pinkredibles", icon: Ticket },
   { name: "Check Coins", href: "/balance", icon: CreditCard },
-  { name: "Donation Progress", href: "/donation-progress", icon: TrendingUp },
+  { name: "Progress", href: "/dare-board", icon: TrendingUp },
   { name: "Cash Desk", href: "/cash-booking", icon: Banknote },
 ];
 
@@ -98,7 +98,7 @@ export default function Layout() {
               <nav className="p-4">
                 <ul className="space-y-2">
                   {filteredNavigation.map((item) => {
-                    const isActive = location.pathname === item.href;
+                    const isActive = location.pathname === item.href || (item.href === '/dare-board' && location.pathname === '/donation-progress');
                     const Icon = item.icon;
                     
                     return (
@@ -130,7 +130,7 @@ export default function Layout() {
           <nav className="p-4">
             <ul className="space-y-2">
               {filteredNavigation.map((item) => {
-                const isActive = location.pathname === item.href;
+                const isActive = location.pathname === item.href || (item.href === '/dare-board' && location.pathname === '/donation-progress');
                 const Icon = item.icon;
                 
                 return (

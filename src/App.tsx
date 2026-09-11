@@ -15,6 +15,8 @@ import POS from "./pages/POS";
 import Pinkredibles from "./pages/Pinkredibles";
 import Balance from "./pages/Balance";
 import DonationProgress from "./pages/DonationProgress";
+import DareBoard from "./pages/DareBoard";
+import ProgressTabs from "./pages/ProgressTabs";
 import EventLanding from "./pages/EventLanding";
 import CoinsPage from "./pages/CoinsPage";
 import AttendeesPage from "./pages/AttendeesPage";
@@ -72,7 +74,10 @@ const App = () => (
                   <Balance />
                 </ProtectedRoute>
               } />
-              <Route path="donation-progress" element={<DonationProgress />} />
+              <Route element={<ProtectedRoute requiredRole="admin"><ProgressTabs /></ProtectedRoute>}>
+                <Route path="dare-board" element={<DareBoard />} />
+                <Route path="donation-progress" element={<DonationProgress />} />
+              </Route>
             </Route>
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />

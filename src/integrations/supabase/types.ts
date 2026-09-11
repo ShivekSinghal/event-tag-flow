@@ -1086,6 +1086,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_dare_board_progress: {
+        Args: { p_before_created_at?: string; p_before_id?: string }
+        Returns: Json
+      }
       get_event_admission_report: {
         Args: { p_event_number?: number }
         Returns: Json

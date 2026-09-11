@@ -60,8 +60,9 @@ try {
     await page.screenshot({path:'/tmp/pinkd-collections-fullscreen-'+width+'.png'});
     await page.getByRole('button',{name:'Exit fullscreen',exact:true}).click();
     const before=requests;await page.waitForTimeout(15500);assert.ok(requests>before);
-    role='staff';await page.reload();await page.getByRole('alert').filter({hasText:'Admin access'}).waitFor();
-    const denied=requests;await page.waitForTimeout(600);assert.equal(requests,denied);
+    const denied=requests;role='staff';await page.reload();await page.waitForURL('**/pos');
+    assert.equal(await page.getByTestId('collection-total').count(),0);
+    await page.waitForTimeout(600);assert.equal(requests,denied);
     assert.deepEqual(errors,[]);console.log('PASS '+width+'px: animation tiers, duplicate and racing totals, refunds, offline, reduced motion, fullscreen, polling, admin-only access');
     await context.close();
   }

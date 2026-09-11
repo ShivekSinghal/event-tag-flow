@@ -1,0 +1,91 @@
+.dare-board { --dare-pink:#ff007f; --dare-cyan:#65e8f4; position:relative; isolation:isolate; background:#060609 url('/dare-board-background.png') center/cover; color:#fff; min-width:0; overflow:hidden; font-family:Manrope,Arial,sans-serif; letter-spacing:0; border:1px solid #303037; border-radius:8px; }
+.dare-board::before { content:''; position:absolute; inset:0; background:#0006; z-index:-1; }
+.dare-board.has-overlay { z-index:60; }
+.dare-board button { cursor:pointer; }
+.dare-board button:disabled { cursor:default; }
+.dare-board button:focus-visible { outline:3px solid var(--dare-cyan); outline-offset:5px; }
+.dare-topline { display:flex; align-items:center; gap:16px; padding:20px 28px; }
+.dare-logo { width:96px; height:48px; object-fit:contain; }
+.dare-live { display:flex; align-items:center; gap:8px; margin-left:auto; font-size:12px; font-weight:700; }
+.dare-live>span { width:7px; height:7px; border-radius:50%; background:var(--dare-cyan); }
+.dare-live.is-stale>span { background:#f5c45a; }
+.dare-tools { display:flex; gap:8px; }
+.dare-tools button { display:grid; place-items:center; width:40px; height:40px; border:1px solid #ffffff35; border-radius:6px; background:#0d0d12; }
+.dare-tools button:disabled { opacity:.5; }
+.dare-stage { padding:0 36px 24px; }
+.dare-heading { text-align:center; }
+.dare-heading>p { color:var(--dare-cyan); font-size:11px; font-weight:800; margin:0 0 8px; }
+.dare-heading h1 { margin:0; font-size:58px; font-weight:900; line-height:1; }
+.dare-heading h1 span { color:var(--dare-pink); }
+.dare-score-layout { display:grid; grid-template-columns:1.15fr 1fr; align-items:center; gap:40px; margin:32px auto; max-width:1160px; }
+.dare-caption { font-size:12px; font-weight:800; color:#c7c7d0; }
+.dare-score>strong { font-size:68px; line-height:1.12; font-weight:900; display:block; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.dare-unit { font-size:13px; color:var(--dare-cyan); font-weight:800; margin:6px 0 22px; }
+.dare-sources { display:flex; gap:28px; }
+.dare-sources>div { min-width:0; }
+.dare-sources span { display:flex; gap:6px; align-items:center; font-size:12px; color:#c7c7d0; }
+.dare-sources b { display:block; margin-top:5px; font-size:19px; font-variant-numeric:tabular-nums; }
+.dare-next { border-left:2px solid var(--dare-pink); padding:4px 0 4px 28px; }
+.dare-next-label { display:flex; gap:8px; align-items:center; color:var(--dare-pink); font-size:11px; font-weight:900; }
+.dare-next>strong { display:block; font-size:48px; font-weight:900; line-height:1.2; margin-top:12px; }
+.dare-next-unit { font-size:11px; font-weight:700; color:#bebec9; }
+.dare-meter { height:10px; margin:20px 0 12px; background:#2a202c; border-radius:2px; overflow:hidden; }
+.dare-meter>span { display:block; height:100%; background:var(--dare-pink); box-shadow:0 0 20px #ff007f99; transition:width 1s ease; }
+.dare-next>p { margin:0; color:#c7c7d0; font-size:13px; }.dare-next>p b { color:white; }
+.dare-road-heading { display:flex; justify-content:space-between; gap:12px; border-top:1px solid #ffffff26; padding-top:20px; font-size:11px; font-weight:800; color:#c7c7d0; }
+.dare-road-heading>span:last-child { color:var(--dare-cyan); }
+.dare-trail { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); list-style:none; padding:0; gap:18px 0; margin:22px 0; }
+.dare-trail li { position:relative; min-width:0; text-align:center; }
+.dare-trail li::before { content:''; position:absolute; height:2px; background:#34303b; left:0; right:0; top:22px; z-index:-1; }
+.dare-trail li.is-unlocked::before { background:var(--dare-pink); }
+.dare-trail button { width:100%; min-height:96px; display:flex; align-items:center; flex-direction:column; gap:8px; border:0; color:inherit; background:none; }
+.dare-node { width:46px; height:46px; display:grid; place-items:center; border:1px solid #524653; background:#131016; transform:rotate(45deg); border-radius:6px; }
+.dare-node svg { width:18px; height:18px; transform:rotate(-45deg); color:#bdb3c0; }
+.dare-trail b { margin-top:5px; font-size:14px; line-height:1.1; }.dare-trail small { font-size:9px; font-weight:800; color:#bdb3c0; }
+.dare-trail .is-unlocked .dare-node { background:var(--dare-pink); border-color:var(--dare-pink); }.dare-trail .is-unlocked .dare-node svg { color:white; }
+.dare-trail .is-next .dare-node { border-color:var(--dare-cyan); box-shadow:0 0 15px #65e8f425; }.dare-trail .is-next small,.dare-trail .is-next svg { color:var(--dare-cyan); }
+.dare-footer { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; border-top:1px solid #ffffff26; padding-top:18px; }
+.dare-footer p { display:flex; align-items:center; gap:8px; margin:0; font-size:12px; font-weight:900; }.dare-footer svg { color:var(--dare-pink); }.dare-footer>span { font-size:10px; color:#bfb4c2; }
+.dare-error { color:#ffd078; font-size:12px; padding-top:12px; }
+.dare-board:fullscreen { border:0; border-radius:0; width:100%; height:100%; overflow:auto; display:flex; flex-direction:column; }
+.dare-board:fullscreen .dare-stage { flex:1; display:flex; flex-direction:column; justify-content:center; padding:0 5% 28px; }
+.dare-board:fullscreen .dare-score-layout { width:100%; }.dare-board:fullscreen .dare-trail { grid-template-columns:repeat(11,minmax(0,1fr)); margin:36px 0; }
+.dare-board:fullscreen .dare-heading h1 { font-size:80px; }.dare-board:fullscreen .dare-score>strong { font-size:100px; }.dare-board:fullscreen .dare-next>strong { font-size:64px; }
+.dare-reveal { position:absolute; inset:0; z-index:5; background:#07050bef; display:flex; align-items:center; justify-content:center; padding:32px; min-height:540px; }
+.dare-reveal-art { position:absolute; inset:0; background:url('/dare-board-background.png') center/cover; opacity:.8; pointer-events:none; }
+.dare-reveal-content { position:relative; text-align:center; max-width:700px; animation:dare-unlock .65s cubic-bezier(.2,.8,.2,1) both; }
+.dare-reveal-content>.dare-caption { display:block; color:var(--dare-cyan); }.dare-reveal-amount { display:block; font-size:72px; line-height:1.1; font-weight:900; margin:12px 0 6px; }.dare-reveal-content>span:not(.dare-caption) { font-size:12px; }
+.dare-reveal h2 { font-size:54px; line-height:1.1; margin:22px 0; font-weight:900; }.dare-reveal h2 em { color:var(--dare-pink); }
+.dare-cue { display:flex; align-items:center; justify-content:center; gap:28px; padding:22px 32px; border:2px solid var(--dare-cyan); border-radius:8px; box-shadow:0 0 24px #ff007f77,inset 0 0 22px #65e8f41a; background:#0a070d; }
+.dare-cue>svg { color:var(--dare-pink); flex-shrink:0; }.dare-cue p { font-size:28px; line-height:1.3; margin:0; }.dare-cue b { color:var(--dare-cyan); }
+.dare-reveal-content>button { display:inline-flex; align-items:center; gap:12px; margin-top:28px; background:var(--dare-pink); color:white; border:0; border-radius:6px; padding:13px 20px; font-weight:800; font-size:14px; }
+.dare-spin { animation:dare-spin 1.4s linear infinite; }
+@keyframes dare-spin { to { transform:rotate(360deg); } }
+@keyframes dare-unlock { from { opacity:0; transform:perspective(900px) rotateY(-35deg) scale(.8); } to { opacity:1; transform:perspective(900px) rotateY(0) scale(1); } }
+@media(min-width:1700px) { .dare-board:fullscreen .dare-heading h1 { font-size:104px; }.dare-board:fullscreen .dare-score>strong { font-size:120px; }.dare-board:fullscreen .dare-trail b { font-size:19px; }.dare-board:fullscreen .dare-trail small { font-size:11px; }.dare-board:fullscreen .dare-node { width:58px; height:58px; }.dare-board:fullscreen .dare-trail li::before { top:29px; }.dare-board:fullscreen .dare-score-layout { margin:46px auto; }.dare-board:fullscreen .dare-reveal h2 { font-size:86px; } }
+@media(max-width:1100px) { .dare-score-layout { gap:24px; }.dare-score>strong { font-size:48px; }.dare-next>strong { font-size:38px; }.dare-sources { gap:16px; }.dare-stage { padding-left:22px; padding-right:22px; }.dare-heading h1 { font-size:48px; }.dare-board:fullscreen .dare-trail { grid-template-columns:repeat(6,minmax(0,1fr)); } }
+@media(max-width:650px) { .dare-topline { padding:14px; gap:8px; }.dare-logo { width:72px; height:38px; }.dare-tools { gap:5px; }.dare-tools button { width:34px; height:36px; }.dare-live { font-size:10px; gap:5px; }.dare-heading h1,.dare-board:fullscreen .dare-heading h1 { font-size:38px; }.dare-heading>p { font-size:9px; }.dare-stage { padding:12px 18px 20px; }.dare-score-layout { grid-template-columns:1fr; gap:24px; margin:26px 0; }.dare-score { text-align:center; }.dare-score>strong,.dare-board:fullscreen .dare-score>strong { font-size:50px; }.dare-sources { justify-content:center; gap:28px; }.dare-next { padding-left:18px; }.dare-next>strong,.dare-board:fullscreen .dare-next>strong { font-size:38px; }.dare-trail,.dare-board:fullscreen .dare-trail { grid-template-columns:repeat(3,minmax(0,1fr)); gap:24px 0; }.dare-trail b { font-size:13px; }.dare-road-heading { font-size:9px; }.dare-reveal { position:fixed; padding:24px; min-height:0; overflow:auto; }.dare-board:fullscreen .dare-reveal { position:absolute; }.dare-reveal h2 { font-size:38px; }.dare-reveal-amount { font-size:48px; }.dare-cue { gap:12px; padding:20px 12px; }.dare-cue p { font-size:23px; } }
+@media(prefers-reduced-motion:reduce) { .dare-board *, .dare-board *::before { animation:none!important; transition:none!important; } }
+.dare-last-picker { display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:6px 12px; font-size:12px; color:#d5c9d8; margin:0 0 12px; }
+.dare-last-picker svg,.dare-last-picker b { color:var(--dare-cyan); }.dare-last-picker strong { color:var(--dare-pink); }
+.dare-contributions { border-top:1px solid #ffffff26; margin-bottom:16px; padding-top:12px; }
+.dare-contributions>header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; }
+.dare-contributions h2 { font-size:11px; font-weight:800; margin:0; color:#c7c7d0; }
+.dare-contributions header button { display:flex; align-items:center; gap:6px; color:var(--dare-cyan); background:transparent; border:0; font-size:12px; min-height:30px; font-weight:700; }
+.dare-contribution-feed { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:24px; }
+.dare-contribution-feed>div { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:4px 12px; min-width:0; }
+.dare-contribution-feed b { font-size:17px; display:block; overflow-wrap:anywhere; }.dare-contribution-feed span { font-size:11px; color:#bebec9; }
+.dare-contribution-feed strong { font-size:18px; color:var(--dare-cyan); }.dare-contribution-feed p { grid-column:1/-1; font-size:11px; color:#c7c7d0; margin:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+.dare-contribution-feed .is-voided strong { color:#f5c45a; font-size:13px; }.dare-contribution-empty { grid-column:1/-1; padding:10px 0; }
+.dare-cue>div>span { font-size:12px; color:#d6cfd8; display:block; }.dare-cue p b { display:block; overflow-wrap:anywhere; font-size:36px; margin:3px 0; }.dare-cue>div>p:last-child { margin-top:8px; font-size:20px; }
+.dare-picker-payment { font-size:12px; color:#d6cfd8; margin:14px 0 0; overflow-wrap:anywhere; }
+.dare-log-overlay { position:absolute; inset:0; z-index:4; background:#0c0910fa; padding:28px; display:flex; flex-direction:column; gap:16px; }
+.dare-log-overlay>header { display:flex; align-items:center; justify-content:space-between; gap:16px; }.dare-log-overlay>header p { color:var(--dare-pink); font-size:11px; font-weight:800; margin:0 0 6px; }.dare-log-overlay h2 { font-size:26px; font-weight:800; margin:0; }
+.dare-log-overlay button { display:grid; place-items:center; width:40px; height:40px; border:1px solid #ffffff35; border-radius:6px; background:#17121c; flex-shrink:0; }.dare-log-overlay button:disabled { opacity:.4; }
+.dare-log-note { margin:0; color:#c7c7d0; font-size:12px; }
+.dare-log-scroll { overflow:auto; min-height:0; flex:1; outline-offset:2px; }.dare-log-scroll table { width:100%; min-width:630px; border-collapse:collapse; text-align:left; font-size:13px; }.dare-log-scroll th { position:sticky; top:0; padding:12px; background:#1c1521; color:#bfb4c2; font-weight:600; font-size:12px; z-index:1; }.dare-log-scroll td { padding:12px; border-bottom:1px solid #ffffff1f; }.dare-log-scroll td:nth-child(1),.dare-log-scroll td:nth-child(2) { max-width:220px; overflow-wrap:anywhere; }.dare-log-scroll td:nth-child(3),.dare-log-scroll td:nth-child(4) { white-space:nowrap; }.dare-log-scroll td>span { display:block; color:#afa5b4; font-size:11px; margin-top:4px; }.dare-log-scroll .dare-log-milestone { display:block; font-size:11px; color:var(--dare-cyan); margin-bottom:4px; }.dare-log-scroll td>.dare-void-label { color:#f5c45a; }.dare-log-scroll .is-voided td:nth-child(3) { text-decoration:line-through; color:#afa5b4; }.dare-log-empty { padding:24px 0; font-size:13px; color:#c7c7d0; }
+.dare-log-overlay>footer { display:flex; justify-content:center; align-items:center; gap:18px; font-size:12px; }
+.dare-board:fullscreen .dare-score-layout { margin:24px auto; }.dare-board:fullscreen .dare-trail { margin:22px 0; }.dare-board:fullscreen .dare-stage { padding-bottom:20px; }
+@media(min-width:1700px) { .dare-board:fullscreen .dare-heading h1 { font-size:88px; }.dare-board:fullscreen .dare-score>strong { font-size:100px; }.dare-board:fullscreen .dare-cue p b { font-size:46px; } }
+@media(min-width:1000px) and (max-height:850px) { .dare-board:fullscreen .dare-topline { padding:10px 28px; }.dare-board:fullscreen .dare-stage { padding-bottom:12px; }.dare-board:fullscreen .dare-heading h1 { font-size:58px; }.dare-board:fullscreen .dare-score>strong { font-size:68px; }.dare-board:fullscreen .dare-score-layout { margin:16px auto; }.dare-board:fullscreen .dare-unit { margin-bottom:12px; }.dare-board:fullscreen .dare-next>strong { font-size:44px; }.dare-board:fullscreen .dare-road-heading { padding-top:14px; }.dare-board:fullscreen .dare-trail { margin:16px 0 10px; }.dare-board:fullscreen .dare-contributions { margin-bottom:10px; padding-top:8px; }.dare-board:fullscreen .dare-footer { padding-top:10px; }.dare-board:fullscreen .dare-reveal h2 { font-size:42px; margin:14px 0; }.dare-board:fullscreen .dare-reveal-amount { font-size:56px; }.dare-board:fullscreen .dare-cue { padding:16px 24px; } }
+@media(max-width:650px) { .dare-contribution-feed { grid-template-columns:1fr; gap:14px; }.dare-contribution-feed>div+div { border-top:1px solid #ffffff1c; padding-top:12px; }.dare-last-picker { justify-content:flex-start; font-size:11px; }.dare-contributions h2 { font-size:9px; }.dare-contributions header button { font-size:11px; }.dare-log-overlay { position:fixed; padding:18px; }.dare-board:fullscreen .dare-log-overlay { position:absolute; }.dare-cue p b { font-size:28px; }.dare-cue>div>p:last-child { font-size:17px; }.dare-cue>div>span { font-size:10px; }.dare-reveal-content { min-width:0; }.dare-reveal { align-items:safe center; } }
