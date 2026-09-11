@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { ArrowRight, Check, Flag, Gamepad2, GlassWater, List, LockKeyhole, Maximize, Minimize, RefreshCw, Sparkles, UtensilsCrossed } from 'lucide-react';
+import { ArrowRight, Check, Flag, Gamepad2, GlassWater, List, LockKeyhole, Maximize, Mic, Minimize, RefreshCw, Sparkles, UtensilsCrossed } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { DARE_MILESTONES, crossedDares, dareCheckpoint, dareNumber, dareTime, dareProgressSchema } from '@/lib/dareBoard';
@@ -137,7 +137,7 @@ export default function DareBoard() {
           <strong data-testid="dare-total">{total === undefined ? '--' : dareNumber(total)}</strong>
           <p className="dare-unit">PINK'D COINS SPENT</p>
           <div className="dare-sources">
-            {[{ Icon: Gamepad2, label: 'Tier 1', value: query.data?.tier_1_coins }, { Icon: UtensilsCrossed, label: 'Food', value: query.data?.food_coins }, { Icon: GlassWater, label: 'Bar', value: query.data?.bar_coins }].map(({ Icon, label, value }) =>
+            {[{ Icon: Gamepad2, label: 'Tier 1', value: query.data?.tier_1_coins }, { Icon: UtensilsCrossed, label: 'Food', value: query.data?.food_coins }, { Icon: GlassWater, label: 'Bar', value: query.data?.bar_coins }, { Icon: Mic, label: 'Karaoke & Busk', value: query.data?.performance_coins }].map(({ Icon, label, value }) =>
               <div key={label}><span><Icon size={16} />{label}</span><b>{value === undefined ? '--' : dareNumber(value)}</b></div>)}
           </div>
         </div>
@@ -176,7 +176,7 @@ export default function DareBoard() {
           {!query.data && <p className="dare-contribution-empty">Waiting for confirmed contributions.</p>}
         </div>
       </section>
-      <footer className="dare-footer"><p><Sparkles size={17} />PICK A CARD. GIVE THE DARE.</p><span>{query.data ? `Updated ${new Date(query.data.as_of).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} · Net of voids` : 'Tier 1 games + food + bar'}</span></footer>
+      <footer className="dare-footer"><p><Sparkles size={17} />PICK A CARD. GIVE THE DARE.</p><span>{query.data ? `Updated ${new Date(query.data.as_of).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} · Net of voids` : 'Tier 1 games + food + bar + Karaoke & Busk'}</span></footer>
       {(query.isError || stale || screenError) && <p className="dare-error" role="alert">{screenError || (query.data ? 'Progress is temporarily offline. Showing the last confirmed total.' : 'Live progress is unavailable. Check the connection and Dare Board backend setup, then refresh.')}</p>}
     </div>
 

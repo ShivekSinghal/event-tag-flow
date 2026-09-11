@@ -9,7 +9,7 @@ const contributionSchema = z.object({
   studio: z.string().max(80).nullable(),
   item_name: z.string().max(120),
   coins: count.positive(),
-  source: z.enum(['tier_1', 'food', 'bar']),
+  source: z.enum(['tier_1', 'food', 'bar', 'performances']),
 });
 export type DareContribution = z.infer<typeof contributionSchema>;
 export const dareProgressSchema = z.object({
@@ -17,13 +17,14 @@ export const dareProgressSchema = z.object({
   tier_1_coins: count,
   food_coins: count,
   bar_coins: count,
+  performance_coins: count.default(0),
   counted_sales: count,
   milestone_pickers: z.array(contributionSchema.extend({ milestone: count.refine(value => DARE_MILESTONES.some(m => m === value)) })).max(11),
   recent_transactions: z.array(contributionSchema.extend({ voided: z.boolean() })).max(20),
   latest_transactions: z.array(contributionSchema.extend({ voided: z.boolean() })).max(3),
   log_has_more: z.boolean(),
   as_of: z.string().datetime({ offset: true }),
-}).refine(value => value.total_coins === value.tier_1_coins + value.food_coins + value.bar_coins)
+}).refine(value => value.total_coins === value.tier_1_coins + value.food_coins + value.bar_coins + value.performance_coins)
   .refine(value => {
     const reached = DARE_MILESTONES.filter(m => m <= value.total_coins);
     return reached.length === value.milestone_pickers.length && reached.every(m => value.milestone_pickers.filter(p => p.milestone === m).length === 1);

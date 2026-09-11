@@ -19,11 +19,14 @@ try {
       if (name==='profiles') return route.fulfill({json:{...user,full_name:'Projector Admin',role:'admin'}});
       if (name==='get_dare_board_progress') {
         const makeEntry=(n,first_name,coins,studio)=>({transaction_id:`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`,created_at:`2026-09-11T16:0${n}:00Z`,first_name,coins,studio,item_name:'Spin the Wheel',source:'tier_1',voided:false});
-        const entries=[makeEntry(1,'Rohan',9000,'SD'),...(total>9000?[makeEntry(2,'Mira',1000,'RG'),makeEntry(3,'Asha',15000,'NDA'),makeEntry(4,'Dev',1000,'GGN')]:[])];
+        const entries=[{...makeEntry(1,'Rohan',9000,'SD'),item_name:'Food',source:'food'},...(total>9000?[
+          {...makeEntry(2,'Mira',1000,'RG'),item_name:'Karaoke',source:'performances'},
+          {...makeEntry(3,'Asha',15000,'NDA'),item_name:'Busk for a Cause',source:'performances'},
+          makeEntry(4,'Dev',1000,'GGN')]:[])];
         const older=route.request().postDataJSON()?.p_before_id;
         return fail
         ? route.fulfill({status:503,json:{message:'Unavailable'}})
-        : route.fulfill({json:{total_coins:total,tier_1_coins:total-3000,food_coins:1000,bar_coins:2000,counted_sales:entries.length,as_of:new Date().toISOString(),
+        : route.fulfill({json:{total_coins:total,tier_1_coins:total>9000?1000:0,food_coins:9000,bar_coins:0,...(total>9000?{performance_coins:16000}:{}),counted_sales:entries.length,as_of:new Date().toISOString(),
           milestone_pickers:total>9000?[{...entries[1],milestone:10000},{...entries[2],milestone:25000}]:[],
           latest_transactions:entries.slice(-3).reverse(),recent_transactions:older?[entries[0]]:entries.slice(-3).reverse(),log_has_more:total>9000&&!older}});
       }
@@ -39,6 +42,7 @@ try {
     });
     await page.goto(base+'/dare-board');
     await page.getByTestId('dare-total').getByText('9,000').waitFor();
+    await page.locator('.dare-sources').getByText('Karaoke & Busk',{exact:true}).waitFor();
     assert.equal(await page.getByRole('dialog').count(),0);
     assert.equal(await page.getByRole('list',{name:'Milestones'}).getByRole('button').count(),11);
     if(width>1000) {
@@ -55,18 +59,22 @@ try {
     if (width!==1920) await page.getByRole('button',{name:'Refresh progress'}).click();
     await page.getByRole('dialog').getByText('10,000',{exact:true}).waitFor();
     await page.getByRole('dialog').getByText('Mira',{exact:true}).waitFor();
+    await page.getByRole('dialog').getByText(/Karaoke.*1,000 coins/).waitFor();
     assert.equal(await page.getByRole('dialog').getByText('Dev',{exact:true}).count(),0);
     await finishAnimations();
     await page.screenshot({path:`/tmp/dare-board-unlock-${width}.png`});
     await page.getByRole('button',{name:'Next unlocked dare'}).click();
     await page.getByRole('dialog').getByText('25,000',{exact:true}).waitFor();
     await page.getByRole('dialog').getByText('Asha',{exact:true}).waitFor();
+    await page.getByRole('dialog').getByText(/Busk for a Cause.*15,000 coins/).waitFor();
     assert.equal(await page.getByRole('button',{name:'Back to the board'}).evaluate(el=>el===document.activeElement),true);
     await page.getByRole('button',{name:'Back to the board'}).click();
+    await page.locator('.dare-sources').getByText('16,000',{exact:true}).waitFor();
     if(width>1000) assert.equal(await page.locator('.dare-board').evaluate(el=>el.scrollHeight>el.clientHeight+1),false,'picker and contribution feed must fit projector');
     await page.getByRole('button',{name:'Transaction log'}).click();
     const log=page.getByRole('dialog',{name:'Contribution log'});
     await log.getByText('Mira',{exact:true}).waitFor();
+    assert.equal(await log.getByText('Karaoke & Busk',{exact:true}).count(),2);
     assert.equal(await log.getByText(/Card picker/).count(),2);
     await page.screenshot({path:`/tmp/dare-board-log-${width}.png`});
     await log.getByRole('button',{name:'Older contributions'}).click();
